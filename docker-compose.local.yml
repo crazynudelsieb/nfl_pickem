@@ -68,12 +68,14 @@ services:
       - no-new-privileges:true
 
   web:
-    image: ghcr.io/crazynudelsieb/nfl_pickem:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: nfl_pickem_web
     env_file:
       - .env
     environment:
-      - FLASK_ENV=production
+      - FLASK_ENV=development
       - DATABASE_URL=postgresql+psycopg://${DB_USER:-nfl_user}:${DB_PASSWORD}@db:5432/${DB_NAME:-nfl_pickem_db}
       - CACHE_REDIS_URL=redis://redis:6379/0
       - CACHE_TYPE=RedisCache
@@ -87,6 +89,7 @@ services:
         condition: service_healthy
     volumes:
       - ./logs:/app/logs
+      - .:/app  # Mount source for development
     restart: unless-stopped
     deploy:
       resources:
@@ -109,8 +112,6 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
-
-
 
 volumes:
   postgres_data:

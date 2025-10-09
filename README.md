@@ -15,11 +15,9 @@ A modern Progressive Web App for managing NFL Pick'em leagues with real-time upd
 
 ## Quick Start
 
-### Prerequisites
-- Docker & Docker Compose
-- Git
+## Quick Start
 
-### Installation
+### Using Pre-built Images (Recommended)
 
 ```bash
 # Clone repository
@@ -29,11 +27,24 @@ cd nfl_pickem
 # Generate secrets
 python generate_secrets.py
 
-# Start application
-docker compose up --build -d
+# Start with pre-built images
+docker compose up -d
 
 # Access at http://localhost:5000
 ```
+
+### Building Locally
+
+```bash
+# Use local development compose
+docker compose -f docker-compose.local.yml up --build -d
+```
+
+For detailed build instructions including multi-architecture builds, see [BUILD.md](BUILD.md).
+
+### Prerequisites
+- Docker & Docker Compose
+- Git
 
 ### Create Admin User
 
