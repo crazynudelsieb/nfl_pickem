@@ -65,7 +65,7 @@ Use the provided `build-multiarch.ps1` script for local multi-architecture build
 
 #### Script Features
 
-- **Multi-platform support**: linux/amd64, linux/arm64, linux/arm/v7
+- **Multi-platform support**: linux/amd64, linux/arm64
 - **Semantic versioning**: Automatic tagging with major.minor and major versions
 - **Registry authentication**: Interactive GitHub login if not authenticated
 - **Build caching**: Optimized layer caching for faster builds
@@ -77,7 +77,6 @@ Use the provided `build-multiarch.ps1` script for local multi-architecture build
 |----------|-------------|----------|
 | linux/amd64 | x86_64 | Standard servers, dev machines |
 | linux/arm64 | ARM64/v8 | Apple Silicon, AWS Graviton |
-| linux/arm/v7 | ARMv7 | Raspberry Pi, IoT devices |
 
 ### Manual Build Commands
 
@@ -89,7 +88,7 @@ echo $env:GITHUB_TOKEN | docker login ghcr.io -u your-username --password-stdin
 
 # Build and push multi-arch image
 docker buildx build `
-  --platform linux/amd64,linux/arm64,linux/arm/v7 `
+  --platform linux/amd64,linux/arm64 `
   --tag ghcr.io/your-username/nfl_pickem:latest `
   --tag ghcr.io/your-username/nfl_pickem:1.0.0 `
   --push .
