@@ -1,0 +1,247 @@
+{% extends "base.html" %}
+
+{% block title %}Home - NFL Pick'em{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- Hero Section -->
+    <div class="text-center py-12">
+        <h1 class="text-4xl font-bold text-gray-900 mb-4">
+            Welcome to NFL Pick'em 2025
+        </h1>
+        <p class="text-xl text-gray-600 mb-8 max-w-3xl mx-auto">
+            Make your weekly picks, compete with friends, and see who knows the NFL best. 
+            Join groups, track your performance, and climb the leaderboards!
+        </p>
+        
+        {% if not current_user.is_authenticated %}
+        <div class="space-x-4">
+            <a href="{{ url_for('auth.register') }}" class="btn btn-primary btn-lg">
+                Get Started
+            </a>
+            <a href="{{ url_for('auth.login') }}" class="btn btn-secondary btn-lg">
+                Sign In
+            </a>
+        </div>
+        {% else %}
+        <div class="space-x-4">
+            <a href="{{ url_for('main.current_picks') }}" class="btn btn-primary btn-lg">
+                Make Your Picks
+            </a>
+            <a href="{{ url_for('main.leaderboard') }}" class="btn btn-secondary btn-lg">
+                View Leaderboard
+            </a>
+        </div>
+        {% endif %}
+    </div>
+
+    {% if current_user.is_authenticated %}
+    <!-- Quick Stats -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div class="stat-card">
+            <div class="stat-number">{{ user_stats.total_picks or 0 }}</div>
+            <div class="stat-label">Total Picks Made</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-number">{{ user_stats.correct_picks or 0 }}</div>
+            <div class="stat-label">Correct Picks</div>
+            {% if user_stats.total_picks and user_stats.total_picks > 0 %}
+            <div class="stat-change positive">
+                {{ "%.1f"|format((user_stats.correct_picks / user_stats.total_picks) * 100) }}% accuracy
+            </div>
+            {% endif %}
+        </div>
+        <div class="stat-card">
+            <div class="stat-number">{{ user_stats.current_streak or 0 }}</div>
+            <div class="stat-label">Current Streak</div>
+        </div>
+    </div>
+
+    <!-- Current Week Games -->
+    {% if current_week_games %}
+    <div class="mb-8">
+        <div class="flex justify-between items-center mb-4">
+            <h2 class="text-2xl font-bold text-gray-900">
+                Week {{ current_week }} Games
+            </h2>
+            <a href="{{ url_for('main.current_picks') }}" class="btn btn-primary">
+                Make Picks
+            </a>
+        </div>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {% for game in current_week_games[:6] %}
+            <div class="card game-card">
+                <div class="card-body">
+                    <div class="flex justify-between items-center mb-2">
+                        <div class="team-info">
+                            <img src="{{ game.away_team.logo_url or '/static/images/nfl-logo.png' }}" 
+                                 alt="{{ game.away_team.name }}" class="team-logo">
+                            <div>
+                                <div class="team-name">{{ game.away_team.abbreviation }}</div>
+                                <div class="team-record">({{ game.away_team.wins }}-{{ game.away_team.losses }})</div>
+                            </div>
+                        </div>
+                        <div class="text-center">
+                            <div class="text-sm text-gray-500">@</div>
+                        </div>
+                        <div class="team-info">
+                            <div class="text-right">
+                                <div class="team-name">{{ game.home_team.abbreviation }}</div>
+                                <div class="team-record">({{ game.home_team.wins }}-{{ game.home_team.losses }})</div>
+                            </div>
+                            <img src="{{ game.home_team.logo_url or '/static/images/nfl-logo.png' }}" 
+                                 alt="{{ game.home_team.name }}" class="team-logo">
+                        </div>
+                    </div>
+                    
+                    <div class="text-center">
+                        {% if game.status == 'completed' %}
+                        <div class="game-score">
+                            {{ game.away_score }} - {{ game.home_score }}
+                        </div>
+                        <div class="badge badge-success">Final</div>
+                        {% elif game.status == 'in_progress' %}
+                        <div class="game-score">
+                            {{ game.away_score or 0 }} - {{ game.home_score or 0 }}
+                        </div>
+                        <div class="badge badge-warning">Live</div>
+                        {% else %}
+                        <div class="game-time">
+                            {{ game.game_time.strftime('%a %m/%d %I:%M %p') }}
+                        </div>
+                        <div class="badge badge-gray">Upcoming</div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        
+        {% if current_week_games|length > 6 %}
+        <div class="text-center mt-4">
+            <a href="{{ url_for('main.current_picks') }}" class="btn btn-secondary">
+                View All {{ current_week_games|length }} Games
+            </a>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- Your Groups -->
+    {% if user_groups %}
+    <div class="mb-8">
+        <div class="flex justify-between items-center mb-4">
+            <h2 class="text-2xl font-bold text-gray-900">Your Groups</h2>
+            <a href="{{ url_for('groups.create') }}" class="btn btn-primary">
+                Create Group
+            </a>
+        </div>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {% for group in user_groups %}
+            <div class="card">
+                <div class="card-body">
+                    <div class="flex justify-between items-start mb-2">
+                        <h3 class="text-lg font-semibold text-gray-900">
+                            {{ group.name }}
+                        </h3>
+                        {% if group.is_private %}
+                        <span class="badge badge-gray">Private</span>
+                        {% else %}
+                        <span class="badge badge-info">Public</span>
+                        {% endif %}
+                    </div>
+                    
+                    {% if group.description %}
+                    <p class="text-sm text-gray-600 mb-3">
+                        {{ group.description[:100] }}{% if group.description|length > 100 %}...{% endif %}
+                    </p>
+                    {% endif %}
+                    
+                    <div class="flex justify-between items-center">
+                        <span class="text-sm text-gray-500">
+                            {{ group.get_member_count() }} members
+                        </span>
+                        <a href="{{ url_for('groups.index', group=group.slug) }}" class="btn btn-sm btn-primary">
+                            View Group
+                        </a>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+    {% endif %}
+
+    <!-- Features Section (for non-authenticated users) -->
+    {% if not current_user.is_authenticated %}
+    <div class="py-12">
+        <h2 class="text-3xl font-bold text-center text-gray-900 mb-12">
+            Why Choose NFL Pick'em?
+        </h2>
+        
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div class="text-center">
+                <div class="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <svg class="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 00-2-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2H9z"></path>
+                    </svg>
+                </div>
+                <h3 class="text-xl font-semibold text-gray-900 mb-2">
+                    Weekly Picks
+                </h3>
+                <p class="text-gray-600">
+                    Make your predictions for every NFL game each week and track your accuracy over time.
+                </p>
+            </div>
+            
+            <div class="text-center">
+                <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <svg class="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                    </svg>
+                </div>
+                <h3 class="text-xl font-semibold text-gray-900 mb-2">
+                    Group Competition
+                </h3>
+                <p class="text-gray-600">
+                    Create or join groups with friends, family, or coworkers to compete head-to-head.
+                </p>
+            </div>
+            
+            <div class="text-center">
+                <div class="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <svg class="w-8 h-8 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"></path>
+                    </svg>
+                </div>
+                <h3 class="text-xl font-semibold text-gray-900 mb-2">
+                    Live Scoring
+                </h3>
+                <p class="text-gray-600">
+                    Real-time score updates and leaderboards keep you engaged throughout the season.
+                </p>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Auto-refresh game scores every 30 seconds if there are live games
+    {% if current_week_games %}
+    const hasLiveGames = {{ (current_week_games | selectattr('status', 'equalto', 'in_progress') | list | length > 0) | tojson }};
+    
+    if (hasLiveGames) {
+        setInterval(() => {
+            // Refresh the page to get updated scores
+            window.location.reload();
+        }, 30000); // 30 seconds
+    }
+    {% endif %}
+</script>
+{% endblock %}

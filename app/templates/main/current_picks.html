@@ -1,0 +1,1334 @@
+{% extends "base.html" %}
+
+{% block title %}Week {{ current_week }} Picks - NFL Pick'em{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- Enhanced Stats Header -->
+        <div class="leaderboard-card mb-6">
+        <div class="leaderboard-header">
+            <h2 class="leaderboard-title" style="font-size: 1.375rem; margin: 0;">
+                🏈 Week {{ current_week }} - {{ current_group.name }}
+            </h2>
+            <p style="color: var(--text-secondary); margin: 0.5rem 0 0 0; font-size: 0.875rem;">
+                Your group statistics
+            </p>
+        </div>
+        
+        <!-- Statistics Display -->
+        <div>
+            <div id="stats-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 0.875rem; padding: 1rem;">
+                <div style="text-align: center; padding: 0.875rem 0.5rem; background: var(--bg-tertiary); border-radius: 6px; border: 1px solid var(--border-color);">
+                    <div style="font-size: 1.5rem; font-weight: 700; color: var(--accent-green); margin-bottom: 0.25rem;">{{ stats.wins }}</div>
+                    <div class="stat-label-full" style="color: var(--text-secondary); font-size: 0.7rem; text-transform: uppercase; font-weight: 600; letter-spacing: 0.03em;">Wins</div>
+                    <div class="stat-label-abbr" style="color: var(--text-secondary); font-size: 0.65rem; text-transform: uppercase; font-weight: 600; letter-spacing: 0.03em; display: none;">W</div>
+                </div>
+                <div style="text-align: center; padding: 0.875rem 0.5rem; background: var(--bg-tertiary); border-radius: 6px; border: 1px solid var(--border-color);">
+                    <div style="font-size: 1.5rem; font-weight: 700; color: var(--accent-red); margin-bottom: 0.25rem;">{{ stats.losses }}</div>
+                    <div class="stat-label-full" style="color: var(--text-secondary); font-size: 0.7rem; text-transform: uppercase; font-weight: 600; letter-spacing: 0.03em;">Losses</div>
+                    <div class="stat-label-abbr" style="color: var(--text-secondary); font-size: 0.65rem; text-transform: uppercase; font-weight: 600; letter-spacing: 0.03em; display: none;">L</div>
+                </div>
+                <div style="text-align: center; padding: 0.875rem 0.5rem; background: var(--bg-tertiary); border-radius: 6px; border: 1px solid var(--border-color);">
+                    <div style="font-size: 1.5rem; font-weight: 700; color: var(--warning-color); margin-bottom: 0.25rem;">{{ stats.missed_games }}</div>
+                    <div class="stat-label-full" style="color: var(--text-secondary); font-size: 0.7rem; text-transform: uppercase; font-weight: 600; letter-spacing: 0.03em;">Missed</div>
+                    <div class="stat-label-abbr" style="color: var(--text-secondary); font-size: 0.65rem; text-transform: uppercase; font-weight: 600; letter-spacing: 0.03em; display: none;">M</div>
+                </div>
+                <div style="text-align: center; padding: 0.875rem 0.5rem; background: var(--bg-tertiary); border-radius: 6px; border: 1px solid var(--border-color);">
+                    <div style="font-size: 1.5rem; font-weight: 700; color: {% if stats.accuracy >= 60 %}var(--accent-green){% elif stats.accuracy >= 40 %}var(--warning-color){% else %}var(--accent-red){% endif %}; margin-bottom: 0.25rem;">
+                        {{ "%.1f"|format(stats.accuracy) }}%
+                    </div>
+                    <div class="stat-label-full" style="color: var(--text-secondary); font-size: 0.7rem; text-transform: uppercase; font-weight: 600; letter-spacing: 0.03em;">Accuracy</div>
+                    <div class="stat-label-abbr" style="color: var(--text-secondary); font-size: 0.65rem; text-transform: uppercase; font-weight: 600; letter-spacing: 0.03em; display: none;">ACC</div>
+                </div>
+                <div style="text-align: center; padding: 0.875rem 0.5rem; background: var(--bg-tertiary); border-radius: 6px; border: 1px solid var(--border-color);">
+                    <div style="font-size: 1.5rem; font-weight: 700; color: {% if stats.tiebreaker_points >= 0 %}var(--accent-green){% else %}var(--accent-red){% endif %}; margin-bottom: 0.25rem;">
+                        {{ stats.tiebreaker_points|default(0) }}
+                    </div>
+                    <div class="stat-label-full" style="color: var(--text-secondary); font-size: 0.7rem; text-transform: uppercase; font-weight: 600; letter-spacing: 0.03em;">Tiebreaker</div>
+                    <div class="stat-label-abbr" style="color: var(--text-secondary); font-size: 0.65rem; text-transform: uppercase; font-weight: 600; letter-spacing: 0.03em; display: none;">TB</div>
+                </div>
+                <div style="text-align: center; padding: 0.875rem 0.5rem; background: var(--bg-tertiary); border-radius: 6px; border: 1px solid var(--border-color);">
+                    <div style="font-size: 1.5rem; font-weight: 700; color: {% if stats.longest_streak > 0 %}var(--accent-green){% elif stats.longest_streak < 0 %}var(--accent-red){% else %}var(--text-muted){% endif %}; margin-bottom: 0.25rem;">
+                        {% if stats.longest_streak > 0 %}+{% endif %}{{ stats.longest_streak }}
+                    </div>
+                    <div class="stat-label-full" style="color: var(--text-secondary); font-size: 0.7rem; text-transform: uppercase; font-weight: 600; letter-spacing: 0.03em;">Longest</div>
+                    <div class="stat-label-abbr" style="color: var(--text-secondary); font-size: 0.65rem; text-transform: uppercase; font-weight: 600; letter-spacing: 0.03em; display: none;">STR</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Used Teams Section -->
+        <div id="used-teams-section" style="padding: 0 1rem 1rem 1rem;">
+            <div style="padding: 0.875rem; background: var(--bg-tertiary); border-radius: 6px; border: 1px solid var(--border-color);">
+                <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                    <strong style="color: var(--text-primary); font-size: 0.8125rem; white-space: nowrap;">Teams Used:</strong>
+                    <div id="teams-used-badges" style="display: flex; flex-wrap: wrap; gap: 0.375rem; min-height: 1.5rem;">
+                        {% if used_teams %}
+                            {% for team in used_teams %}
+                            <span style="padding: 0.25rem 0.625rem; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 4px; font-size: 0.8125rem; font-weight: 600; color: var(--text-secondary);">
+                                {{ team.abbreviation }}
+                            </span>
+                            {% endfor %}
+                        {% else %}
+                            <span style="color: var(--text-muted); font-size: 0.8125rem; font-style: italic;">None yet</span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        {% if admin_override %}
+            <div style="margin-top: 0.75rem; padding: 0.5rem; background: rgba(245, 158, 11, 0.1); border-radius: 6px; border-left: 3px solid var(--warning-color);">
+                <span style="color: var(--text-primary); font-size: 0.75rem;">
+                    🛡️ Admin Mode Active
+                </span>
+            </div>
+            {% endif %}
+        
+        {% if current_user.is_admin %}
+        <!-- Admin Controls -->
+        <div style="border-top: 1px solid var(--border-color); margin-top: 1rem; padding-top: 1rem;">
+        <div class="leaderboard-header">
+            <h3 style="margin: 0; font-size: 1.125rem; color: var(--text-primary);">⚙️ Admin Controls</h3>
+        </div>
+        <div style="padding: 1.5rem;">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem;">
+                <div>
+                    <label for="admin-user-select" style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--text-primary); font-size: 0.875rem;">Managing picks for:</label>
+                    <select id="admin-user-select" onchange="changeSelectedUser()" class="filter-select" style="width: 100%;">
+                        {% for user in all_users %}
+                        <option value="{{ user.id }}" {% if user.id == selected_user.id %}selected{% endif %}>
+                            {{ user.username }}{% if user.display_name %} ({{ user.display_name }}){% endif %}
+                            {% if user.is_admin %} [Admin]{% endif %}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div>
+                    <label for="admin-week-select" style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--text-primary); font-size: 0.875rem;">Week:</label>
+                    <select id="admin-week-select" onchange="changeSelectedWeek()" class="filter-select" style="width: 100%;">
+                        {% for week_info in all_weeks %}
+                        <option value="{{ week_info.week }}" {% if week_info.week == current_week %}selected{% endif %}>
+                            Week {{ week_info.week }}{% if week_info.type == 'playoff' %} ({{ week_info.name }}){% endif %}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            {% if selected_user.id != current_user.id %}
+            <div style="margin-top: 1rem; padding: 0.75rem; background: rgba(59, 130, 246, 0.1); border-radius: 8px; border-left: 3px solid var(--accent-blue);">
+                <span style="color: var(--text-primary); font-size: 0.875rem;">
+                    👤 Currently editing picks for: <strong>{{ selected_user.username }}</strong>
+                </span>
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+        
+        <!-- Week Selector (always visible for non-admins) -->
+        {% if not current_user.is_admin %}
+        <div style="border-top: 1px solid var(--border-color); margin-top: 1rem; padding: 1rem;">
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 1rem;">
+                <h2 style="margin: 0; font-size: 1.25rem; color: var(--text-primary);">
+                    🎯 Week {{ current_week }}
+                </h2>
+                <div style="display: flex; align-items: center; gap: 0.75rem;">
+                    <label for="week-select" style="color: var(--text-secondary); font-size: 0.875rem; font-weight: 600; white-space: nowrap;">Week:</label>
+                    <select id="week-select" class="filter-select" onchange="changeWeek()">
+                        {% for week in range(1, 23) %}
+                        <option value="{{ week }}" {% if week == current_week %}selected{% endif %}>
+                            {% if week <= 18 %}
+                                Week {{ week }}
+                            {% elif week == 19 %}
+                                Week 19 (Wild Card)
+                            {% elif week == 20 %}
+                                Week 20 (Divisional)
+                            {% elif week == 21 %}
+                                Week 21 (Conference)
+                            {% elif week == 22 %}
+                                Week 22 (Super Bowl)
+                            {% endif %}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+        
+        {% if pickable_games %}
+        <!-- Make Your Picks Section -->
+        <div style="border-top: 1px solid var(--border-color); padding-top: 1rem;">
+            <div style="padding: 0 1rem 1rem 1rem;">
+                <div style="margin-bottom: 1rem;">
+                    <p style="margin: 0; color: var(--text-secondary); font-size: 0.875rem;">
+                        📋 Showing {{ pickable_games|length }} game{{ 's' if pickable_games|length != 1 else '' }} for this week
+                    </p>
+                </div>
+            <form method="POST" action="{{ url_for('main.submit_picks') }}" id="picks-form">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <!-- Include user selection in form if admin -->
+                {% if current_user.is_admin and selected_user.id != current_user.id %}
+                <input type="hidden" name="selected_user_id" value="{{ selected_user.id }}">
+                {% endif %}
+                {% if request.args.get('week') %}
+                <input type="hidden" name="week" value="{{ request.args.get('week') }}">
+                {% endif %}
+                
+                <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                    {% for game in pickable_games %}
+                <div class="pick-game-row" data-game-id="{{ game.id }}">
+                    <div class="pick-game-row-content">
+                        <!-- Time Info -->
+                        <div class="pick-game-time">
+                            <div class="pick-game-time-day">{{ game.game_time.strftime('%a %m/%d') }}</div>
+                            <div>{{ game.game_time.strftime('%I:%M %p') }}</div>
+                        </div>
+
+                        <!-- Teams Selection -->
+                        <div class="pick-teams-container">
+                            <!-- Away Team -->
+                            {% set away_available = available_teams.get(game.away_team.id, {}) %}
+                            {% set away_pick_count = 0 %}
+                            {% if other_users_picks %}
+                                {% for user_data in other_users_picks.values() %}
+                                    {% if user_data.picks.get(game.id) and user_data.picks.get(game.id).selected_team_id == game.away_team.id %}
+                                        {% set away_pick_count = away_pick_count + 1 %}
+                                    {% endif %}
+                                {% endfor %}
+                            {% endif %}
+                            <label class="team-pick-compact {% if user_picks.get(game.id) and user_picks[game.id].selected_team_id == game.away_team.id %}selected{% endif %} {% if not away_available.get('can_pick', True) %}unavailable{% endif %}"
+                                   data-team-id="{{ game.away_team.id }}"
+                                   data-team-abbr="{{ game.away_team.abbreviation }}"
+                                   data-game-id="{{ game.id }}">
+                                <input type="radio"
+                                       name="pick_{{ game.id }}"
+                                       value="{{ game.away_team.id }}"
+                                       {% if user_picks.get(game.id) and user_picks[game.id].selected_team_id == game.away_team.id %}checked{% endif %}
+                                       {% if not away_available.get('can_pick', True) %}disabled{% endif %}
+                                       style="display: none;">
+                                <img src="{{ game.away_team.logo_url or '/static/images/nfl-logo.png' }}"
+                                     alt="{{ game.away_team.abbreviation }}"
+                                     class="team-logo">
+                                <div class="team-info">
+                                    <div class="team-name">{{ game.away_team.name }}</div>
+                                    {% if not away_available.get('can_pick', True) %}
+                                    <div class="team-status">{{ away_available.get('reason', 'Not available') }}</div>
+                                    {% endif %}
+                                </div>
+                                {% if away_pick_count > 0 %}
+                                <div class="team-pick-badge">{{ away_pick_count }}</div>
+                                {% endif %}
+                            </label>
+
+                            <div class="pick-vs">@</div>
+
+                            <!-- Home Team -->
+                            {% set home_available = available_teams.get(game.home_team.id, {}) %}
+                            {% set home_pick_count = 0 %}
+                            {% if other_users_picks %}
+                                {% for user_data in other_users_picks.values() %}
+                                    {% if user_data.picks.get(game.id) and user_data.picks.get(game.id).selected_team_id == game.home_team.id %}
+                                        {% set home_pick_count = home_pick_count + 1 %}
+                                    {% endif %}
+                                {% endfor %}
+                            {% endif %}
+                            <label class="team-pick-compact {% if user_picks.get(game.id) and user_picks[game.id].selected_team_id == game.home_team.id %}selected{% endif %} {% if not home_available.get('can_pick', True) %}unavailable{% endif %}"
+                                   data-team-id="{{ game.home_team.id }}"
+                                   data-team-abbr="{{ game.home_team.abbreviation }}"
+                                   data-game-id="{{ game.id }}">
+                                <input type="radio"
+                                       name="pick_{{ game.id }}"
+                                       value="{{ game.home_team.id }}"
+                                       {% if user_picks.get(game.id) and user_picks[game.id].selected_team_id == game.home_team.id %}checked{% endif %}
+                                       {% if not home_available.get('can_pick', True) %}disabled{% endif %}
+                                       style="display: none;">
+                                <img src="{{ game.home_team.logo_url or '/static/images/nfl-logo.png' }}"
+                                     alt="{{ game.home_team.abbreviation }}"
+                                     class="team-logo">
+                                <div class="team-info">
+                                    <div class="team-name">{{ game.home_team.name }}</div>
+                                    {% if not home_available.get('can_pick', True) %}
+                                    <div class="team-status">{{ home_available.get('reason', 'Not available') }}</div>
+                                    {% endif %}
+                                </div>
+                                {% if home_pick_count > 0 %}
+                                <div class="team-pick-badge">{{ home_pick_count }}</div>
+                                {% endif %}
+                            </label>
+                        </div>
+
+                        <!-- Status Badge with Saving Indicator -->
+                        <div class="pick-status-container">
+                            <span class="pick-status-badge {% if user_picks.get(game.id) %}picked{% else %}no-pick{% endif %}" data-game-id="{{ game.id }}">
+                                {% if user_picks.get(game.id) %}✓ Picked{% else %}No Pick{% endif %}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+                    </div>
+                    
+                    <div class="info-message">
+                        <p><em>Your picks are automatically saved when you select a team. You can change your pick as long as the game hasn't started yet.</em></p>
+                    </div>
+                </form>
+            </div>
+        </div>
+        {% else %}
+        <!-- No pickable games message -->
+        <div style="border-top: 1px solid var(--border-color); padding-top: 1rem;">
+            <div style="padding: 3rem 1.5rem; text-align: center;">
+                <div style="font-size: 3rem; margin-bottom: 1rem;">🏈</div>
+                <h3 style="margin: 0 0 0.5rem 0; font-size: 1.25rem; color: var(--text-primary);">No Games Available</h3>
+                <p style="color: var(--text-secondary); margin: 0; font-size: 0.875rem;">
+                    All games for week {{ current_week }} have already started or finished.
+                </p>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    {% if completed_games %}
+    <!-- Completed Games Table -->
+    <div class="leaderboard-card mb-6">
+        <div class="leaderboard-header">
+            <h2 style="margin: 0; font-size: 1.25rem; color: var(--text-primary);">📊 Games in Progress / Completed <span style="color: var(--text-secondary); font-size: 0.875rem; font-weight: normal;">({{ completed_games|length }})</span></h2>
+        </div>
+
+        <div class="overflow-x-auto">
+            <table class="leaderboard-table" id="completed-games-table">
+            <thead>
+                <tr>
+                    <th>Away</th>
+                    <th>Score</th>
+                    <th>Home</th>
+                    <th>Your Pick</th>
+                    <th>Result</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for game in completed_games %}
+                <tr class="result-row {% if game.is_final %}final{% else %}live{% endif %}">
+                    <!-- Away Team -->
+                    <td class="team-cell">
+                        <div class="team-info">
+                            <img src="https://a.espncdn.com/i/teamlogos/nfl/500/{{ game.away_team.abbreviation.lower() }}.png" 
+                                 alt="{{ game.away_team.name }}" 
+                                 class="team-logo" 
+                                 onerror="this.src='https://a.espncdn.com/i/teamlogos/nfl/500/{{ game.away_team.abbreviation.lower() }}.png'">
+                            <div class="team-name {% if game.is_final and game.away_score > game.home_score %}winner{% endif %}">
+                                {{ game.away_team.name }}
+                            </div>
+                            <div class="team-record">{{ game.away_team.abbreviation }}</div>
+                        </div>
+                    </td>
+                    
+                    <!-- Combined Score -->
+                    <td class="score-cell">
+                        <div class="combined-score">
+                            <span class="away-score {% if game.is_final and game.away_score > game.home_score %}winning-score{% endif %}">
+                                {{ game.away_score or 0 }}
+                            </span>
+                            <span class="score-separator">:</span>
+                            <span class="home-score {% if game.is_final and game.home_score > game.away_score %}winning-score{% endif %}">
+                                {{ game.home_score or 0 }}
+                            </span>
+                        </div>
+                    </td>
+                    
+                    <!-- Home Team -->
+                    <td class="team-cell">
+                        <div class="team-info">
+                            <img src="https://a.espncdn.com/i/teamlogos/nfl/500/{{ game.home_team.abbreviation.lower() }}.png" 
+                                 alt="{{ game.home_team.name }}" 
+                                 class="team-logo" 
+                                 onerror="this.src='https://a.espncdn.com/i/teamlogos/nfl/500/{{ game.home_team.abbreviation.lower() }}.png'">
+                            <div class="team-name {% if game.is_final and game.home_score > game.away_score %}winner{% endif %}">
+                                {{ game.home_team.name }}
+                            </div>
+                            <div class="team-record">{{ game.home_team.abbreviation }}</div>
+                        </div>
+                    </td>
+                    
+                    <!-- Your Pick -->
+                    <td class="pick-cell">
+                        {% if user_picks.get(game.id) %}
+                            {% set pick = user_picks[game.id] %}
+                            <div class="your-pick">{{ pick.selected_team.name }}</div>
+                        {% else %}
+                            <div class="no-pick">No Pick</div>
+                        {% endif %}
+                    </td>
+                    
+                    <!-- Result -->
+                    <td class="result-cell">
+                        {% if user_picks.get(game.id) %}
+                            {% set pick = user_picks[game.id] %}
+                            {% if pick.is_correct %}
+                                <div class="result correct">✓ Correct</div>
+                            {% elif pick.is_correct == False %}
+                                <div class="result incorrect">✗ Wrong</div>
+                            {% else %}
+                                <div class="result pending">
+                                    Game {{ 'Final' if game.is_final else 'Live' }}
+                                </div>
+                            {% endif %}
+                        {% else %}
+                            <div class="result no-pick">-</div>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if not pickable_games and not completed_games %}
+    <!-- No Games -->
+    <div class="leaderboard-card mb-6">
+        <div style="padding: 3rem 1.5rem; text-align: center;">
+            <div style="font-size: 3rem; margin-bottom: 1rem;">🏈</div>
+            <h3 style="color: var(--text-primary); font-size: 1.125rem; font-weight: 600; margin-bottom: 0.5rem;">No games this week</h3>
+            <p style="color: var(--text-secondary); font-size: 0.875rem;">Check back soon for upcoming games!</p>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Other Users' Picks -->
+    {% if other_users_picks and (pickable_games or completed_games) %}
+    <div class="leaderboard-card mb-6">
+        <div class="leaderboard-header">
+            <h3 style="margin: 0; font-size: 1.125rem; color: var(--text-primary);">👥 Group Members' Picks</h3>
+            <p style="color: var(--text-secondary); margin: 0.5rem 0 0 0; font-size: 0.875rem;">See what other players in {{ current_group.name }} have picked</p>
+        </div>
+        <div style="padding: 1.5rem;">
+            <div class="other-picks-container">
+                {% for user_id, user_data in other_users_picks.items() %}
+                <div class="user-picks-section">
+                    <div class="user-picks-header">
+                        <div class="user-info">
+                            {% if user_data.user.avatar_url %}
+                            <img src="{{ user_data.user.avatar_url }}" alt="{{ user_data.user.username }}" class="user-avatar">
+                            {% else %}
+                            <div class="user-avatar">{{ user_data.user.username[0] }}</div>
+                            {% endif %}
+                            <div class="user-details">
+                                <h4>{{ user_data.user.full_name or user_data.user.username }}</h4>
+                                <p>@{{ user_data.user.username }}</p>
+                            </div>
+                        </div>
+                        <div class="user-pick-count">
+                            {{ user_data.picks|length }}/{{ (pickable_games + completed_games)|length }} picks
+                        </div>
+                    </div>
+                    
+                    <div class="user-picks-grid">
+                        {% for game in pickable_games + completed_games %}
+                        <div class="pick-item">
+                            <div class="game-info">
+                                <span class="matchup">{{ game.away_team.abbreviation }} @ {{ game.home_team.abbreviation }}</span>
+                                {% if game.is_final %}
+                                <span class="score">{{ game.away_score }}-{{ game.home_score }}</span>
+                                {% endif %}
+                            </div>
+                            <div class="pick-choice">
+                                {% if user_data.picks.get(game.id) %}
+                                    {% set pick = user_data.picks[game.id] %}
+                                    <span class="selected-team 
+                                        {% if pick.is_correct %}correct
+                                        {% elif pick.is_correct == False %}incorrect
+                                        {% else %}pending{% endif %}">
+                                        {{ pick.selected_team.abbreviation }}
+                                        {% if pick.is_correct %}✓
+                                        {% elif pick.is_correct == False %}✗
+                                        {% endif %}
+                                    </span>
+                                {% else %}
+                                    <span class="no-pick">-</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+/* Compact pick interface styling */
+.pick-game-row:hover {
+    background: var(--bg-secondary) !important;
+    border-color: var(--accent-blue) !important;
+}
+
+.team-pick-compact {
+    background: var(--bg-secondary);
+}
+
+.team-pick-compact:hover:not(.unavailable) {
+    background: rgba(59, 130, 246, 0.1) !important;
+    border-color: var(--accent-blue) !important;
+    transform: translateY(-1px);
+}
+
+.team-pick-compact.selected {
+    background: rgba(16, 185, 129, 0.15) !important;
+    border-color: var(--accent-green) !important;
+    box-shadow: 0 0 0 1px var(--accent-green);
+}
+
+.team-pick-compact.selected::before {
+    content: '✓';
+    position: absolute;
+    top: 4px;
+    left: 4px;
+    background: var(--accent-green);
+    color: white;
+    border-radius: 50%;
+    width: 18px;
+    height: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.7rem;
+    font-weight: 700;
+    z-index: 1;
+}
+
+/* Mobile responsive for compact picks */
+@media (max-width: 768px) {
+    .pick-game-row > div {
+        flex-direction: column !important;
+        align-items: stretch !important;
+    }
+
+    .pick-game-row > div > div:first-child {
+        text-align: left !important;
+    }
+
+    .pick-game-row > div > div:last-child {
+        text-align: left !important;
+    }
+    
+    /* Remove min-width constraint on mobile */
+    .pick-game-row > div > div {
+        min-width: 0 !important;
+    }
+
+    .team-pick-compact {
+        min-height: 50px;
+    }
+}
+
+/* Info message styling */
+.info-message {
+    padding: 0.75rem;
+    background: rgba(59, 130, 246, 0.1);
+    border-radius: 8px;
+    border-left: 3px solid var(--accent-blue);
+    margin-top: 1rem;
+}
+
+.info-message p {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+}
+
+/* User picks section styling */
+.other-picks-container {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.user-picks-section {
+    padding: 1rem;
+    background: var(--bg-tertiary);
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+}
+
+.user-picks-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.user-info {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.user-avatar {
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 50%;
+    background: var(--accent-blue);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 1rem;
+}
+
+.user-details h4 {
+    margin: 0;
+    color: var(--text-primary);
+    font-size: 1rem;
+}
+
+.user-details p {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+}
+
+.user-pick-count {
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+    font-weight: 600;
+}
+
+.user-picks-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 0.75rem;
+}
+
+.pick-item {
+    padding: 0.75rem;
+    background: var(--bg-secondary);
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+}
+
+.game-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+}
+
+.matchup {
+    color: var(--text-primary);
+    font-size: 0.875rem;
+    font-weight: 600;
+}
+
+.score {
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+}
+
+.pick-choice {
+    text-align: center;
+}
+
+.selected-team {
+    padding: 0.25rem 0.75rem;
+    border-radius: 6px;
+    font-weight: 700;
+    font-size: 0.875rem;
+}
+
+.selected-team.correct {
+    background: rgba(16, 185, 129, 0.2);
+    color: var(--accent-green);
+}
+
+.selected-team.incorrect {
+    background: rgba(239, 68, 68, 0.2);
+    color: var(--accent-red);
+}
+
+.selected-team.pending {
+    background: rgba(107, 114, 128, 0.2);
+    color: var(--text-muted);
+}
+
+.no-pick {
+    color: var(--text-muted);
+    font-size: 0.875rem;
+}
+
+/* Results table improvements */
+.result-row.final {
+    background: rgba(16, 185, 129, 0.05);
+}
+
+.result-row.live {
+    background: rgba(245, 158, 11, 0.05);
+}
+
+
+.team-cell .team-info {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 0;
+    overflow: hidden;
+    width: 100%;
+    max-width: 100%;
+}
+
+.team-cell .team-name,
+.team-cell .team-record {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+    flex: 1;
+    max-width: 100%;
+}
+
+.team-cell .team-logo {
+    width: 1.75rem;
+    height: 1.75rem;
+    flex-shrink: 0;
+}
+
+.team-name.winner {
+    color: var(--accent-green);
+    font-weight: 700;
+}
+
+.score-cell {
+    text-align: center;
+}
+
+.combined-score {
+    display: flex;
+    gap: 0.25rem;
+    justify-content: center;
+    align-items: center;
+    font-size: 1.125rem;
+    font-weight: 700;
+}
+
+.winning-score {
+    color: var(--accent-green);
+}
+
+.pick-cell, .result-cell {
+    text-align: center;
+}
+
+.your-pick {
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+.no-pick {
+    color: var(--text-muted);
+}
+
+.result.correct {
+    color: var(--accent-green);
+    font-weight: 600;
+}
+
+.result.incorrect {
+    color: var(--accent-red);
+    font-weight: 600;
+}
+
+.result.pending {
+    color: var(--text-secondary);
+}
+
+.result.no-pick {
+    color: var(--text-muted);
+}
+
+/* Mobile responsive improvements */
+@media (max-width: 768px) {
+    .user-picks-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .user-picks-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
+    }
+
+    .combined-score {
+        font-size: 1rem;
+    }
+    
+    /* Mobile: Convert table to card layout */
+    .leaderboard-table {
+        display: block;
+    }
+    
+    .leaderboard-table thead {
+        display: none;
+    }
+    
+    .leaderboard-table tbody {
+        display: block;
+    }
+    
+    .leaderboard-table tr {
+        display: block;
+        margin-bottom: 1rem;
+        background: var(--bg-tertiary);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        padding: 0.75rem;
+    }
+    
+    .leaderboard-table tr.final {
+        border-left: 3px solid var(--accent-green);
+    }
+    
+    .leaderboard-table tr.live {
+        border-left: 3px solid var(--warning-color);
+    }
+    
+    .leaderboard-table td {
+        display: block;
+        padding: 0.25rem 0;
+        border: none;
+        text-align: left !important;
+    }
+    
+    /* Score and matchup at top */
+    .leaderboard-table td:nth-child(2) {
+        order: -3;
+        font-size: 1.25rem;
+        font-weight: 700;
+        text-align: center !important;
+        margin-bottom: 0.5rem;
+        padding: 0.5rem 0;
+    }
+    
+    /* Away team */
+    .leaderboard-table td:nth-child(1) {
+        order: -2;
+        margin-bottom: 0.25rem;
+    }
+    
+    /* Home team */
+    .leaderboard-table td:nth-child(3) {
+        order: -1;
+        margin-bottom: 0.5rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 1px solid var(--border-color);
+    }
+    
+    /* Your pick */
+    .leaderboard-table td:nth-child(4) {
+        order: 1;
+        margin-top: 0.5rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    
+    .leaderboard-table td:nth-child(4)::before {
+        content: 'Your Pick:';
+        font-weight: 600;
+        color: var(--text-secondary);
+        font-size: 0.75rem;
+        text-transform: uppercase;
+    }
+    
+    /* Result */
+    .leaderboard-table td:nth-child(5) {
+        order: 2;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    
+    .leaderboard-table td:nth-child(5)::before {
+        content: 'Result:';
+        font-weight: 600;
+        color: var(--text-secondary);
+        font-size: 0.75rem;
+        text-transform: uppercase;
+    }
+    
+    .team-cell .team-info {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    
+    .team-cell .team-logo {
+        width: 1.5rem;
+        height: 1.5rem;
+    }
+    
+    .team-cell .team-name {
+        font-size: 0.875rem;
+    }
+    
+    .team-cell .team-record {
+        margin-left: auto;
+        font-size: 0.75rem;
+    }
+}
+</style>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Admin functions
+function changeSelectedUser() {
+    const selectedUserId = document.getElementById('admin-user-select').value;
+    const url = new URL(window.location);
+    url.searchParams.set('user_id', selectedUserId);
+    window.location.href = url.toString();
+}
+
+function changeSelectedWeek() {
+    const selectedWeek = document.getElementById('admin-week-select').value;
+    const url = new URL(window.location);
+    url.searchParams.set('week', selectedWeek);
+    window.location.href = url.toString();
+}
+
+function changeWeek() {
+    const selectedWeek = document.getElementById('week-select').value;
+    const url = new URL(window.location);
+    url.searchParams.set('week', selectedWeek);
+    window.location.href = url.toString();
+}
+
+// Handle team selection highlighting and auto-save
+document.addEventListener('DOMContentLoaded', function() {
+    // Get CSRF token
+    const csrfToken = document.querySelector('input[name="csrf_token"]').value;
+    const selectedUserId = document.querySelector('input[name="selected_user_id"]')?.value;
+    const week = document.querySelector('input[name="week"]')?.value;
+    
+    // Initialize already selected picks on page load
+    document.querySelectorAll('input[type="radio"]:checked').forEach(function(input) {
+        const label = input.closest('.team-pick, .team-pick-compact');
+        if (label) {
+            label.classList.add('selected');
+        }
+    });
+
+    // Add click handlers for all team picks (both old and new compact styles)
+    document.querySelectorAll('.team-pick, .team-pick-compact').forEach(function(label) {
+        label.addEventListener('click', function(e) {
+            const input = this.querySelector('input[type="radio"]');
+            if (input && !input.disabled) {
+                const pickName = input.name; // e.g., "pick_123"
+                const gameId = this.getAttribute('data-game-id');
+                const teamId = this.getAttribute('data-team-id');
+
+                // FIRST: Remove selected class from ALL OTHER games (for single-pick-per-week rule)
+                document.querySelectorAll('.team-pick, .team-pick-compact').forEach(function(otherLabel) {
+                    // Only clear selections from OTHER games (different pick_* names)
+                    const otherInput = otherLabel.querySelector('input[type="radio"]');
+                    if (otherInput && otherInput.name !== pickName) {
+                        otherLabel.classList.remove('selected');
+                        otherInput.checked = false;
+                    }
+                });
+
+                // SECOND: Remove selected class from other options for THIS GAME
+                document.querySelectorAll(`input[name="${pickName}"]`).forEach(function(radio) {
+                    const otherLabel = radio.closest('.team-pick, .team-pick-compact');
+                    if (otherLabel) {
+                        otherLabel.classList.remove('selected');
+                    }
+                    radio.checked = false;
+                });
+
+                // THIRD: Add selected class to clicked pick and check radio IMMEDIATELY
+                // Use requestAnimationFrame to ensure immediate visual feedback
+                requestAnimationFrame(() => {
+                    this.classList.add('selected');
+                });
+                input.checked = true;
+
+                // Trigger immediate badge updates to reflect the change
+                // The debounced functions will handle the actual DOM updates
+                updateTeamsUsedBadge(teamId);
+                updatePickStatusBadges();
+
+                // Auto-save the pick
+                savePick(gameId, teamId, csrfToken, selectedUserId, week);
+
+                // Trigger change event for any other listeners
+                input.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+        });
+    });
+
+    // Handle radio button changes (for programmatic changes)
+    document.querySelectorAll('input[type="radio"]').forEach(function(input) {
+        input.addEventListener('change', function() {
+            if (this.checked) {
+                const pickName = this.name;
+
+                // Remove selected class from other options for this game
+                document.querySelectorAll(`input[name="${pickName}"]`).forEach(function(radio) {
+                    if (radio !== input) {
+                        const otherLabel = radio.closest('.team-pick, .team-pick-compact');
+                        if (otherLabel) {
+                            otherLabel.classList.remove('selected');
+                        }
+                    }
+                });
+
+                // Add selected class only to the selected pick
+                const label = this.closest('.team-pick, .team-pick-compact');
+                if (label) {
+                    label.classList.add('selected');
+                }
+            }
+        });
+    });
+});
+
+// Global request queue to prevent concurrent saves
+let saveInProgress = false;
+let pendingSave = null;
+
+// Auto-save pick function
+function savePick(gameId, teamId, csrfToken, selectedUserId, week) {
+    console.log('Saving pick - GameID:', gameId, 'TeamID:', teamId);
+    
+    // If a save is in progress, queue this one
+    if (saveInProgress) {
+        console.log('Save already in progress, queueing...');
+        pendingSave = { gameId, teamId, csrfToken, selectedUserId, week };
+        return;
+    }
+    
+    saveInProgress = true;
+    
+    // Update status badge to show saving
+    const statusBadge = document.querySelector(`.pick-status-badge[data-game-id="${gameId}"]`);
+    if (statusBadge) {
+        statusBadge.style.background = 'rgba(245, 158, 11, 0.2)';
+        statusBadge.style.color = 'var(--warning-color)';
+        statusBadge.textContent = '⏳ Saving...';
+    }
+    
+    // Prepare form data
+    const formData = new FormData();
+    formData.append('csrf_token', csrfToken);
+    formData.append(`pick_${gameId}`, teamId);
+    if (selectedUserId) {
+        formData.append('selected_user_id', selectedUserId);
+    }
+    if (week) {
+        formData.append('week', week);
+    }
+    
+    console.log('Sending pick data:', {
+        game_id: gameId,
+        team_id: teamId,
+        user_id: selectedUserId,
+        week: week
+    });
+    
+    // Send AJAX request with timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+    
+    fetch('{{ url_for("main.submit_picks") }}', {
+        method: 'POST',
+        body: formData,
+        credentials: 'same-origin',
+        signal: controller.signal,
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(response => {
+        clearTimeout(timeoutId);
+        console.log('Response status:', response.status);
+        if (!response.ok) {
+            throw new Error(`Network response was not ok: ${response.status}`);
+        }
+        return response.json();
+    })
+    .then(data => {
+        console.log('Save response:', data);
+        // Success - update badge
+        if (data.success && statusBadge) {
+            statusBadge.className = 'pick-status-badge picked';
+            statusBadge.style.background = 'rgba(16, 185, 129, 0.2)';
+            statusBadge.style.color = 'var(--accent-green)';
+            statusBadge.textContent = '✓ Saved';
+            
+            // After 1.5 seconds, rebuild all status badges to ensure consistency
+            setTimeout(() => {
+                updatePickStatusBadges();
+            }, 1500);
+        } else if (!data.success) {
+            throw new Error(data.message || data.error || 'Failed to save pick');
+        }
+        
+        // Mark save complete and process queue
+        // Update teams used badge after successful pick save
+        updateTeamsUsedBadge(teamId);
+
+        saveInProgress = false;
+        if (pendingSave) {
+            const next = pendingSave;
+            pendingSave = null;
+            setTimeout(() => {
+                savePick(next.gameId, next.teamId, next.csrfToken, next.selectedUserId, next.week);
+            }, 100);
+        }
+    })
+    .catch(error => {
+        clearTimeout(timeoutId);
+        console.error('Error saving pick:', error);
+        
+        // Check if it was a timeout
+        if (error.name === 'AbortError') {
+            console.error('Request timed out');
+        }
+        
+        // Error - update badge
+        if (statusBadge) {
+            statusBadge.style.background = 'rgba(239, 68, 68, 0.2)';
+            statusBadge.style.color = 'var(--accent-red)';
+            statusBadge.textContent = '✗ Error';
+            
+            // Show error message
+            const errorMsg = error.name === 'AbortError' 
+                ? 'Request timed out. Please check your connection and try again.'
+                : `Failed to save pick: ${error.message}`;
+            
+            alert(errorMsg);
+            
+            // Revert after 3 seconds and rebuild all badges
+            setTimeout(() => {
+                updatePickStatusBadges();
+            }, 3000);
+        }
+        
+        // Mark save complete and process queue even on error
+        saveInProgress = false;
+        if (pendingSave) {
+            const next = pendingSave;
+            pendingSave = null;
+            setTimeout(() => {
+                savePick(next.gameId, next.teamId, next.csrfToken, next.selectedUserId, next.week);
+            }, 100);
+        }
+    });
+}
+
+// Debounce timers for badge updates
+let badgeUpdateTimer = null;
+let statusBadgeUpdateTimer = null;
+
+// Function to update teams used badge in real-time
+// Now uses a complete rebuild strategy instead of incremental updates
+function updateTeamsUsedBadge(teamId) {
+    console.log('Scheduling teams used badge update');
+    
+    // Clear any pending update
+    if (badgeUpdateTimer) {
+        clearTimeout(badgeUpdateTimer);
+    }
+    
+    // Debounce rapid changes - wait 150ms after last change
+    badgeUpdateTimer = setTimeout(() => {
+        rebuildTeamsUsedBadges();
+    }, 150);
+}
+
+// Function to update pick status badges with debouncing
+function updatePickStatusBadges() {
+    console.log('Scheduling pick status badge update');
+    
+    // Clear any pending update
+    if (statusBadgeUpdateTimer) {
+        clearTimeout(statusBadgeUpdateTimer);
+    }
+    
+    // Debounce rapid changes - wait 100ms after last change
+    statusBadgeUpdateTimer = setTimeout(() => {
+        rebuildPickStatusBadges();
+    }, 100);
+}
+
+// Rebuild the entire teams used badge list from current DOM state
+function rebuildTeamsUsedBadges() {
+    console.log('Rebuilding teams used badges from DOM state');
+    
+    const badgesContainer = document.getElementById('teams-used-badges');
+    if (!badgesContainer) {
+        console.log('Badges container not found');
+        return;
+    }
+    
+    // Collect all currently selected teams
+    const selectedTeams = new Set();
+    document.querySelectorAll('.team-pick-compact.selected, .team-pick.selected').forEach(function(selectedLabel) {
+        const teamAbbr = selectedLabel.getAttribute('data-team-abbr');
+        if (teamAbbr) {
+            selectedTeams.add(teamAbbr);
+        }
+    });
+    
+    console.log('Currently selected teams:', Array.from(selectedTeams));
+    
+    // Clear all existing badges
+    badgesContainer.innerHTML = '';
+    
+    // Add badges for all selected teams or placeholder if none
+    if (selectedTeams.size === 0) {
+        const placeholder = document.createElement('span');
+        placeholder.style.cssText = 'color: var(--text-muted); font-size: 0.8125rem; font-style: italic;';
+        placeholder.textContent = 'None yet';
+        badgesContainer.appendChild(placeholder);
+    } else {
+        // Sort teams alphabetically for consistent display
+        const sortedTeams = Array.from(selectedTeams).sort();
+        
+        sortedTeams.forEach((teamAbbr, index) => {
+            const newBadge = document.createElement('span');
+            newBadge.style.cssText = 'padding: 0.25rem 0.625rem; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 4px; font-size: 0.8125rem; font-weight: 600; color: var(--text-secondary);';
+            newBadge.textContent = teamAbbr;
+            
+            // Add with a small animation, staggered slightly
+            newBadge.style.opacity = '0';
+            newBadge.style.transform = 'scale(0.8)';
+            badgesContainer.appendChild(newBadge);
+            
+            // Animate in with slight delay for each badge
+            setTimeout(() => {
+                newBadge.style.transition = 'all 0.2s ease';
+                newBadge.style.opacity = '1';
+                newBadge.style.transform = 'scale(1)';
+            }, index * 30);
+        });
+    }
+}
+
+// Rebuild all pick status badges from current DOM state
+function rebuildPickStatusBadges() {
+    console.log('Rebuilding pick status badges from DOM state');
+    
+    // Get all status badges
+    const allStatusBadges = document.querySelectorAll('.pick-status-badge');
+    
+    // Track which games have selected picks
+    const gamesWithPicks = new Set();
+    document.querySelectorAll('.team-pick-compact.selected, .team-pick.selected').forEach(function(selectedLabel) {
+        const gameId = selectedLabel.getAttribute('data-game-id');
+        if (gameId) {
+            gamesWithPicks.add(gameId);
+        }
+    });
+    
+    console.log('Games with picks:', Array.from(gamesWithPicks));
+    
+    // Update all status badges based on actual state
+    allStatusBadges.forEach(function(statusBadge) {
+        const gameId = statusBadge.getAttribute('data-game-id');
+        
+        // Skip if badge is showing "Saving..." state (actively being saved)
+        if (statusBadge.textContent.includes('Saving')) {
+            console.log(`Skipping game ${gameId} - currently saving`);
+            return;
+        }
+        
+        // Set badge based on whether game has a pick
+        if (gamesWithPicks.has(gameId)) {
+            // Game has a pick
+            if (!statusBadge.classList.contains('picked')) {
+                statusBadge.className = 'pick-status-badge picked';
+                statusBadge.style.background = 'rgba(16, 185, 129, 0.2)';
+                statusBadge.style.color = 'var(--accent-green)';
+                statusBadge.textContent = '✓ Picked';
+            }
+        } else {
+            // Game has no pick
+            if (!statusBadge.classList.contains('no-pick')) {
+                statusBadge.className = 'pick-status-badge no-pick';
+                statusBadge.style.background = 'rgba(107, 114, 128, 0.2)';
+                statusBadge.style.color = 'var(--text-muted)';
+                statusBadge.textContent = 'No Pick';
+            }
+        }
+    });
+}
+
+// Note: removeTeamUsedBadge function removed - we now use rebuildTeamsUsedBadges()
+// which rebuilds the entire badge list from DOM state instead of incremental updates
+
+// Note: The old debounce logic has been removed and replaced with rebuildTeamsUsedBadges()
+// which provides a more reliable solution for badge updates
+</script>
+
+<style>
+/* Mobile responsive stats - show abbreviations and make more compact */
+@media (max-width: 768px) {
+    #stats-grid {
+        grid-template-columns: repeat(6, 1fr) !important;
+        gap: 0.5rem !important;
+        padding: 0.75rem !important;
+    }
+    
+    #stats-grid > div {
+        padding: 0.5rem 0.25rem !important;
+    }
+    
+    #stats-grid > div > div:first-child {
+        font-size: 1.25rem !important;
+        margin-bottom: 0.125rem !important;
+    }
+    
+    .stat-label-full {
+        display: none !important;
+    }
+    
+    .stat-label-abbr {
+        display: block !important;
+    }
+}
+
+/* Extra small mobile - even more compact */
+@media (max-width: 480px) {
+    #stats-grid {
+        grid-template-columns: repeat(6, 1fr) !important;
+        gap: 0.375rem !important;
+        padding: 0.5rem !important;
+    }
+    
+    #stats-grid > div {
+        padding: 0.375rem 0.125rem !important;
+    }
+    
+    #stats-grid > div > div:first-child {
+        font-size: 1.125rem !important;
+    }
+    
+    .stat-label-abbr {
+        font-size: 0.6rem !important;
+    }
+}
+</style>
+
+{% endblock %}

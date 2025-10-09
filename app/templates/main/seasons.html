@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+
+{% block title %}Seasons - NFL Pick'em{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="mb-6">
+        <h1 class="text-3xl font-bold text-gray-900 mb-2">NFL Seasons</h1>
+        <p class="text-gray-600">
+            View all NFL Pick'em seasons and your performance history.
+        </p>
+    </div>
+
+    {% if seasons %}
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {% for season in seasons %}
+        <div class="card {% if season.is_active %}border-blue-500{% endif %}">
+            <div class="card-header">
+                <div class="flex justify-between items-center">
+                    <h2 class="text-xl font-semibold text-gray-900">
+                        {{ season.year }} Season
+                    </h2>
+                    {% if season.is_active %}
+                    <span class="badge badge-success">Current</span>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <div class="card-body">
+                <div class="space-y-3">
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Regular Season:</span>
+                        <span class="text-gray-900">{{ season.regular_season_weeks }} weeks</span>
+                    </div>
+                    
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Playoffs:</span>
+                        <span class="text-gray-900">{{ season.playoff_weeks }} weeks</span>
+                    </div>
+                    
+                    {% if season.current_week %}
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Current Week:</span>
+                        <span class="text-gray-900">{{ season.current_week }}</span>
+                    </div>
+                    {% endif %}
+                    
+                    {% if season.start_date %}
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Started:</span>
+                        <span class="text-gray-900">{{ season.start_date.strftime('%m/%d/%Y') }}</span>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <div class="card-footer">
+                <div class="flex space-x-2">
+                    <a href="{{ url_for('main.season_detail', season_id=season.id) }}" class="btn btn-sm btn-primary flex-1">
+                        View Details
+                    </a>
+                    {% if season.is_active %}
+                    <a href="{{ url_for('main.current_picks') }}" class="btn btn-sm btn-secondary">
+                        Make Picks
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="text-center py-12">
+        <div class="text-gray-400 mb-4">
+            <svg class="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 00-2 2m-6 9l2 2 4-4"></path>
+            </svg>
+        </div>
+        <h2 class="text-xl font-semibold text-gray-900 mb-2">
+            No seasons found
+        </h2>
+        <p class="text-gray-600">
+            There are no NFL seasons configured yet.
+        </p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+

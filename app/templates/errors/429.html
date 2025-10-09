@@ -1,0 +1,21 @@
+{% extends "errors/base_error.html" %}
+
+{% block title %}429 - Too Many Requests{% endblock %}
+{% block error_code %}429{% endblock %}
+{% block cat_code %}429{% endblock %}
+{% block cat_code_alt %}429{% endblock %}
+
+{% block error_title %}Slow Down There, Tiger!{% endblock %}
+
+{% block error_message %}
+    This cat is overwhelmed by your enthusiasm! 😸
+    <br><br>
+    You're making requests too quickly. We need to protect our servers from being overloaded.
+    <br><br>
+    Please wait a moment before trying again. Think of it as a timeout - 
+    even the most energetic cats need a nap sometimes!
+{% endblock %}
+
+{% block extra_buttons %}
+    <a href="javascript:setTimeout(() => location.reload(), 5000)" class="btn btn-secondary">⏰ Wait & Refresh</a>
+{% endblock %}

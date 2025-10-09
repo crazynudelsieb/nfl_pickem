@@ -1,0 +1,241 @@
+{% extends "base.html" %}
+
+{% block title %}{{ season.name }} - Champions - NFL Pick'em{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- Celebration Header -->
+    <div class="winners-hero">
+        <h1>🏆 {{ season.name }} Champions 🏆</h1>
+        {% if user_awards %}
+        <div class="user-celebration">
+            <h2>Congratulations {{ current_user.full_name }}!</h2>
+            {% for award in user_awards %}
+            <div class="award-badge {{ award.award_type }}">
+                {% if award.award_type == 'champion' %}
+                    🥇 {{ 'Champion' if not award.group_id else award.group.name + ' Champion' }}
+                {% elif award.award_type == 'runner_up' %}
+                    🥈 Runner-Up
+                {% elif award.award_type == 'third_place' %}
+                    🥉 Third Place
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Global Winners -->
+    {% if global_winners %}
+    <div class="winners-section">
+        <h2>🌎 Global Leaderboard Winners</h2>
+        <div class="podium">
+            {% for winner in global_winners[:3] %}
+            <div class="podium-place podium-{{ winner.rank }}">
+                <div class="podium-medal">
+                    {% if winner.rank == 1 %}🥇
+                    {% elif winner.rank == 2 %}🥈
+                    {% elif winner.rank == 3 %}🥉
+                    {% endif %}
+                </div>
+                <div class="winner-info">
+                    <h3>{{ winner.user.full_name }}</h3>
+                    <p class="stats">{{ winner.total_wins }} Wins | {{ winner.tiebreaker_points }} Tiebreaker Points</p>
+                    <p class="accuracy">{{ "%.1f"|format(winner.accuracy * 100) }}% Accuracy</p>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Group Winners -->
+    {% if group_winners %}
+    <div class="winners-section">
+        <h2>🏟️ Group Champions</h2>
+        {% for group, winners in group_winners.items() %}
+        <div class="group-winner-card">
+            <h3>{{ group.name }}</h3>
+            {% for winner in winners %}
+            <div class="winner-entry">
+                <span class="medal">🏆</span>
+                <span class="winner-name">{{ winner.user.full_name }}</span>
+                <span class="winner-stats">{{ winner.total_wins }} Wins | {{ winner.tiebreaker_points }} Tiebreaker</span>
+            </div>
+            {% endfor %}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Actions -->
+    <div class="winner-actions">
+        <a href="{{ url_for('main.leaderboard') }}" class="btn btn-primary">View Final Leaderboard</a>
+        <a href="{{ url_for('main.hall_of_fame') }}" class="btn btn-secondary">Hall of Fame</a>
+    </div>
+</div>
+
+<style>
+.winners-hero {
+    text-align: center;
+    padding: 60px 20px;
+    background: linear-gradient(135deg, var(--accent-blue), var(--accent-gold, #FFD700));
+    border-radius: 20px;
+    margin-bottom: 40px;
+    color: white;
+}
+
+.winners-hero h1 {
+    font-size: 3rem;
+    margin-bottom: 20px;
+    text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+}
+
+.user-celebration {
+    margin-top: 30px;
+    padding: 20px;
+    background: rgba(255,255,255,0.2);
+    border-radius: 15px;
+    backdrop-filter: blur(10px);
+}
+
+.award-badge {
+    display: inline-block;
+    padding: 15px 30px;
+    margin: 10px;
+    font-size: 1.5rem;
+    font-weight: bold;
+    border-radius: 50px;
+    background: rgba(255,255,255,0.9);
+    color: var(--accent-blue);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+    animation: bounce 1s infinite;
+}
+
+@keyframes bounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+}
+
+.winners-section {
+    margin-bottom: 50px;
+}
+
+.podium {
+    display: flex;
+    justify-content: center;
+    align-items: flex-end;
+    gap: 20px;
+    margin: 40px 0;
+}
+
+.podium-place {
+    text-align: center;
+    padding: 30px 20px;
+    border-radius: 15px;
+    background: var(--card-bg);
+    border: 3px solid;
+    min-width: 250px;
+    transition: transform 0.3s;
+}
+
+.podium-place:hover {
+    transform: translateY(-10px);
+}
+
+.podium-1 {
+    border-color: #FFD700;
+    order: 2;
+    margin-bottom: 0;
+}
+
+.podium-2 {
+    border-color: #C0C0C0;
+    order: 1;
+    margin-bottom: 30px;
+}
+
+.podium-3 {
+    border-color: #CD7F32;
+    order: 3;
+    margin-bottom: 50px;
+}
+
+.podium-medal {
+    font-size: 4rem;
+    margin-bottom: 15px;
+}
+
+.winner-info h3 {
+    font-size: 1.5rem;
+    margin-bottom: 10px;
+    color: var(--text-primary);
+}
+
+.winner-info .stats {
+    font-size: 1.1rem;
+    color: var(--text-secondary);
+    margin: 5px 0;
+}
+
+.winner-info .accuracy {
+    font-size: 0.9rem;
+    color: var(--text-muted);
+}
+
+.group-winner-card {
+    background: var(--card-bg);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 20px;
+    border-left: 4px solid var(--accent-blue);
+}
+
+.winner-entry {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    padding: 15px;
+    margin: 10px 0;
+    background: var(--bg-tertiary);
+    border-radius: 8px;
+}
+
+.winner-entry .medal {
+    font-size: 2rem;
+}
+
+.winner-entry .winner-name {
+    flex: 1;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.winner-entry .winner-stats {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+}
+
+.winner-actions {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    margin-top: 40px;
+}
+
+@media (max-width: 768px) {
+    .podium {
+        flex-direction: column;
+        align-items: center;
+    }
+    
+    .podium-place {
+        margin-bottom: 20px !important;
+    }
+    
+    .winners-hero h1 {
+        font-size: 2rem;
+    }
+}
+</style>
+{% endblock %}

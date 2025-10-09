@@ -1,0 +1,20 @@
+{% extends "errors/base_error.html" %}
+
+{% block title %}{{ error_code }} - Something Went Wrong{% endblock %}
+{% block error_code %}{{ error_code }}{% endblock %}
+{% block cat_code %}{{ error_code }}{% endblock %}
+{% block cat_code_alt %}{{ error_code }}{% endblock %}
+
+{% block error_title %}Oops! Error {{ error_code }}{% endblock %}
+
+{% block error_message %}
+    This cat encountered an unexpected situation! 🐱
+    <br><br>
+    Error code {{ error_code }} occurred, but don't worry - we're on it!
+    <br><br>
+    If this keeps happening, please let us know so we can train our cats better.
+{% endblock %}
+
+{% block extra_buttons %}
+    <a href="javascript:history.back()" class="btn btn-secondary">↶ Go Back</a>
+{% endblock %}

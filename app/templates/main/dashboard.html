@@ -1,0 +1,482 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - NFL Pick'em{% endblock %}
+
+{% block content %}
+<div class="container">
+    {% if current_season %}
+    <!-- Unified Dashboard Card -->
+    <div class="leaderboard-card">
+        <!-- Welcome Header -->
+        <div class="leaderboard-header">
+            <h2 class="leaderboard-title" style="font-size: 1.25rem;">
+                Welcome back, {{ current_user.full_name }}! 👋
+            </h2>
+        </div>
+        
+        <div style="padding: 1.5rem;">
+            <p style="font-size: 0.875rem; color: var(--text-secondary); margin-bottom: 1.5rem;">
+                Here is your NFL Pick'em dashboard for the 2025 season.
+            </p>
+            
+            <!-- Stats Grid -->
+            <div class="stats-grid" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.875rem; margin-bottom: 1.5rem;">
+                <!-- Win Points (Featured on mobile) -->
+                <div class="stat-card stat-card-featured" style="text-align: center; padding: 0.875rem 0.5rem; background: var(--bg-tertiary); border-radius: 6px; border: 1px solid var(--border-color);">
+                    <div style="font-size: 0.7rem; color: var(--text-secondary); text-transform: uppercase; font-weight: 600; letter-spacing: 0.03em; margin-bottom: 0.25rem;">
+                        � Win Points
+                    </div>
+                    <div style="font-size: 1.5rem; font-weight: 700; color: var(--accent-green);">
+                        {{ user_stats.total.wins if user_stats else 0 }}
+                    </div>
+                    <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.25rem;">
+                        Total Wins
+                    </div>
+                </div>
+
+                <!-- Current Week -->
+                <div class="stat-card" style="text-align: center; padding: 0.875rem 0.5rem; background: var(--bg-tertiary); border-radius: 6px; border: 1px solid var(--border-color);">
+                    <div style="font-size: 0.7rem; color: var(--text-secondary); text-transform: uppercase; font-weight: 600; letter-spacing: 0.03em; margin-bottom: 0.25rem;">
+                        � Current Week
+                    </div>
+                    <div style="font-size: 1.5rem; font-weight: 700; color: var(--text-primary);">
+                        Week {{ current_season.current_week or 1 }}
+                    </div>
+                    <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.25rem;">
+                        {{ current_season.year }} Season
+                    </div>
+                </div>
+
+                <!-- Best Streak -->
+                <div class="stat-card" style="text-align: center; padding: 0.875rem 0.5rem; background: var(--bg-tertiary); border-radius: 6px; border: 1px solid var(--border-color);">
+                    <div style="font-size: 0.7rem; color: var(--text-secondary); text-transform: uppercase; font-weight: 600; letter-spacing: 0.03em; margin-bottom: 0.25rem;">
+                        🔥 Best Streak
+                    </div>
+                    <div style="font-size: 1.5rem; font-weight: 700; color: {% if user_stats and user_stats.total.longest_streak > 0 %}var(--accent-green){% elif user_stats and user_stats.total.longest_streak < 0 %}var(--accent-red){% else %}var(--text-primary){% endif %};">
+                        {% if user_stats and user_stats.total.longest_streak %}
+                            {{ user_stats.total.longest_streak|abs }}
+                        {% else %}
+                            0
+                        {% endif %}
+                    </div>
+                    <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.25rem;">
+                        {% if user_stats and user_stats.total.longest_streak > 0 %}
+                            Win Streak
+                        {% elif user_stats and user_stats.total.longest_streak < 0 %}
+                            Loss Streak
+                        {% else %}
+                            No Streak
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Main Content Grid -->
+            <div class="dashboard-content-grid">
+                <!-- Group Leaderboard -->
+                <div>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                        <h3 style="margin: 0; font-size: 1.125rem; color: var(--text-primary); display: flex; align-items: center; gap: 0.5rem;">
+                            <i class="fas fa-trophy" style="color: #ffd700;"></i> {{ selected_group.name if selected_group else 'Group' }} Leaderboard
+                        </h3>
+                        <a href="{{ url_for('groups.index', group=selected_group.slug) if selected_group else url_for('groups.index') }}" style="color: var(--accent-blue); font-size: 0.8rem; text-decoration: none; font-weight: 600;">View Full</a>
+                    </div>
+                    {% if leaderboard %}
+                    <div class="leaderboard-table" style="background: var(--bg-secondary); border-radius: 8px; overflow: hidden; border: 1px solid var(--border-color);">
+                        <table style="width: 100%; border-collapse: collapse;">
+                            <thead>
+                                <tr style="background: rgba(107, 114, 128, 0.1);">
+                                    <th style="padding: 0.75rem; text-align: left; font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; width: 3rem;">Rank</th>
+                                    <th style="padding: 0.75rem; text-align: left; font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em;">Player</th>
+                                    <th style="padding: 0.75rem; text-align: center; font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em;">Wins</th>
+                                    <th style="padding: 0.75rem; text-align: center; font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em;">Total</th>
+                                    <th style="padding: 0.75rem; text-align: center; font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em;">Accuracy</th>
+                                    <th style="padding: 0.75rem; text-align: center; font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em;">Streak</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for entry in leaderboard[:10] %}
+                                <tr class="clickable-row" data-user-id="{{ entry['user_id'] }}" data-username="{{ entry['user'].username }}" style="border-top: 1px solid var(--border-color); {% if entry['user_id'] == current_user.id %}background: rgba(59, 130, 246, 0.1); border-left: 4px solid var(--accent-blue);{% endif %} cursor: pointer;" title="Click to view {{ entry['user'].username }}'s picks">
+                                    <td style="padding: 0.75rem;">
+                                        {% if loop.index == 1 %}
+                                        <div style="font-size: 1.5rem;">🏆</div>
+                                        {% elif loop.index == 2 %}
+                                        <div style="font-size: 1.5rem;">🥈</div>
+                                        {% elif loop.index == 3 %}
+                                        <div style="font-size: 1.5rem;">🥉</div>
+                                        {% else %}
+                                        <div style="font-weight: 600; color: var(--text-secondary);">{{ loop.index }}</div>
+                                        {% endif %}
+                                    </td>
+                                    <td style="padding: 0.75rem;">
+                                        <div style="display: flex; align-items: center; gap: 0.75rem;">
+                                            <div style="width: 2rem; height: 2rem; border-radius: 50%; background: var(--accent-blue); color: white; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.875rem; overflow: hidden;">
+                                                {% if entry['user'].avatar_url %}
+                                                <img src="{{ entry['user'].avatar_url }}" alt="{{ entry['user'].username }}" style="width: 100%; height: 100%; object-fit: cover;">
+                                                {% else %}
+                                                {{ entry['user'].full_name[0].upper() }}
+                                                {% endif %}
+                                            </div>
+                                            <div>
+                                                <div style="font-weight: 600; color: var(--text-primary);">
+                                                    {{ entry['user'].full_name }}
+                                                    {% if entry['user_id'] == current_user.id %}
+                                                    <span style="color: var(--accent-blue); font-size: 0.875rem; font-weight: normal;">(You)</span>
+                                                    {% endif %}
+                                                </div>
+                                                <div style="font-size: 0.75rem; color: var(--text-secondary);">@{{ entry['user'].username }}</div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td style="padding: 0.75rem; text-align: center;">
+                                        <span style="color: var(--accent-green); font-weight: 700;">{{ entry['wins'] }}</span>
+                                    </td>
+                                    <td style="padding: 0.75rem; text-align: center;">
+                                        <span style="color: var(--text-primary); font-weight: 600;">{{ entry['completed_picks'] or entry['total_picks'] }}</span>
+                                    </td>
+                                    <td style="padding: 0.75rem; text-align: center;">
+                                        {% set accuracy = entry['accuracy'] %}
+                                        <span style="font-weight: 600; {% if accuracy >= 70 %}color: var(--accent-green);{% elif accuracy >= 50 %}color: var(--accent-orange);{% else %}color: var(--accent-red);{% endif %}">
+                                            {{ "%.1f"|format(accuracy) }}%
+                                        </span>
+                                    </td>
+                                    <td style="padding: 0.75rem; text-align: center;">
+                                        {% if entry['longest_streak'] > 0 %}
+                                        <span style="padding: 0.25rem 0.5rem; background: rgba(16, 185, 129, 0.2); color: var(--accent-green); border-radius: 12px; font-size: 0.75rem; font-weight: 700;">{{ entry['longest_streak'] }}W</span>
+                                        {% elif entry['longest_streak'] < 0 %}
+                                        <span style="padding: 0.25rem 0.5rem; background: rgba(239, 68, 68, 0.2); color: var(--accent-red); border-radius: 12px; font-size: 0.75rem; font-weight: 700;">{{ entry['longest_streak']|abs }}L</span>
+                                        {% else %}
+                                        <span style="padding: 0.25rem 0.5rem; background: rgba(107, 114, 128, 0.2); color: var(--text-secondary); border-radius: 12px; font-size: 0.75rem; font-weight: 700;">0</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div style="text-align: center; padding: 2rem 1rem;">
+                        <div style="font-size: 2rem; margin-bottom: 0.5rem;">🏆</div>
+                        <p style="color: var(--text-secondary); margin-bottom: 1rem; font-size: 0.85rem;">
+                            No leaderboard data yet
+                        </p>
+                        <p style="color: var(--text-muted); font-size: 0.75rem;">
+                            Make your first pick to get started!
+                        </p>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <!-- Recent Picks -->
+                <div>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                        <h3 style="margin: 0; font-size: 1.125rem; color: var(--text-primary); display: flex; align-items: center; gap: 0.5rem;">
+                            <i class="fas fa-clock" style="color: var(--accent-blue);"></i> Recent Picks
+                        </h3>
+                        <a href="{{ url_for('main.current_picks') }}" style="color: var(--accent-blue); font-size: 0.8rem; text-decoration: none; font-weight: 600;">View All</a>
+                    </div>
+                    <div style="background: var(--bg-secondary); border-radius: 8px; border: 1px solid var(--border-color); padding: 1rem;">
+                        {% if recent_picks %}
+                        <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                            {% for pick in recent_picks %}
+                            <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.75rem; background: var(--bg-tertiary); border-radius: 8px; border: 1px solid var(--border-color);">
+                                <div style="flex: 1; min-width: 0;">
+                                    <div style="font-weight: 700; color: var(--text-primary); font-size: 0.875rem; margin-bottom: 0.25rem;">
+                                        Week {{ pick.week }}
+                                    </div>
+                                    <div style="font-size: 0.75rem; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                                        {{ pick.selected_team.name if pick.selected_team }}
+                                    </div>
+                                </div>
+                                <div style="margin-left: 0.5rem;">
+                                    {% if pick.is_correct is not none %}
+                                        {% if pick.is_correct %}
+                                        <div style="padding: 0.35rem 0.5rem; background: rgba(16, 185, 129, 0.15); color: var(--accent-green); border-radius: 6px; font-weight: 700; font-size: 0.75rem; white-space: nowrap;">Win</div>
+                                        {% else %}
+                                        <div style="padding: 0.35rem 0.5rem; background: rgba(239, 68, 68, 0.15); color: var(--accent-red); border-radius: 6px; font-weight: 700; font-size: 0.75rem; white-space: nowrap;">Loss</div>
+                                        {% endif %}
+                                    {% else %}
+                                    <div style="padding: 0.35rem 0.5rem; background: rgba(107, 114, 128, 0.15); color: var(--text-muted); border-radius: 6px; font-weight: 600; font-size: 0.75rem; white-space: nowrap;">Pending</div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% else %}
+                        <div style="text-align: center; padding: 2rem 1rem;">
+                            <div style="font-size: 2rem; margin-bottom: 0.5rem;">📝</div>
+                            <p style="color: var(--text-secondary); margin-bottom: 1rem; font-size: 0.85rem;">
+                                No picks made yet
+                            </p>
+                            <a href="{{ url_for('main.current_picks') }}" style="padding: 0.5rem 1rem; background: var(--accent-blue); color: white !important; border-radius: 8px; font-weight: 600; text-decoration: none; display: inline-block; font-size: 0.85rem;">
+                                Make Your First Pick
+                            </a>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Player Picks Modal -->
+<div id="playerPicksModal" class="modal" style="display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.4);">
+    <div class="modal-content" style="background-color: var(--card-bg); margin: 2% auto; padding: 0; border: 1px solid var(--border-color); width: 90%; max-width: 1000px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.2);">
+        <div class="modal-header" style="background: var(--bg-tertiary); padding: 1.5rem; border-bottom: 1px solid var(--border-color); border-radius: 12px 12px 0 0; display: flex; justify-content: space-between; align-items: center;">
+            <h3 id="modalPlayerName" style="display: flex; align-items: center; gap: 0.5rem; margin: 0; color: var(--text-primary); font-size: 1.25rem; font-weight: 700;">
+                <span style="font-size: 1.5rem;">📊</span> Player Picks
+            </h3>
+            <span class="modal-close" onclick="closePlayerPicks()" style="cursor: pointer; font-size: 1.5rem; color: var(--text-secondary); padding: 0.25rem; border-radius: 4px; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; transition: background 0.2s;" onmouseover="this.style.background='rgba(107, 114, 128, 0.2)'" onmouseout="this.style.background='transparent'">&times;</span>
+        </div>
+        <div class="modal-body" style="padding: 0;">
+            <div id="modalLoading" class="loading-spinner" style="padding: 3rem; text-align: center; color: var(--text-secondary);">
+                <div style="font-size: 2rem; margin-bottom: 1rem;">⏳</div>
+                <div>Loading picks...</div>
+            </div>
+            <div id="modalPicksContent" style="overflow-x: auto;"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Store selected group ID for API calls
+const selectedGroupId = {{ selected_group.id if selected_group else 'null' }};
+
+// Player picks modal functionality
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('Setting up modal functionality');
+    console.log('Selected group ID:', selectedGroupId);
+
+    // Add click handlers for leaderboard rows
+    const clickableRows = document.querySelectorAll('.clickable-row');
+    console.log('Found clickable rows:', clickableRows.length);
+
+    clickableRows.forEach(function(row) {
+        row.addEventListener('click', function() {
+            const userId = this.getAttribute('data-user-id');
+            const username = this.getAttribute('data-username');
+            console.log('Clicked user:', username, 'ID:', userId);
+            showPlayerPicks(userId, username);
+        });
+    });
+});
+
+// Function to show player picks modal
+function showPlayerPicks(userId, username) {
+    console.log('Loading picks for user:', username, 'userId:', userId);
+    
+    const modal = document.getElementById('playerPicksModal');
+    const modalPlayerName = document.getElementById('modalPlayerName');
+    const modalLoading = document.getElementById('modalLoading');
+    const modalContent = document.getElementById('modalPicksContent');
+    
+    // Validate elements exist
+    if (!modal || !modalPlayerName || !modalLoading || !modalContent) {
+        console.error('Modal elements not found');
+        return;
+    }
+    
+    // Set player name and show modal
+    modalPlayerName.innerHTML = '<span style="font-size: 1.5rem;">📊</span> ' + username + "'s Picks";
+    modal.style.display = 'block';
+    
+    // Show loading state
+    modalLoading.style.display = 'block';
+    modalContent.style.display = 'none';
+    modalContent.innerHTML = ''; // Clear previous content
+    
+    // Build URL with group_id parameter if available
+    let url = `/api/player-picks/${userId}`;
+    if (selectedGroupId) {
+        url += `?group_id=${selectedGroupId}`;
+    }
+    
+    console.log('Fetching from URL:', url);
+    
+    // Fetch player picks with timeout
+    const fetchTimeout = setTimeout(() => {
+        modalContent.innerHTML = '<p style="text-align: center; padding: 2rem; color: var(--accent-red);">Request timed out. Please try again.</p>';
+        modalLoading.style.display = 'none';
+        modalContent.style.display = 'block';
+    }, 10000); // 10 second timeout
+    
+    // Fetch player picks
+    fetch(url)
+        .then(response => {
+            clearTimeout(fetchTimeout);
+            console.log('Response status:', response.status);
+            if (!response.ok) {
+                throw new Error(`Failed to load picks: ${response.status} ${response.statusText}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log('Received data:', data);
+            displayPlayerPicks(data);
+            modalLoading.style.display = 'none';
+            modalContent.style.display = 'block';
+        })
+        .catch(error => {
+            clearTimeout(fetchTimeout);
+            console.error('Error loading picks:', error);
+            modalContent.innerHTML = '<p style="text-align: center; padding: 2rem; color: var(--accent-red);">Failed to load picks. Please try again.<br><small>' + error.message + '</small></p>';
+            modalLoading.style.display = 'none';
+            modalContent.style.display = 'block';
+        });
+}
+
+// Function to display player picks in modal
+function displayPlayerPicks(data) {
+    const modalContent = document.getElementById('modalPicksContent');
+
+    if (!data.picks || data.picks.length === 0) {
+        modalContent.innerHTML = '<p style="text-align: center; padding: 2rem; color: var(--text-secondary);">No picks found for this player.</p>';
+        return;
+    }
+
+    let html = `
+        <table class="leaderboard-table" style="margin: 0; width: 100%; border-collapse: collapse; table-layout: fixed;">
+            <colgroup>
+                <col style="width: 12%;">
+                <col style="width: 32%;">
+                <col style="width: 18%;">
+                <col style="width: 16%;">
+                <col style="width: 16%;">
+                <col style="width: 6%;">
+            </colgroup>
+            <thead>
+                <tr style="background: rgba(107, 114, 128, 0.1);">
+                    <th style="padding: 0.75rem 0.5rem; text-align: left; font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase;">Week</th>
+                    <th style="padding: 0.75rem 0.5rem; text-align: left; font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase;">Matchup</th>
+                    <th style="padding: 0.75rem 0.5rem; text-align: left; font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase;">Pick</th>
+                    <th style="padding: 0.75rem 0.5rem; text-align: center; font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase;">Score</th>
+                    <th style="padding: 0.75rem 0.5rem; text-align: center; font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase;">Result</th>
+                    <th style="padding: 0.75rem 0.5rem; text-align: right; font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase;">Pts</th>
+                </tr>
+            </thead>
+            <tbody>
+    `;
+
+    data.picks.forEach(pick => {
+        const resultIcon = pick.is_correct === true ? '✓' :
+                          pick.is_correct === false ? '✗' : '⏳';
+
+        const resultColor = pick.is_correct === true ? 'var(--accent-green)' :
+                           pick.is_correct === false ? 'var(--accent-red)' : 'var(--text-secondary)';
+
+        const bgColor = pick.is_correct === true ? 'rgba(16, 185, 129, 0.05)' : 
+                       pick.is_correct === false ? 'rgba(239, 68, 68, 0.05)' : 'transparent';
+
+        html += `
+            <tr style="background: ${bgColor}; border-top: 1px solid var(--border-color);">
+                <td style="padding: 0.75rem 0.5rem;">
+                    <span style="font-weight: 700; color: var(--text-primary);">Week ${pick.week}</span>
+                </td>
+                <td style="padding: 0.75rem 0.5rem;">
+                    <div style="font-size: 0.875rem; color: var(--text-primary);">
+                        <div>${pick.away_team} @ ${pick.home_team}</div>
+                        ${!pick.is_final ? '<div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.125rem;">' + pick.game_time + '</div>' : ''}
+                    </div>
+                </td>
+                <td style="padding: 0.75rem 0.5rem;">
+                    <span style="font-weight: 600; color: var(--text-primary); background: rgba(59, 130, 246, 0.1); padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.875rem;">${pick.selected_team}</span>
+                </td>
+                <td style="padding: 0.75rem 0.5rem; text-align: center;">
+                    ${pick.is_final ?
+                        `<div style="font-size: 0.875rem;">
+                            <span style="font-weight: 600; color: var(--text-primary);">${pick.away_score}</span>
+                            <span style="color: var(--text-muted);">-</span>
+                            <span style="font-weight: 600; color: var(--text-primary);">${pick.home_score}</span>
+                        </div>` :
+                        '<span style="color: var(--text-secondary); font-size: 0.75rem;">In Progress</span>'
+                    }
+                </td>
+                <td style="padding: 0.75rem 0.5rem; text-align: center;">
+                    <span style="font-size: 1.125rem; color: ${resultColor}; font-weight: 700;">${resultIcon}</span>
+                    <span style="font-size: 0.75rem; color: ${resultColor}; margin-left: 0.25rem; text-transform: uppercase; font-weight: 600;">
+                        ${pick.is_correct === true ? 'Win' : pick.is_correct === false ? 'Loss' : 'Pending'}
+                    </span>
+                </td>
+                <td style="padding: 0.75rem 0.5rem; text-align: right;">
+                    ${pick.tiebreaker_points !== null && pick.tiebreaker_points !== undefined ?
+                        `<span style="font-weight: 700; font-size: 1rem; color: ${pick.tiebreaker_points >= 0 ? 'var(--accent-green)' : 'var(--accent-red)'};">
+                            ${pick.tiebreaker_points > 0 ? '+' : ''}${pick.tiebreaker_points}
+                        </span>` :
+                        '<span style="color: var(--text-muted);">-</span>'
+                    }
+                </td>
+            </tr>
+        `;
+    });
+
+    html += `
+            </tbody>
+        </table>
+    `;
+
+    modalContent.innerHTML = html;
+}
+
+// Function to close modal
+function closePlayerPicks() {
+    const modal = document.getElementById('playerPicksModal');
+    modal.style.display = 'none';
+}
+
+// Close modal when clicking outside
+document.addEventListener('click', function(event) {
+    const modal = document.getElementById('playerPicksModal');
+    if (event.target === modal) {
+        closePlayerPicks();
+    }
+});
+
+// Close modal with Escape key
+document.addEventListener('keydown', function(event) {
+    if (event.key === 'Escape') {
+        closePlayerPicks();
+    }
+});
+</script>
+
+<style>
+/* Dashboard-specific styles */
+.dashboard-content-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+    .dashboard-content-grid {
+        grid-template-columns: 1fr !important;
+        gap: 1rem !important;
+    }
+    
+    /* Stats grid special mobile layout */
+    .stats-grid {
+        display: grid !important;
+        grid-template-columns: 1fr 1fr !important;
+        grid-template-areas: 
+            "featured featured"
+            "card1 card2" !important;
+        gap: 0.75rem !important;
+    }
+    
+    .stat-card-featured {
+        grid-area: featured !important;
+    }
+    
+    .stat-card:nth-of-type(2) {
+        grid-area: card1 !important;
+    }
+    
+    .stat-card:nth-of-type(3) {
+        grid-area: card2 !important;
+    }
+}
+</style>
+{% endblock %}

@@ -1,0 +1,26 @@
+{% extends "errors/base_error.html" %}
+
+{% block title %}403 - Access Forbidden{% endblock %}
+{% block error_code %}403{% endblock %}
+{% block cat_code %}403{% endblock %}
+{% block cat_code_alt %}403{% endblock %}
+
+{% block error_title %}Access Denied!{% endblock %}
+
+{% block error_message %}
+    This cat is guarding this page and you don't have the right credentials! 🛡️
+    <br><br>
+    You don't have permission to access this resource. This could be because:
+    <br>
+    • You're not logged in
+    <br>
+    • You don't have admin privileges
+    <br>
+    • You're not a member of the required group
+    <br><br>
+    Try logging in with the appropriate account or contact an administrator.
+{% endblock %}
+
+{% block extra_buttons %}
+    <a href="{{ url_for('auth.login') }}" class="btn btn-secondary">🔑 Login</a>
+{% endblock %}

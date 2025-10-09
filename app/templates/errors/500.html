@@ -1,0 +1,21 @@
+{% extends "errors/base_error.html" %}
+
+{% block title %}500 - Internal Server Error{% endblock %}
+{% block error_code %}500{% endblock %}
+{% block cat_code %}500{% endblock %}
+{% block cat_code_alt %}500{% endblock %}
+
+{% block error_title %}Something Went Wrong!{% endblock %}
+
+{% block error_message %}
+    Looks like our server is having a cat-astrophic moment! 🙀
+    <br><br>
+    Our team has been notified and we're working to fix this issue. 
+    In the meantime, try refreshing the page or come back in a few minutes.
+    <br><br>
+    If the problem persists, please contact our support team.
+{% endblock %}
+
+{% block extra_buttons %}
+    <a href="javascript:location.reload()" class="btn btn-secondary">🔄 Refresh Page</a>
+{% endblock %}

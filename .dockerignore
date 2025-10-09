@@ -1,0 +1,112 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Python
+__pycache__
+*.py[codz]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv
+env.bak/
+venv.bak/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.pydevproject
+.settings/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.hypothesis/
+.nox/
+nosetests.xml
+coverage.xml
+*.cover
+.cache
+
+# Documentation
+*.md
+!README.md
+docs/
+CLAUDE.md
+DEV_README.md
+QUICK_REF.md
+REDIS_SETUP.md
+PWA_README.md
+
+# Development files
+.env
+.env.*
+!.env.docker.example
+.envrc
+test_*.py
+debug_*.py
+manual_*.py
+*.ps1
+generate_secrets.py
+
+# Logs and databases
+logs/
+*.log
+*.db
+app.db
+*.sqlite3
+*.sqlite
+
+# Docker
+Dockerfile*
+!Dockerfile
+docker-compose*.yml
+!docker-compose.yml
+.dockerignore
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+azure-pipelines.yml
+Jenkinsfile
+
+# Sensitive data
+*.key
+*.pem
+*.p12
+*.pfx
+secrets/
+credentials/
+.secret
+
+# Misc
+.DS_Store
+Thumbs.db
+*.bak
+*.tmp
+*.cache
+*.pid
+*.seed
+*.pid.lock
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*

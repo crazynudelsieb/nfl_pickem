@@ -1,0 +1,26 @@
+{% extends "errors/base_error.html" %}
+
+{% block title %}400 - Bad Request{% endblock %}
+{% block error_code %}400{% endblock %}
+{% block cat_code %}400{% endblock %}
+{% block cat_code_alt %}400{% endblock %}
+
+{% block error_title %}Bad Request!{% endblock %}
+
+{% block error_message %}
+    This cat is confused by your request! 😿
+    <br><br>
+    The request you sent couldn't be understood by our server. This might happen if:
+    <br>
+    • The form data was malformed or incomplete
+    <br>
+    • Required parameters were missing
+    <br>
+    • Invalid characters were used in the input
+    <br><br>
+    Please check your input and try again, or go back and start over.
+{% endblock %}
+
+{% block extra_buttons %}
+    <a href="javascript:history.back()" class="btn btn-secondary">↶ Try Again</a>
+{% endblock %}
