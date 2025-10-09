@@ -21,10 +21,44 @@ socketio = SocketIO()
 cache = Cache()
 migrate = Migrate()
 csrf = CSRFProtect()
+
+
+def get_real_ip():
+    """
+    Get the real client IP address, accounting for reverse proxies like Traefik.
+    Checks X-Forwarded-For, X-Real-IP, and falls back to remote_addr.
+    """
+    # X-Forwarded-For: client, proxy1, proxy2, ...
+    # We want the leftmost (original client) IP
+    if request.headers.get("X-Forwarded-For"):
+        # Get the first IP in the chain (the original client)
+        return request.headers.get("X-Forwarded-For").split(",")[0].strip()
+    # X-Real-IP is set by some proxies (nginx, Traefik)
+    if request.headers.get("X-Real-IP"):
+        return request.headers.get("X-Real-IP")
+    # Fallback to direct connection IP
+    return get_remote_address()
+
+
+# Determine rate limiter storage backend
+# Use Redis in production for shared rate limiting across multiple workers
+limiter_storage_uri = "memory://"
+redis_url = os.environ.get("REDIS_URL") or os.environ.get("CACHE_REDIS_URL")
+if redis_url:
+    try:
+        import redis
+
+        redis_client = redis.Redis.from_url(redis_url)
+        redis_client.ping()
+        limiter_storage_uri = redis_url
+        print(f"✓ Rate limiter using Redis storage at {redis_url}")
+    except (ImportError, redis.exceptions.ConnectionError) as e:
+        print(f"⚠ Redis not available for rate limiter, using memory storage: {e}")
+
 limiter = Limiter(
-    key_func=get_remote_address,
-    default_limits=["200 per day", "50 per hour"],
-    storage_uri="memory://",
+    key_func=get_real_ip,
+    default_limits=["500 per day", "100 per hour"],
+    storage_uri=limiter_storage_uri,
 )
 
 
