@@ -13,7 +13,7 @@ python-socketio==5.11.4
 python-engineio==4.10.1
 requests==2.32.3
 python-dotenv==1.0.1
-pytz==2024.1
+pytz==2025.2
 sportsipy==0.6.0
 APScheduler==3.11.0
 email-validator==2.2.0
