@@ -1,0 +1,71 @@
+# Dependabot configuration for NFL Pick'em
+# https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
+
+version: 2
+updates:
+  # Python dependencies
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Europe/Vienna"
+    open-pull-requests-limit: 10
+    assignees:
+      - "crazynudelsieb"
+    commit-message:
+      prefix: "deps"
+      prefix-development: "deps-dev"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "python"
+    # Group minor and patch updates together
+    groups:
+      python-minor-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+
+  # Docker dependencies
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "tuesday"
+      time: "09:00"
+      timezone: "Europe/Vienna"
+    open-pull-requests-limit: 5
+    assignees:
+      - "crazynudelsieb"
+    commit-message:
+      prefix: "docker"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "docker"
+
+  # GitHub Actions dependencies
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "wednesday"
+      time: "09:00"
+      timezone: "Europe/Vienna"
+    open-pull-requests-limit: 5
+    assignees:
+      - "crazynudelsieb"
+    commit-message:
+      prefix: "ci"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "github-actions"
+      - "ci"
+
+# Security updates are handled automatically regardless of schedule
+# Dependabot will create PRs immediately for security vulnerabilities
