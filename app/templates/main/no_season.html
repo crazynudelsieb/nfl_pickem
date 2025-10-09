@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+
+{% block title %}No Active Season - NFL Pick'em{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="text-center py-16">
+        <div class="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
+            <span class="text-4xl">🏈</span>
+        </div>
+        
+        <h1 class="text-3xl font-bold text-gray-900 mb-4">
+            No Active NFL Season
+        </h1>
+        
+        <p class="text-lg text-gray-600 mb-8 max-w-md mx-auto">
+            There's currently no active NFL season. The application will automatically load season data when available.
+        </p>
+        
+        <div class="space-y-4">
+            <p class="text-sm text-gray-500">
+                NFL seasons typically run from September through February.
+            </p>
+            
+            {% if current_user.is_authenticated %}
+            <div class="pt-4">
+                <a href="{{ url_for('main.leaderboard') }}" class="btn btn-secondary">
+                    View Past Seasons
+                </a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

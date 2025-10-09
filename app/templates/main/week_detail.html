@@ -1,0 +1,290 @@
+{% extends "base.html" %}
+
+{% block title %}Week {{ week }} - {{ season.year }} Season - NFL Pick'em{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- Week Header -->
+    <div class="mb-6">
+        <div class="flex justify-between items-start mb-4">
+            <div>
+                <h1 class="text-3xl font-bold text-gray-900 mb-2">
+                    {% if week_info and week_info.is_regular_season %}
+                        Week {{ week }}
+                    {% else %}
+                        {{ week_info.playoff_name or ('Playoff Week ' ~ (week - season.regular_season_weeks)) }}
+                    {% endif %}
+                    <span class="text-gray-600">- {{ season.year }} Season</span>
+                </h1>
+                
+                {% if week_info and week_info.start_date %}
+                <p class="text-gray-600">
+                    {{ week_info.start_date.strftime('%B %d, %Y') }}
+                    {% if week_info.end_date and week_info.end_date != week_info.start_date %}
+                    - {{ week_info.end_date.strftime('%B %d, %Y') }}
+                    {% endif %}
+                </p>
+                {% endif %}
+            </div>
+            
+            <div class="flex items-center space-x-2">
+                <!-- Week Navigation -->
+                {% if week > 1 %}
+                <a href="{{ url_for('main.week_detail', season_id=season.id, week=week-1) }}" 
+                   class="btn btn-sm btn-secondary">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+                    </svg>
+                </a>
+                {% endif %}
+                
+                {% set max_week = season.regular_season_weeks + season.playoff_weeks %}
+                {% if week < max_week %}
+                <a href="{{ url_for('main.week_detail', season_id=season.id, week=week+1) }}" 
+                   class="btn btn-sm btn-secondary">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                    </svg>
+                </a>
+                {% endif %}
+                
+                <!-- Make Pick Button -->
+                {% if season.is_active and games %}
+                <a href="{{ url_for('main.current_picks', week=week) }}" class="btn btn-primary">
+                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 00-2 2m-6 9l2 2 4-4"></path>
+                    </svg>
+                    Make Pick
+                </a>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Week Status -->
+        {% if week_info %}
+        <div class="flex items-center space-x-4 mb-4">
+            <div class="flex items-center">
+                <span class="text-sm text-gray-600 mr-2">Type:</span>
+                <span class="badge {{ 'badge-primary' if week_info.is_regular_season else 'badge-secondary' }}">
+                    {{ 'Regular Season' if week_info.is_regular_season else 'Playoffs' }}
+                </span>
+            </div>
+            
+            {% if season.is_active and week == season.current_week %}
+            <div class="flex items-center">
+                <span class="badge badge-success">Current Week</span>
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <!-- User's Pick for this Week -->
+        {% if user_pick %}
+        <div class="card mb-6">
+            <div class="card-header">
+                <h3 class="text-lg font-semibold text-gray-900">Your Pick</h3>
+            </div>
+            
+            <div class="card-body">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center space-x-3">
+                        {% if user_pick.selected_team %}
+                        <div class="flex items-center">
+                            <span class="text-gray-600 mr-2">You picked:</span>
+                            <span class="font-semibold text-gray-900">
+                                {{ user_pick.selected_team.name }}
+                            </span>
+                        </div>
+                        {% endif %}
+                        
+                        {% if user_pick.confidence_level %}
+                        <div class="flex items-center">
+                            <span class="text-gray-600 mr-2">Confidence:</span>
+                            <span class="font-semibold text-gray-900">
+                                {{ user_pick.confidence_level }}
+                            </span>
+                        </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="flex items-center space-x-2">
+                        {% if user_pick.is_correct is none %}
+                        <span class="badge badge-warning">Pending</span>
+                        {% elif user_pick.is_correct %}
+                        <span class="badge badge-success">Correct</span>
+                        {% if user_pick.points_earned %}
+                        <span class="text-sm text-green-600">
+                            +{{ user_pick.points_earned }} pts
+                        </span>
+                        {% endif %}
+                        {% else %}
+                        <span class="badge badge-danger">Incorrect</span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Games List -->
+    {% if games %}
+    <div class="mb-6">
+        <h2 class="text-2xl font-semibold text-gray-900 mb-4">Games</h2>
+        
+        <div class="space-y-4">
+            {% for game in games %}
+            <div class="card game-card" data-game-id="{{ game.id }}">
+                <div class="card-body">
+                    <div class="flex items-center justify-between">
+                        <!-- Teams -->
+                        <div class="flex items-center space-x-6 flex-1">
+                            <div class="flex items-center space-x-3">
+                                <div class="text-center min-w-0 flex-1">
+                                    <div class="font-semibold text-gray-900">
+                                        {{ game.away_team.name }}
+                                    </div>
+                                    <div class="text-sm text-gray-600">
+                                        Away
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="text-2xl text-gray-400">
+                                @
+                            </div>
+                            
+                            <div class="flex items-center space-x-3">
+                                <div class="text-center min-w-0 flex-1">
+                                    <div class="font-semibold text-gray-900">
+                                        {{ game.home_team.name }}
+                                    </div>
+                                    <div class="text-sm text-gray-600">
+                                        Home
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Game Info -->
+                        <div class="text-right">
+                            {% if game.is_final %}
+                            <div class="mb-2">
+                                <span class="text-2xl font-bold text-gray-900">
+                                    {{ game.away_score }} : {{ game.home_score }}
+                                </span>
+                            </div>
+                            <div class="text-sm text-gray-600">
+                                Final
+                            </div>
+                            {% elif game.game_time %}
+                            <div class="text-sm text-gray-600">
+                                {{ game.game_time.strftime('%I:%M %p') }}
+                            </div>
+                            <div class="text-sm text-gray-600">
+                                {{ game.game_time.strftime('%m/%d/%Y') }}
+                            </div>
+                            {% else %}
+                            <div class="text-sm text-gray-600">
+                                TBD
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <!-- Game Status Indicator -->
+                    <div class="mt-3 pt-3 border-t border-gray-200">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center space-x-2">
+                                {% if game.is_final %}
+                                <span class="w-2 h-2 bg-gray-500 rounded-full"></span>
+                                <span class="text-sm text-gray-600">Game Complete</span>
+                                {% elif game.is_live %}
+                                <span class="w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
+                                <span class="text-sm text-red-600">Live</span>
+                                {% elif game.is_pickable() %}
+                                <span class="w-2 h-2 bg-green-500 rounded-full"></span>
+                                <span class="text-sm text-green-600">Available for Picks</span>
+                                {% else %}
+                                <span class="w-2 h-2 bg-yellow-500 rounded-full"></span>
+                                <span class="text-sm text-yellow-600">Pick Deadline Passed</span>
+                                {% endif %}
+                            </div>
+                            
+                            {% if game.espn_id %}
+                            <a href="https://www.espn.com/nfl/game/_/gameId/{{ game.espn_id }}" 
+                               target="_blank" 
+                               class="text-sm text-blue-600 hover:underline">
+                                View on ESPN
+                            </a>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% else %}
+    <div class="text-center py-12">
+        <div class="text-gray-400 mb-4">
+            <svg class="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.172 16.172a4 4 0 015.656 0M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+            </svg>
+        </div>
+        <h2 class="text-xl font-semibold text-gray-900 mb-2">
+            No games scheduled
+        </h2>
+        <p class="text-gray-600">
+            There are no games scheduled for this week yet.
+        </p>
+    </div>
+    {% endif %}
+
+    <!-- Navigation -->
+    <div class="mt-8 flex justify-between">
+        <a href="{{ url_for('main.season_detail', season_id=season.id) }}" class="btn btn-secondary">
+            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+            </svg>
+            Back to Season
+        </a>
+        
+        <div class="flex space-x-2">
+            {% if season.is_active %}
+            <a href="{{ url_for('main.dashboard') }}" class="btn btn-secondary">Dashboard</a>
+            {% endif %}
+            
+            {% if games and season.is_active %}
+            <a href="{{ url_for('main.current_picks', week=week) }}" class="btn btn-primary">
+                Make Pick for Week {{ week }}
+            </a>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<style>
+.game-card {
+    transition: all 0.15s ease-in-out;
+}
+
+.game-card:hover {
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.5;
+    }
+}
+
+.animate-pulse {
+    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+</style>
+{% endblock %}
+

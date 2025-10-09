@@ -1,0 +1,297 @@
+{% extends "base.html" %}
+
+{% block title %}{{ season.year }} Season - NFL Pick'em{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- Season Header -->
+    <div class="mb-6">
+        <div class="flex justify-between items-start mb-4">
+            <div>
+                <h1 class="text-3xl font-bold text-gray-900 mb-2">
+                    {{ season.year }} NFL Season
+                    {% if season.is_active %}
+                    <span class="badge badge-success ml-2">Current Season</span>
+                    {% endif %}
+                </h1>
+                <p class="text-gray-600">
+                    {% if season.start_date and season.end_date %}
+                    {{ season.start_date.strftime('%B %d, %Y') }} - {{ season.end_date.strftime('%B %d, %Y') }}
+                    {% endif %}
+                </p>
+            </div>
+            
+            {% if season.is_active %}
+            <div class="flex space-x-2">
+                <a href="{{ url_for('main.current_picks') }}" class="btn btn-primary">
+                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 00-2 2m-6 9l2 2 4-4"></path>
+                    </svg>
+                    Make Picks
+                </a>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Season Stats -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            <div class="stat-card">
+                <div class="stat-value">{{ season.current_week or 1 }}</div>
+                <div class="stat-label">Current Week</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">{{ season.regular_season_weeks }}</div>
+                <div class="stat-label">Regular Season</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">{{ season.playoff_weeks }}</div>
+                <div class="stat-label">Playoff Weeks</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">{{ weeks|length }}</div>
+                <div class="stat-label">Total Weeks</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Week Navigation -->
+    <div class="mb-6">
+        <div class="flex justify-between items-center mb-4">
+            <h2 class="text-2xl font-semibold text-gray-900">Season Schedule</h2>
+            
+            <!-- Week Type Filter -->
+            <div class="flex space-x-2">
+                <button class="week-filter-btn active" data-filter="all">All Weeks</button>
+                <button class="week-filter-btn" data-filter="regular">Regular Season</button>
+                <button class="week-filter-btn" data-filter="playoffs">Playoffs</button>
+            </div>
+        </div>
+
+        <!-- Weeks Grid -->
+        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3" id="weeks-grid">
+            {% for week_info in weeks %}
+            <div class="week-card {{ 'regular' if week_info.is_regular_season else 'playoffs' }}" 
+                 data-week="{{ week_info.week }}"
+                 data-type="{{ 'regular' if week_info.is_regular_season else 'playoffs' }}">
+                <a href="{{ url_for('main.week_detail', season_id=season.id, week=week_info.week) }}" 
+                   class="block p-4 border border-gray-200 rounded-lg hover:border-blue-500 transition-colors">
+                    
+                    <div class="text-center">
+                        <div class="text-sm font-medium text-gray-900 mb-1">
+                            {% if week_info.is_regular_season %}
+                                Week {{ week_info.week }}
+                            {% else %}
+                                {{ week_info.playoff_name or ('Playoff Week ' ~ (week_info.week - season.regular_season_weeks)) }}
+                            {% endif %}
+                        </div>
+                        
+                        {% if week_info.start_date %}
+                        <div class="text-xs text-gray-600">
+                            {{ week_info.start_date.strftime('%m/%d') }}
+                        </div>
+                        {% endif %}
+                        
+                        <!-- Pick Status -->
+                        {% if week_info.week in user_picks_by_week %}
+                        <div class="mt-2">
+                            {% set user_pick = user_picks_by_week[week_info.week] %}
+                            {% if user_pick.is_correct is none %}
+                            <span class="inline-block w-2 h-2 bg-yellow-400 rounded-full" title="Pick made, pending"></span>
+                            {% elif user_pick.is_correct %}
+                            <span class="inline-block w-2 h-2 bg-green-500 rounded-full" title="Correct pick"></span>
+                            {% else %}
+                            <span class="inline-block w-2 h-2 bg-red-500 rounded-full" title="Incorrect pick"></span>
+                            {% endif %}
+                        </div>
+                        {% else %}
+                        <div class="mt-2">
+                            <span class="inline-block w-2 h-2 bg-gray-300 rounded-full" title="No pick made"></span>
+                        </div>
+                        {% endif %}
+                        
+                        <!-- Current Week Indicator -->
+                        {% if season.is_active and week_info.week == season.current_week %}
+                        <div class="mt-1">
+                            <span class="text-xs text-blue-600 font-medium">Current</span>
+                        </div>
+                        {% endif %}
+                    </div>
+                </a>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Pick Summary -->
+    {% if user_picks_by_week %}
+    <div class="card">
+        <div class="card-header">
+            <h3 class="text-lg font-semibold text-gray-900">Your Season Summary</h3>
+        </div>
+        
+        <div class="card-body">
+            {% set completed_picks = user_picks_by_week.values() | selectattr('is_correct', 'ne', none) | list %}
+            {% set correct_picks = completed_picks | selectattr('is_correct', 'eq', true) | list %}
+            {% set total_points = completed_picks | sum(attribute='points_earned') %}
+            
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div class="text-center">
+                    <div class="text-2xl font-bold text-gray-900">{{ user_picks_by_week | length }}</div>
+                    <div class="text-sm text-gray-600">Picks Made</div>
+                </div>
+                
+                <div class="text-center">
+                    <div class="text-2xl font-bold text-green-600">{{ correct_picks | length }}</div>
+                    <div class="text-sm text-gray-600">Correct</div>
+                </div>
+                
+                <div class="text-center">
+                    <div class="text-2xl font-bold text-red-600">{{ (completed_picks | length) - (correct_picks | length) }}</div>
+                    <div class="text-sm text-gray-600">Incorrect</div>
+                </div>
+                
+                <div class="text-center">
+                    <div class="text-2xl font-bold text-blue-600">{{ total_points or 0 }}</div>
+                    <div class="text-sm text-gray-600">Total Points</div>
+                </div>
+            </div>
+            
+            {% if completed_picks %}
+            <div class="mt-4 pt-4 border-t border-gray-200">
+                <div class="text-center">
+                    <span class="text-sm text-gray-600">Accuracy: </span>
+                    <span class="text-lg font-semibold text-gray-900">
+                        {{ "%.1f"|format((correct_picks | length) / (completed_picks | length) * 100) }}%
+                    </span>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Navigation -->
+    <div class="mt-8 flex justify-between">
+        <a href="{{ url_for('main.seasons') }}" class="btn btn-secondary">
+            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+            </svg>
+            All Seasons
+        </a>
+        
+        {% if season.is_active %}
+        <a href="{{ url_for('main.dashboard') }}" class="btn btn-primary">
+            Dashboard
+            <svg class="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+            </svg>
+        </a>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Week filter functionality
+    const filterButtons = document.querySelectorAll('.week-filter-btn');
+    const weekCards = document.querySelectorAll('.week-card');
+    
+    filterButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const filter = this.dataset.filter;
+            
+            // Update active button
+            filterButtons.forEach(btn => btn.classList.remove('active'));
+            this.classList.add('active');
+            
+            // Filter week cards
+            weekCards.forEach(card => {
+                if (filter === 'all') {
+                    card.style.display = 'block';
+                } else {
+                    const cardType = card.dataset.type;
+                    card.style.display = cardType === filter ? 'block' : 'none';
+                }
+            });
+        });
+    });
+});
+</script>
+
+<style>
+.week-filter-btn {
+    padding: 0.25rem 0.75rem;
+    font-size: 0.875rem;
+    border-radius: 0.375rem;
+    border: 1px solid #d1d5db;
+    color: #374151;
+    transition: all 0.15s ease-in-out;
+}
+
+.week-filter-btn:hover {
+    background-color: #f9fafb;
+}
+
+.week-filter-btn.active {
+    background-color: #2563eb;
+    color: white;
+    border-color: #2563eb;
+}
+
+.week-filter-btn.active:hover {
+    background-color: #1d4ed8;
+}
+
+.stat-card {
+    background-color: white;
+    padding: 1rem;
+    border-radius: 0.5rem;
+    border: 1px solid #e5e7eb;
+}
+
+.stat-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #111827;
+}
+
+.stat-label {
+    font-size: 0.875rem;
+    color: #6b7280;
+}
+
+.week-card.playoffs {
+    box-shadow: 0 0 0 1px rgba(251, 146, 60, 0.2);
+}
+
+/* Dark mode styles */
+@media (prefers-color-scheme: dark) {
+    .week-filter-btn {
+        border-color: #4b5563;
+        color: #d1d5db;
+    }
+    
+    .week-filter-btn:hover {
+        background-color: #374151;
+    }
+    
+    .stat-card {
+        background-color: #1f2937;
+        border-color: #374151;
+    }
+    
+    .stat-value {
+        color: white;
+    }
+    
+    .stat-label {
+        color: #9ca3af;
+    }
+    
+    .week-card.playoffs {
+        box-shadow: 0 0 0 1px rgba(251, 146, 60, 0.3);
+    }
+}
+</style>
+{% endblock %}
+

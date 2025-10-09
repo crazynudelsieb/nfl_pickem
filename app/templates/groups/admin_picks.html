@@ -1,0 +1,758 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Picks - {{ group.name }} - NFL Pick'em{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- Header -->
+    <div class="header-section">
+        <div>
+            <h1>Admin: Manage Picks for {{ group.name }}</h1>
+            <p>Create or update picks for group members with override permissions</p>
+        </div>
+        <div class="actions">
+            <a href="{{ url_for('groups.index', group=group.slug) }}" class="btn btn-secondary">Back to Group</a>
+        </div>
+    </div>
+
+    <!-- User Selection -->
+    <div class="admin-pick-section">
+        <div class="control-group">
+            <label for="user-select">Managing Picks For:</label>
+            <select id="user-select" class="form-select">
+                {% for member in members %}
+                <option value="{{ member.user.id }}" {% if member.user.id == current_user.id %}selected{% endif %}>
+                    {{ member.user.full_name }} ({{ member.user.username }})
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="control-group">
+            <label>
+                <input type="checkbox" id="admin-override">
+                Admin Override (bypass all validation rules)
+            </label>
+        </div>
+    </div>
+
+    <!-- Weekly Picks Overview -->
+    <div id="weeks-overview" class="weeks-overview-section">
+        <h3>All Picks for <span id="overview-username"></span></h3>
+
+        <div class="weeks-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Week</th>
+                        <th>Pick</th>
+                        <th>Game</th>
+                        <th>Result</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="weeks-table-body">
+                    <!-- Populated via JavaScript -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Pick Editor (Hidden by default, shows when clicking a week) -->
+    <div id="pick-editor" class="pick-editor-section hidden">
+        <div class="editor-header">
+            <h3>Edit Pick: <span id="editor-username"></span> - Week <span id="editor-week"></span></h3>
+            <button type="button" class="btn btn-secondary" id="back-to-overview">← Back to Overview</button>
+        </div>
+
+        <form id="admin-pick-form" method="POST">
+            {{ form.hidden_tag() }}
+            <input type="hidden" id="form-user-id" name="user_id">
+            <input type="hidden" id="form-week" name="week">
+            <input type="hidden" id="form-admin-override" name="admin_override">
+
+            <div id="games-container" class="games-grid">
+                <!-- Games loaded via JavaScript -->
+            </div>
+        </form>
+    </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+<!-- Delete Pick Modal (outside content block) -->
+<div class="modal fade" id="deletePickModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Delete Pick</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete this pick?</p>
+                <p><strong>User:</strong> <span id="delete-user"></span></p>
+                <p><strong>Pick:</strong> <span id="delete-team"></span> (Week <span id="delete-week"></span>)</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" id="confirm-delete-btn">Delete Pick</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% block extra_css %}
+<style>
+/* Admin Picks Styles */
+.admin-pick-section {
+    background: var(--card-bg);
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 32px;
+    border: 1px solid var(--border-color);
+}
+
+/* Weekly Overview Section */
+.weeks-overview-section {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 24px;
+}
+
+.weeks-overview-section h3 {
+    color: var(--text-primary);
+    margin-bottom: 20px;
+    font-size: 1.25rem;
+}
+
+.weeks-table table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.weeks-table th {
+    background: var(--bg-tertiary);
+    padding: 12px;
+    text-align: left;
+    font-weight: 600;
+    color: var(--text-secondary);
+    border-bottom: 2px solid var(--border-color);
+}
+
+.weeks-table td {
+    padding: 12px;
+    border-bottom: 1px solid var(--border-color);
+    color: var(--text-primary);
+}
+
+.weeks-table tbody tr:hover {
+    background: var(--bg-tertiary);
+    cursor: pointer;
+}
+
+.weeks-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.week-number {
+    font-weight: 600;
+    color: var(--accent-blue);
+}
+
+.team-badge {
+    background: var(--accent-blue);
+    color: white;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 0.875rem;
+    display: inline-block;
+}
+
+.result-icon {
+    color: #10b981;
+    font-weight: bold;
+    font-size: 1.1rem;
+}
+
+.result-icon.error {
+    color: #ef4444;
+}
+
+.no-pick {
+    color: var(--text-muted);
+    font-style: italic;
+}
+
+/* Pick Editor Section */
+.pick-editor-section {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 24px;
+}
+
+.editor-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.editor-header h3 {
+    margin: 0;
+    color: var(--text-primary);
+}
+
+/* Delete Pick Button */
+.delete-pick-btn {
+    background: #ef4444;
+    border: none;
+    color: white;
+    padding: 8px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 18px;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    margin-left: auto;
+}
+
+.delete-pick-btn:hover {
+    background: #dc2626;
+    transform: scale(1.1);
+}
+
+.delete-pick-btn:active {
+    transform: scale(0.95);
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+    .picks-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .pick-item {
+        grid-template-columns: 70px 1fr;
+        gap: 8px;
+        padding: 10px 8px;
+    }
+
+    .pick-details {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 6px;
+    }
+
+    .delete-pick-btn {
+        margin-left: 0;
+        margin-top: 4px;
+    }
+}
+
+.admin-controls {
+    display: grid;
+    grid-template-columns: 1fr 1fr auto;
+    gap: 20px;
+    align-items: end;
+    margin-bottom: 20px;
+}
+
+.control-group label {
+    display: block;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 8px;
+}
+
+.form-select {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: var(--input-bg);
+    color: var(--text-primary);
+    font-size: 14px;
+}
+
+.user-info-card {
+    background: var(--bg-tertiary);
+    border-radius: 8px;
+    padding: 16px;
+    border-left: 4px solid var(--accent-blue);
+}
+
+.user-info-card h3 {
+    margin: 0 0 4px 0;
+    color: var(--text-primary);
+}
+
+.user-info-card p {
+    margin: 0;
+    color: var(--text-secondary);
+}
+
+.games-section {
+    margin-bottom: 32px;
+}
+
+.section-header {
+    margin-bottom: 24px;
+}
+
+.section-header h2 {
+    margin: 0 0 8px 0;
+    color: var(--text-primary);
+}
+
+.section-header p {
+    margin: 0;
+    color: var(--text-secondary);
+}
+
+.games-grid {
+    display: grid;
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.admin-game-card {
+    background: var(--card-bg);
+    border: 2px solid var(--border-color);
+    border-radius: 12px;
+    padding: 20px;
+    transition: all 0.2s;
+}
+
+.admin-game-card:hover {
+    border-color: var(--accent-blue);
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.1);
+}
+
+.admin-game-card.selected {
+    border-color: var(--accent-blue);
+    background: rgba(59, 130, 246, 0.05);
+}
+
+.game-teams {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.team-option {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    border: 2px solid transparent;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    flex: 1;
+}
+
+.team-option:hover {
+    background: var(--bg-tertiary);
+    border-color: var(--accent-blue);
+}
+
+.team-option.selected {
+    background: var(--accent-blue);
+    border-color: var(--accent-blue);
+    color: white;
+}
+
+.team-option.team-used {
+    opacity: 0.4;
+    cursor: not-allowed !important;
+    pointer-events: none;
+    background: repeating-linear-gradient(
+        45deg,
+        var(--bg-secondary),
+        var(--bg-secondary) 10px,
+        var(--bg-tertiary) 10px,
+        var(--bg-tertiary) 20px
+    );
+}
+
+.team-option.team-used:hover {
+    border-color: transparent !important;
+    background: repeating-linear-gradient(
+        45deg,
+        var(--bg-secondary),
+        var(--bg-secondary) 10px,
+        var(--bg-tertiary) 10px,
+        var(--bg-tertiary) 20px
+    ) !important;
+}
+
+.team-logo {
+    width: 32px;
+    height: 32px;
+    object-fit: contain;
+}
+
+.team-info h4 {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.team-info .record {
+    font-size: 12px;
+    opacity: 0.8;
+}
+
+.game-vs {
+    padding: 0 16px;
+    color: var(--text-muted);
+    font-weight: 600;
+}
+
+.game-details {
+    text-align: center;
+    color: var(--text-secondary);
+    font-size: 14px;
+}
+
+.form-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-start;
+}
+
+@media (max-width: 768px) {
+    .admin-controls {
+        grid-template-columns: 1fr;
+        gap: 16px;
+    }
+    
+    .game-teams {
+        flex-direction: column;
+        gap: 12px;
+    }
+    
+    .game-vs {
+        padding: 8px 0;
+    }
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // DOM elements
+    const userSelect = document.getElementById('user-select');
+    const adminOverride = document.getElementById('admin-override');
+    const weeksOverview = document.getElementById('weeks-overview');
+    const overviewUsername = document.getElementById('overview-username');
+    const weeksTableBody = document.getElementById('weeks-table-body');
+    const pickEditor = document.getElementById('pick-editor');
+    const editorUsername = document.getElementById('editor-username');
+    const editorWeek = document.getElementById('editor-week');
+    const gamesContainer = document.getElementById('games-container');
+    const backToOverviewBtn = document.getElementById('back-to-overview');
+
+    let currentUserId = null;
+    let currentWeek = null;
+    let allWeeks = {{ weeks_with_games | tojson }};
+    let userPicksData = {};
+
+    // Initialize - load admin user on page load
+    function initialize() {
+        if (userSelect.value) {
+            currentUserId = userSelect.value;
+            loadWeeksOverview(currentUserId);
+        }
+    }
+
+    // Load all weeks overview for selected user
+    function loadWeeksOverview(userId) {
+        const username = userSelect.options[userSelect.selectedIndex].text;
+        overviewUsername.textContent = username;
+
+        // Fetch user's all picks
+        fetch(`{{ url_for('groups.admin_picks_user_data', group_id=group.id, user_id=0) }}`.replace('/0', `/${userId}`))
+            .then(response => response.json())
+            .then(data => {
+                userPicksData = data;
+                renderWeeksTable();
+                weeksOverview.classList.remove('hidden');
+                pickEditor.classList.add('hidden');
+            })
+            .catch(error => {
+                console.error('Error loading picks:', error);
+            });
+    }
+
+    // Render weeks overview table
+    function renderWeeksTable() {
+        let html = '';
+
+        allWeeks.forEach(week => {
+            const pick = userPicksData.picks_by_week ? userPicksData.picks_by_week[week] : null;
+            const resultIcon = pick && pick.is_correct === true ? '<span class="result-icon">✓</span>' :
+                              pick && pick.is_correct === false ? '<span class="result-icon error">✗</span>' : '';
+
+            html += `
+                <tr data-week="${week}" class="week-row">
+                    <td><span class="week-number">Week ${week}</span></td>
+                    <td>${pick ? '<span class="team-badge">' + pick.team + '</span>' : '<span class="no-pick">No pick</span>'}</td>
+                    <td>${pick ? pick.game : '-'}</td>
+                    <td>${resultIcon || '-'}</td>
+                    <td>
+                        ${pick ?
+                            `<button class="delete-pick-btn"
+                                     data-pick-id="${pick.id}"
+                                     data-user="${userSelect.options[userSelect.selectedIndex].text}"
+                                     data-team="${pick.team}"
+                                     data-week="${week}"
+                                     title="Delete this pick">
+                                <i class="fas fa-trash"></i>
+                            </button>`
+                            : '<button class="btn btn-sm btn-primary edit-week-btn">Make Pick</button>'}
+                    </td>
+                </tr>
+            `;
+        });
+
+        weeksTableBody.innerHTML = html;
+    }
+
+    // Show pick editor for specific week
+    function showPickEditor(week) {
+        currentWeek = week;
+        const username = userSelect.options[userSelect.selectedIndex].text;
+
+        editorUsername.textContent = username;
+        editorWeek.textContent = week;
+
+        // Update hidden form fields
+        document.getElementById('form-user-id').value = currentUserId;
+        document.getElementById('form-week').value = week;
+        document.getElementById('form-admin-override').value = adminOverride.checked ? '1' : '0';
+
+        // Load games for this week
+        loadGames(week);
+
+        // Show editor, hide overview
+        weeksOverview.classList.add('hidden');
+        pickEditor.classList.remove('hidden');
+    }
+
+    // Load games for specific week
+    function loadGames(week) {
+        gamesContainer.innerHTML = '<p>Loading games...</p>';
+
+        fetch(`/api/games/week/${week}`)
+            .then(response => response.json())
+            .then(data => {
+                renderGames(data.games || []);
+            })
+            .catch(error => {
+                console.error('Error loading games:', error);
+                gamesContainer.innerHTML = '<p class="error">Error loading games</p>';
+            });
+    }
+
+    // Render games (same as main picks interface)
+    function renderGames(games) {
+        if (games.length === 0) {
+            gamesContainer.innerHTML = '<p class="text-muted">No games for this week</p>';
+            return;
+        }
+
+        const existingPick = userPicksData.picks_by_week ? userPicksData.picks_by_week[currentWeek] : null;
+        const usedTeamIds = userPicksData.used_team_ids || [];
+
+        gamesContainer.innerHTML = games.map(game => {
+            const homeUsed = usedTeamIds.includes(game.home_team.id);
+            const awayUsed = usedTeamIds.includes(game.away_team.id);
+            const homeSelected = existingPick && existingPick.team_id === game.home_team.id;
+            const awaySelected = existingPick && existingPick.team_id === game.away_team.id;
+
+            return `
+                <div class="admin-game-card ${homeSelected || awaySelected ? 'selected' : ''}" data-game-id="${game.id}">
+                    <div class="game-teams">
+                        <div class="team-option ${awaySelected ? 'selected' : ''} ${awayUsed && !awaySelected ? 'team-used' : ''}"
+                             data-team-id="${game.away_team.id}"
+                             data-game-id="${game.id}">
+                            <img src="${game.away_team.logo_url || '/static/images/nfl-logo.png'}"
+                                 alt="${game.away_team.name}" class="team-logo">
+                            <div class="team-info">
+                                <h4>${game.away_team.name}</h4>
+                                <div class="record">(${game.away_team.wins || 0}-${game.away_team.losses || 0})</div>
+                                ${awayUsed && !awaySelected ? '<div class="team-used-badge">USED</div>' : ''}
+                            </div>
+                        </div>
+                        <div class="game-vs">@</div>
+                        <div class="team-option ${homeSelected ? 'selected' : ''} ${homeUsed && !homeSelected ? 'team-used' : ''}"
+                             data-team-id="${game.home_team.id}"
+                             data-game-id="${game.id}">
+                            <img src="${game.home_team.logo_url || '/static/images/nfl-logo.png'}"
+                                 alt="${game.home_team.name}" class="team-logo">
+                            <div class="team-info">
+                                <h4>${game.home_team.name}</h4>
+                                <div class="record">(${game.home_team.wins || 0}-${game.home_team.losses || 0})</div>
+                                ${homeUsed && !homeSelected ? '<div class="team-used-badge">USED</div>' : ''}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        // Add click handlers for team selection
+        document.querySelectorAll('.team-option').forEach(option => {
+            option.addEventListener('click', function() {
+                if (!this.classList.contains('team-used') || adminOverride.checked) {
+                    document.querySelectorAll('.team-option').forEach(o => o.classList.remove('selected'));
+                    document.querySelectorAll('.admin-game-card').forEach(c => c.classList.remove('selected'));
+
+                    this.classList.add('selected');
+                    this.closest('.admin-game-card').classList.add('selected');
+
+                    // Auto-save the pick immediately
+                    const gameId = this.dataset.gameId;
+                    const teamId = this.dataset.teamId;
+                    
+                    savePick(gameId, teamId);
+                }
+            });
+        });
+    }
+
+    // Auto-save pick function
+    function savePick(gameId, teamId) {
+        // Prepare form data
+        const formData = new FormData();
+        const csrfToken = document.querySelector('input[name="csrf_token"]').value;
+        
+        formData.append('csrf_token', csrfToken);
+        formData.append('user_id', currentUserId);
+        formData.append('week', currentWeek);
+        formData.append('game_id', gameId);
+        formData.append('team_id', teamId);
+        formData.append('admin_override', adminOverride.checked ? '1' : '0');
+        
+        // Show saving indicator
+        gamesContainer.style.opacity = '0.6';
+        gamesContainer.style.pointerEvents = 'none';
+        
+        fetch('{{ url_for("groups.admin_picks", group_id=group.id) }}', {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            // Always re-enable the interface
+            gamesContainer.style.opacity = '1';
+            gamesContainer.style.pointerEvents = 'auto';
+            
+            if (data.success || data.message) {
+                // Success - go back to overview
+                pickEditor.classList.add('hidden');
+                weeksOverview.classList.remove('hidden');
+                loadWeeksOverview(currentUserId);
+            } else {
+                alert(data.error || 'Error saving pick');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error saving pick');
+            gamesContainer.style.opacity = '1';
+            gamesContainer.style.pointerEvents = 'auto';
+        });
+    }
+
+    // Event listeners
+    userSelect.addEventListener('change', function() {
+        currentUserId = this.value;
+        if (currentUserId) {
+            loadWeeksOverview(currentUserId);
+        }
+    });
+
+    // Click week row to edit
+    weeksTableBody.addEventListener('click', function(e) {
+        const weekRow = e.target.closest('.week-row');
+        if (weekRow && !e.target.closest('.delete-pick-btn')) {
+            const week = weekRow.dataset.week;
+            showPickEditor(week);
+        }
+    });
+
+    backToOverviewBtn.addEventListener('click', function() {
+        pickEditor.classList.add('hidden');
+        weeksOverview.classList.remove('hidden');
+        loadWeeksOverview(currentUserId); // Refresh data
+    });
+
+    // Delete functionality (event delegation on document)
+    let deletePickId = null;
+
+    document.addEventListener('click', function(e) {
+        const deleteBtn = e.target.closest('.delete-pick-btn');
+        if (deleteBtn) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            deletePickId = deleteBtn.dataset.pickId;
+            const userName = deleteBtn.dataset.user;
+            const teamName = deleteBtn.dataset.team;
+            const weekNum = deleteBtn.dataset.week;
+
+            if (confirm(`Delete pick for ${userName}: ${teamName} (Week ${weekNum})?`)) {
+                performDelete(deletePickId);
+            }
+        }
+    });
+
+    function performDelete(pickId) {
+        const csrfToken = document.querySelector('input[name="csrf_token"]')?.value;
+        const deleteUrl = `{{ url_for('groups.admin_delete_pick', group_id=group.id, pick_id=0) }}`.replace('/0', `/${pickId}`);
+
+        fetch(deleteUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.message) {
+                loadWeeksOverview(currentUserId); // Refresh table
+            } else {
+                alert(data.error || 'Error deleting pick');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error deleting pick');
+        });
+    }
+
+    // Initialize on load
+    initialize();
+});
+</script>
+{% endblock %}
