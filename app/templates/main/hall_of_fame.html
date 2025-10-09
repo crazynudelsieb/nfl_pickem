@@ -1,0 +1,270 @@
+{% extends "base.html" %}
+
+{% block title %}Hall of Fame - NFL Pick'em{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="hall-of-fame-header">
+        <h1>🏛️ Hall of Fame 🏛️</h1>
+        <p>Celebrating the greatest picks champions of all time</p>
+    </div>
+
+    <!-- User's Achievements -->
+    {% if user_awards %}
+    <div class="user-trophy-case">
+        <h2>{{ current_user.full_name }}'s Trophy Case</h2>
+        <div class="trophy-grid">
+            {% for award in user_awards %}
+            <div class="trophy-card">
+                <div class="trophy-icon">
+                    {% if award.award_type == 'champion' %}
+                        {% if award.group_id %}🏆{% else %}👑{% endif %}
+                    {% elif award.award_type == 'runner_up' %}🥈
+                    {% elif award.award_type == 'third_place' %}🥉
+                    {% endif %}
+                </div>
+                <h4>{{ award.season.name }}</h4>
+                <p class="trophy-title">
+                    {% if award.award_type == 'champion' %}
+                        {% if award.group_id %}
+                            {{ award.group.name }} Champion
+                        {% else %}
+                            Global Champion
+                        {% endif %}
+                    {% elif award.award_type == 'runner_up' %}
+                        Runner-Up
+                    {% elif award.award_type == 'third_place' %}
+                        Third Place
+                    {% endif %}
+                </p>
+                <p class="trophy-stats">{{ award.total_wins }} Wins</p>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% else %}
+    <div class="no-trophies">
+        <p>🎯 Keep competing to earn your place in the Hall of Fame!</p>
+    </div>
+    {% endif %}
+
+    <!-- All-Time Champions -->
+    {% if top_champions %}
+    <div class="champions-list">
+        <h2>🌟 All-Time Champions</h2>
+        <div class="champions-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Rank</th>
+                        <th>Champion</th>
+                        <th>Championships</th>
+                        <th>Total Awards</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for champion in top_champions %}
+                    <tr class="{% if champion.user.id == current_user.id %}highlight-row{% endif %}">
+                        <td class="rank-cell">
+                            {% if loop.index == 1 %}👑
+                            {% elif loop.index == 2 %}🥈
+                            {% elif loop.index == 3 %}🥉
+                            {% else %}{{ loop.index }}
+                            {% endif %}
+                        </td>
+                        <td class="player-cell">
+                            <strong>{{ champion.user.full_name }}</strong>
+                            {% if champion.user.id == current_user.id %}
+                            <span class="you-badge">YOU</span>
+                            {% endif %}
+                        </td>
+                        <td class="championships-cell">
+                            {{ champion.championships }} 🏆
+                        </td>
+                        <td class="awards-cell">
+                            {{ champion.awards|length }} Awards
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+.hall-of-fame-header {
+    text-align: center;
+    padding: 40px 20px;
+    background: linear-gradient(135deg, #1a1a2e, #16213e);
+    border-radius: 15px;
+    margin-bottom: 40px;
+    color: #FFD700;
+}
+
+.hall-of-fame-header h1 {
+    font-size: 2.5rem;
+    margin-bottom: 10px;
+}
+
+.hall-of-fame-header p {
+    font-size: 1.1rem;
+    color: #C0C0C0;
+}
+
+.user-trophy-case {
+    background: var(--card-bg);
+    border-radius: 15px;
+    padding: 30px;
+    margin-bottom: 40px;
+    border: 2px solid var(--accent-blue);
+}
+
+.user-trophy-case h2 {
+    text-align: center;
+    margin-bottom: 30px;
+    color: var(--text-primary);
+}
+
+.trophy-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 20px;
+}
+
+.trophy-card {
+    background: var(--bg-tertiary);
+    border-radius: 12px;
+    padding: 20px;
+    text-align: center;
+    transition: transform 0.3s, box-shadow 0.3s;
+    border: 2px solid transparent;
+}
+
+.trophy-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+    border-color: var(--accent-gold, #FFD700);
+}
+
+.trophy-icon {
+    font-size: 4rem;
+    margin-bottom: 15px;
+    animation: glow 2s infinite;
+}
+
+@keyframes glow {
+    0%, 100% { filter: drop-shadow(0 0 5px rgba(255, 215, 0, 0.5)); }
+    50% { filter: drop-shadow(0 0 15px rgba(255, 215, 0, 0.8)); }
+}
+
+.trophy-card h4 {
+    color: var(--text-primary);
+    margin-bottom: 10px;
+}
+
+.trophy-title {
+    color: var(--text-secondary);
+    font-weight: 600;
+    margin-bottom: 8px;
+}
+
+.trophy-stats {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+}
+
+.no-trophies {
+    text-align: center;
+    padding: 60px 20px;
+    background: var(--bg-tertiary);
+    border-radius: 15px;
+    margin-bottom: 40px;
+}
+
+.no-trophies p {
+    font-size: 1.2rem;
+    color: var(--text-secondary);
+}
+
+.champions-list {
+    background: var(--card-bg);
+    border-radius: 15px;
+    padding: 30px;
+}
+
+.champions-list h2 {
+    text-align: center;
+    margin-bottom: 30px;
+    color: var(--text-primary);
+}
+
+.champions-table table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.champions-table th {
+    background: var(--bg-tertiary);
+    padding: 15px;
+    text-align: left;
+    color: var(--text-secondary);
+    font-weight: 600;
+    border-bottom: 2px solid var(--border-color);
+}
+
+.champions-table td {
+    padding: 15px;
+    border-bottom: 1px solid var(--border-color);
+    color: var(--text-primary);
+}
+
+.champions-table tbody tr:hover {
+    background: var(--bg-tertiary);
+}
+
+.highlight-row {
+    background: rgba(59, 130, 246, 0.1) !important;
+    border-left: 4px solid var(--accent-blue);
+}
+
+.rank-cell {
+    font-size: 1.5rem;
+    text-align: center;
+    width: 80px;
+}
+
+.player-cell {
+    font-size: 1.1rem;
+}
+
+.you-badge {
+    background: var(--accent-blue);
+    color: white;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    margin-left: 10px;
+}
+
+.championships-cell {
+    font-weight: 600;
+    color: var(--accent-gold, #FFD700);
+}
+
+@media (max-width: 768px) {
+    .trophy-grid {
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    }
+    
+    .champions-table {
+        overflow-x: auto;
+    }
+    
+    .champions-table table {
+        min-width: 500px;
+    }
+}
+</style>
+{% endblock %}

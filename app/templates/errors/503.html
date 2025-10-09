@@ -1,0 +1,26 @@
+{% extends "errors/base_error.html" %}
+
+{% block title %}503 - Service Unavailable{% endblock %}
+{% block error_code %}503{% endblock %}
+{% block cat_code %}503{% endblock %}
+{% block cat_code_alt %}503{% endblock %}
+
+{% block error_title %}We're Taking a Cat Nap!{% endblock %}
+
+{% block error_message %}
+    Our service is temporarily unavailable - probably because all our server cats are sleeping! 😴
+    <br><br>
+    This could be due to:
+    <br>
+    • Scheduled maintenance
+    <br>
+    • Server overload
+    <br>
+    • Database maintenance
+    <br><br>
+    We should be back online shortly. Thanks for your patience!
+{% endblock %}
+
+{% block extra_buttons %}
+    <a href="javascript:setTimeout(() => location.reload(), 30000)" class="btn btn-secondary">💤 Wait 30s & Refresh</a>
+{% endblock %}

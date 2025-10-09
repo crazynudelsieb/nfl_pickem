@@ -1,0 +1,1117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="NFL Pick'em - Make your weekly NFL predictions and compete with friends!">
+    <meta name="theme-color" content="#3b82f6">
+    {% if csrf_token %}
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    {% endif %}
+    
+    <title>{% block title %}NFL Pick'em{% endblock %}</title>
+    
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='images/icon-32x32.png') }}">
+    <link rel="icon" type="image/png" sizes="16x16" href="{{ url_for('static', filename='images/icon-16x16.png') }}">
+    
+    <!-- Apple Touch Icon -->
+    <link rel="apple-touch-icon" href="{{ url_for('static', filename='images/apple-touch-icon.png') }}">
+    
+    <!-- iOS Meta Tags -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="NFL Pick'em">
+    
+    <!-- Microsoft Tiles -->
+    <meta name="msapplication-TileColor" content="#3b82f6">
+    <meta name="msapplication-TileImage" content="{{ url_for('static', filename='images/icon-144x144.png') }}">
+    <meta name="msapplication-config" content="none">
+    
+    <!-- CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}?v=20251009v4">
+    
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    
+    <!-- Skip to main content -->
+    <a href="#main-content" class="sr-only">
+        Skip to main content
+    </a>
+
+    <!-- Navigation -->
+    <nav>
+        {% if current_user.is_authenticated %}
+            {% set user_groups = current_user.get_groups() %}
+            {# Use the LATEST group (last in list) as default instead of first #}
+            {% set current_group_slug = request.args.get('group', user_groups[-1].slug if user_groups else none) %}
+        {% endif %}
+        <div class="nav-content">
+            <!-- Left side -->
+            <div class="nav-left">
+                <!-- Logo -->
+                {% if current_user.is_authenticated and user_groups %}
+                <a href="{{ url_for('main.dashboard', group=current_group_slug) }}" class="nav-brand">
+                {% else %}
+                <a href="{{ url_for('main.index') }}" class="nav-brand">
+                {% endif %}
+                    <div class="logo">
+                        <img src="https://a.espncdn.com/i/teamlogos/leagues/500/nfl.png"
+                             alt="NFL"
+                             onerror="this.style.display='none'; this.nextElementSibling.style.display='inline';">
+                        <span style="display:none;">🏈</span>
+                    </div>
+                    <div class="title">NFL Pick'em</div>
+                </a>
+            </div>
+            
+            <!-- Center Navigation - Simple Text Links -->
+            {% if current_user.is_authenticated %}
+            <div class="nav-links">
+                {% if user_groups|length > 0 %}
+                <a href="{{ url_for('main.current_picks', group=current_group_slug) }}" 
+                   class="nav-link picks-nav-link {{ 'active' if request.endpoint == 'main.current_picks' }}">
+                    <span>Picks</span>
+                </a>
+                <a href="{{ url_for('groups.index', group=current_group_slug) }}" 
+                   class="nav-link group-nav-link {{ 'active' if request.endpoint == 'groups.index' }}">
+                    <span>Group</span>
+                </a>
+                <a href="{{ url_for('main.leaderboard', group=current_group_slug) }}" 
+                   class="nav-link {{ 'active' if request.endpoint == 'main.leaderboard' }}">
+                    <span>Leaderboard</span>
+                </a>
+                {% else %}
+                <a href="{{ url_for('main.current_picks') }}" 
+                   class="nav-link {{ 'active' if request.endpoint == 'main.current_picks' }}">
+                    <span>Picks</span>
+                </a>
+                <a href="{{ url_for('groups.index') }}" 
+                   class="nav-link {{ 'active' if request.endpoint == 'groups.index' }}">
+                    <span>Group</span>
+                </a>
+                <a href="{{ url_for('main.leaderboard') }}" 
+                   class="nav-link {{ 'active' if request.endpoint == 'main.leaderboard' }}">
+                    <span>Leaderboard</span>
+                </a>
+                {% endif %}
+            </div>
+            {% endif %}
+            
+            <!-- Right side -->
+            <div class="nav-user">
+                {% if current_user.is_authenticated %}
+                    <!-- User Menu with Dropdown -->
+                    <div class="user-dropdown">
+                        <button id="user-menu-button" class="user-menu-trigger" aria-expanded="false" aria-haspopup="true">
+                            <span class="user-name">{{ current_user.full_name }}</span>
+                            <svg class="dropdown-icon" width="12" height="12" fill="currentColor" viewBox="0 0 16 16">
+                                <path d="M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z"/>
+                            </svg>
+                        </button>
+                        <div id="user-menu" class="user-menu-dropdown hidden">
+                            <a href="{{ url_for('auth.profile', group=current_group_slug) if current_group_slug else url_for('auth.profile') }}" class="dropdown-item">
+                                <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                                    <path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6zm2-3a2 2 0 1 1-4 0 2 2 0 0 1 4 0zm4 8c0 1-1 1-1 1H3s-1 0-1-1 1-4 6-4 6 3 6 4zm-1-.004c-.001-.246-.154-.986-.832-1.664C11.516 10.68 10.289 10 8 10c-2.29 0-3.516.68-4.168 1.332-.678.678-.83 1.418-.832 1.664h10z"/>
+                                </svg>
+                                Profile
+                            </a>
+                            <a href="{{ url_for('auth.edit_profile', group=current_group_slug) if current_group_slug else url_for('auth.edit_profile') }}" class="dropdown-item">
+                                <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                                    <path d="M12.854.146a.5.5 0 0 0-.707 0L10.5 1.793 14.207 5.5l1.647-1.646a.5.5 0 0 0 0-.708l-3-3zm.646 6.061L9.793 2.5 3.293 9H3.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.207l6.5-6.5zm-7.468 7.468A.5.5 0 0 1 6 13.5V13h-.5a.5.5 0 0 1-.5-.5V12h-.5a.5.5 0 0 1-.5-.5V11h-.5a.5.5 0 0 1-.5-.5V10h-.5a.499.499 0 0 1-.175-.032l-.179.178a.5.5 0 0 0-.11.168l-2 5a.5.5 0 0 0 .65.65l5-2a.5.5 0 0 0 .168-.11l.178-.178z"/>
+                                </svg>
+                                Edit Profile
+                            </a>
+                            <a href="javascript:void(0);" onclick="showSwitchGroupsModal(event); return false;" class="dropdown-item" id="switch-groups-btn">
+                                <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                                    <path d="M15 14s1 0 1-1-1-4-5-4-5 3-5 4 1 1 1 1h8zm-7.978-1A.261.261 0 0 1 7 12.996c.001-.264.167-1.03.76-1.72C8.312 10.629 9.282 10 11 10c1.717 0 2.687.63 3.24 1.276.593.69.758 1.457.76 1.72l-.008.002a.274.274 0 0 1-.014.002H7.022zM11 7a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm3-2a3 3 0 1 1-6 0 3 3 0 0 1 6 0zM6.936 9.28a5.88 5.88 0 0 0-1.23-.247A7.35 7.35 0 0 0 5 9c-4 0-5 3-5 4 0 .667.333 1 1 1h4.216A2.238 2.238 0 0 1 5 13c0-1.01.377-2.042 1.09-2.904.243-.294.526-.569.846-.816zM4.92 10A5.493 5.493 0 0 0 4 13H1c0-.26.164-1.03.76-1.724.545-.636 1.492-1.256 3.16-1.275zM1.5 5.5a3 3 0 1 1 6 0 3 3 0 0 1-6 0zm3-2a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"/>
+                                </svg>
+                                Switch Groups
+                            </a>
+                            <div class="dropdown-divider"></div>
+                            <a href="{{ url_for('groups.create') }}" class="dropdown-item">
+                                <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                                    <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"/>
+                                </svg>
+                                Create New Group
+                            </a>
+                            <a href="javascript:void(0);" onclick="showJoinCodeModal(event); return false;" class="dropdown-item" id="join-code-btn">
+                                <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                                    <path d="M0 8a4 4 0 0 1 7.465-2H14a.5.5 0 0 1 .354.146l1.5 1.5a.5.5 0 0 1 0 .708l-1.5 1.5a.5.5 0 0 1-.708 0L13 9.207l-.646.647a.5.5 0 0 1-.708 0L11 9.207l-.646.647a.5.5 0 0 1-.708 0L9 9.207l-.646.647A.5.5 0 0 1 8 10h-.535A4 4 0 0 1 0 8zm4-3a3 3 0 1 0 2.712 4.285A.5.5 0 0 1 7.163 9h.63l.853-.854a.5.5 0 0 1 .708 0l.646.647.646-.647a.5.5 0 0 1 .708 0l.646.647.646-.647a.5.5 0 0 1 .708 0l.646.647.793-.793-1-1h-6.63a.5.5 0 0 1-.451-.285A3 3 0 0 0 4 5z"/>
+                                    <path d="M4 8a1 1 0 1 1-2 0 1 1 0 0 1 2 0z"/>
+                                </svg>
+                                Join by Invite Code
+                            </a>
+                            <div class="dropdown-divider"></div>
+                            <a href="{{ url_for('auth.logout') }}" class="dropdown-item logout">
+                                <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                                    <path fill-rule="evenodd" d="M10 12.5a.5.5 0 0 1-.5.5h-8a.5.5 0 0 1-.5-.5v-9a.5.5 0 0 1 .5-.5h8a.5.5 0 0 1 .5.5v2a.5.5 0 0 0 1 0v-2A1.5 1.5 0 0 0 9.5 2h-8A1.5 1.5 0 0 0 0 3.5v9A1.5 1.5 0 0 0 1.5 14h8a1.5 1.5 0 0 0 1.5-1.5v-2a.5.5 0 0 0-1 0v2z"/>
+                                    <path fill-rule="evenodd" d="M15.854 8.354a.5.5 0 0 0 0-.708l-3-3a.5.5 0 0 0-.708.708L14.293 7.5H5.5a.5.5 0 0 0 0 1h8.793l-2.147 2.146a.5.5 0 0 0 .708.708l3-3z"/>
+                                </svg>
+                                Sign Out
+                            </a>
+                        </div>
+                    </div>
+                {% else %}
+                    <!-- Auth Links -->
+                    <a href="{{ url_for('auth.login') }}" class="auth-link">Sign In</a>
+                    <a href="{{ url_for('auth.register') }}" class="auth-link primary">Sign Up</a>
+                {% endif %}
+                
+                <!-- Mobile Menu Button (Hidden on Mobile - using bottom nav instead) -->
+                <button id="mobile-menu-toggle" class="mobile-menu-btn desktop-only">
+                    <span class="hamburger"></span>
+                </button>
+            </div>
+        </div>
+        
+        <!-- Mobile Menu -->
+        {% if current_user.is_authenticated %}
+        <div id="mobile-menu" class="mobile-menu hidden">
+            <div class="mobile-menu-content">
+                {% if user_groups|length > 0 %}
+                <a href="{{ url_for('main.current_picks', group=current_group_slug) }}" class="mobile-nav-link mobile-picks-link">Picks</a>
+                <a href="{{ url_for('groups.index', group=current_group_slug) }}" class="mobile-nav-link mobile-group-link">Group</a>
+                {% else %}
+                <a href="{{ url_for('main.current_picks') }}" class="mobile-nav-link">Picks</a>
+                <a href="{{ url_for('groups.index') }}" class="mobile-nav-link">Group</a>
+                {% endif %}
+                <hr class="mobile-divider">
+                <a href="{{ url_for('auth.logout') }}" class="mobile-nav-link logout">Sign Out</a>
+            </div>
+        </div>
+        {% endif %}
+    </nav>
+
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div id="flash-messages" class="flash-container">
+                {% for category, message in messages %}
+                <div class="flash-message flash-{{ category }}" data-category="{{ category }}">
+                    <div class="flash-content">
+                        <span class="flash-icon">
+                            {% if category == 'success' %}✓{% elif category == 'error' %}✗{% elif category == 'warning' %}⚠{% else %}ℹ{% endif %}
+                        </span>
+                        <span class="flash-text">{{ message }}</span>
+                        <button onclick="this.parentElement.parentElement.remove()" class="flash-close">×</button>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+
+    <!-- Main Content -->
+    <main id="main-content">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Mobile Bottom Navigation (Touch-Optimized) -->
+    {% if current_user.is_authenticated %}
+    <nav class="mobile-bottom-nav">
+        <!-- Picks -->
+        <a href="{{ url_for('main.current_picks') }}" 
+           class="bottom-nav-item {{ 'active' if request.endpoint == 'main.current_picks' }}">
+            <svg class="nav-icon" width="24" height="24" fill="currentColor" viewBox="0 0 16 16">
+                <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
+                <path d="M10.97 4.97a.235.235 0 0 0-.02.022L7.477 9.417 5.384 7.323a.75.75 0 0 0-1.06 1.06L6.97 11.03a.75.75 0 0 0 1.079-.02l3.992-4.99a.75.75 0 0 0-1.071-1.05z"/>
+            </svg>
+            <span class="nav-label">Picks</span>
+        </a>
+        
+        <!-- Group -->
+        {% set user_groups = current_user.get_groups() %}
+        {% set current_group_slug = request.args.get('group', user_groups[0].slug if user_groups else none) %}
+        {% if user_groups|length > 0 %}
+        <a href="{{ url_for('groups.index', group=current_group_slug) }}" 
+           class="bottom-nav-item {{ 'active' if request.endpoint == 'groups.index' }}">
+            <svg class="nav-icon" width="22" height="22" fill="currentColor" viewBox="0 0 16 16">
+                <path d="M15 14s1 0 1-1-1-4-5-4-5 3-5 4 1 1 1 1h8zm-7.978-1A.261.261 0 0 1 7 12.996c.001-.264.167-1.03.76-1.72C8.312 10.629 9.282 10 11 10c1.717 0 2.687.63 3.24 1.276.593.69.758 1.457.76 1.72l-.008.002a.274.274 0 0 1-.014.002H7.022zM11 7a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm3-2a3 3 0 1 1-6 0 3 3 0 0 1 6 0zM6.936 9.28a5.88 5.88 0 0 0-1.23-.247A7.35 7.35 0 0 0 5 9c-4 0-5 3-5 4 0 .667.333 1 1 1h4.216A2.238 2.238 0 0 1 5 13c0-1.01.377-2.042 1.09-2.904.243-.294.526-.569.846-.816zM4.92 10A5.493 5.493 0 0 0 4 13H1c0-.26.164-1.03.76-1.724.545-.636 1.492-1.256 3.16-1.275zM1.5 5.5a3 3 0 1 1 6 0 3 3 0 0 1-6 0zm3-2a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"/>
+            </svg>
+            <span class="nav-label">Group</span>
+        </a>
+        {% else %}
+        <a href="{{ url_for('groups.index') }}" 
+           class="bottom-nav-item {{ 'active' if request.endpoint == 'groups.index' }}">
+            <svg class="nav-icon" width="22" height="22" fill="currentColor" viewBox="0 0 16 16">
+                <path d="M15 14s1 0 1-1-1-4-5-4-5 3-5 4 1 1 1 1h8zm-7.978-1A.261.261 0 0 1 7 12.996c.001-.264.167-1.03.76-1.72C8.312 10.629 9.282 10 11 10c1.717 0 2.687.63 3.24 1.276.593.69.758 1.457.76 1.72l-.008.002a.274.274 0 0 1-.014.002H7.022zM11 7a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm3-2a3 3 0 1 1-6 0 3 3 0 0 1 6 0zM6.936 9.28a5.88 5.88 0 0 0-1.23-.247A7.35 7.35 0 0 0 5 9c-4 0-5 3-5 4 0 .667.333 1 1 1h4.216A2.238 2.238 0 0 1 5 13c0-1.01.377-2.042 1.09-2.904.243-.294.526-.569.846-.816zM4.92 10A5.493 5.493 0 0 0 4 13H1c0-.26.164-1.03.76-1.724.545-.636 1.492-1.256 3.16-1.275zM1.5 5.5a3 3 0 1 1 6 0 3 3 0 0 1-6 0zm3-2a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"/>
+            </svg>
+            <span class="nav-label">Group</span>
+        </a>
+        {% endif %}
+        
+        <!-- Dashboard -->
+        <a href="{{ url_for('main.dashboard') }}" 
+           class="bottom-nav-item {{ 'active' if request.endpoint == 'main.dashboard' }}">
+            <svg class="nav-icon" width="22" height="22" fill="currentColor" viewBox="0 0 16 16">
+                <path d="M8 4a.5.5 0 0 1 .5.5V6a.5.5 0 0 1-1 0V4.5A.5.5 0 0 1 8 4zM3.732 5.732a.5.5 0 0 1 .707 0l.915.914a.5.5 0 1 1-.708.708l-.914-.915a.5.5 0 0 1 0-.707zM2 10a.5.5 0 0 1 .5-.5h1.586a.5.5 0 0 1 0 1H2.5A.5.5 0 0 1 2 10zm9.5 0a.5.5 0 0 1 .5-.5h1.5a.5.5 0 0 1 0 1H12a.5.5 0 0 1-.5-.5zm.754-4.246a.389.389 0 0 0-.527-.02L7.547 9.31a.91.91 0 1 0 1.302 1.258l3.434-4.297a.389.389 0 0 0-.029-.518z"/>
+                <path fill-rule="evenodd" d="M0 10a8 8 0 1 1 15.547 2.661c-.442 1.253-1.845 1.602-2.932 1.25C11.309 13.488 9.475 13 8 13c-1.474 0-3.31.488-4.615.911-1.087.352-2.49.003-2.932-1.25A7.988 7.988 0 0 1 0 10zm8-7a7 7 0 0 0-6.603 9.329c.203.575.923.876 1.68.63C4.397 12.533 6.358 12 8 12s3.604.532 4.923.96c.757.245 1.477-.056 1.68-.631A7 7 0 0 0 8 3z"/>
+            </svg>
+            <span class="nav-label">Dashboard</span>
+        </a>
+        
+        <!-- Leaderboard -->
+        <a href="{{ url_for('main.leaderboard') }}" 
+           class="bottom-nav-item {{ 'active' if request.endpoint == 'main.leaderboard' }}">
+            <svg class="nav-icon" width="22" height="22" fill="currentColor" viewBox="0 0 16 16">
+                <path d="M2.5.5A.5.5 0 0 1 3 0h10a.5.5 0 0 1 .5.5c0 .538-.012 1.05-.034 1.536a3 3 0 1 1-1.133 5.89c-.79 1.865-1.878 2.777-2.833 3.011v2.173l1.425.356c.194.048.377.135.537.255L13.3 15.1a.5.5 0 0 1-.3.9H3a.5.5 0 0 1-.3-.9l1.838-1.379c.16-.12.343-.207.537-.255L6.5 13.11v-2.173c-.955-.234-2.043-1.146-2.833-3.012a3 3 0 1 1-1.132-5.89A33.076 33.076 0 0 1 2.5.5zm.099 2.54a2 2 0 0 0 .72 3.935c-.333-1.05-.588-2.346-.72-3.935zm10.083 3.935a2 2 0 0 0 .72-3.935c-.133 1.59-.388 2.885-.72 3.935zM3.504 1c.007.517.026 1.006.056 1.469.13 2.028.457 3.546.87 4.667C5.294 9.48 6.484 10 7 10a.5.5 0 0 1 .5.5v2.61a1 1 0 0 1-.757.97l-1.426.356a.5.5 0 0 0-.179.085L4.5 15h7l-.638-.479a.501.501 0 0 0-.18-.084l-1.425-.356a1 1 0 0 1-.757-.97V10.5A.5.5 0 0 1 9 10c.516 0 1.706-.52 2.57-2.864.413-1.12.74-2.64.87-4.667.03-.463.049-.952.056-1.469H3.504z"/>
+            </svg>
+            <span class="nav-label">Ranks</span>
+        </a>
+        
+        <!-- Profile Menu -->
+        <button onclick="toggleMobileProfileMenu(event)" 
+                class="bottom-nav-item {{ 'active' if request.endpoint in ['auth.profile', 'auth.settings'] }}"
+                style="border: none; background: none; cursor: pointer; padding: 8px 4px;">
+            <svg class="nav-icon" width="22" height="22" fill="currentColor" viewBox="0 0 16 16">
+                <path d="M11 6a3 3 0 1 1-6 0 3 3 0 0 1 6 0z"/>
+                <path fill-rule="evenodd" d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8zm8-7a7 7 0 0 0-5.468 11.37C3.242 11.226 4.805 10 8 10s4.757 1.225 5.468 2.37A7 7 0 0 0 8 1z"/>
+            </svg>
+            <span class="nav-label">Profile</span>
+        </button>
+    </nav>
+    
+    <!-- Mobile Profile Menu Dropdown -->
+    <div id="mobile-profile-menu" class="mobile-profile-dropdown" style="display: none;">
+        <div class="mobile-profile-overlay" onclick="closeMobileProfileMenu()"></div>
+        <div class="mobile-profile-content">
+            <div class="mobile-profile-header">
+                <div class="mobile-profile-info">
+                    <div class="mobile-profile-avatar">
+                        {% if current_user.avatar_url %}
+                        <img src="{{ current_user.avatar_url }}" alt="{{ current_user.username }}">
+                        {% else %}
+                        <svg width="32" height="32" fill="currentColor" viewBox="0 0 16 16">
+                            <path d="M11 6a3 3 0 1 1-6 0 3 3 0 0 1 6 0z"/>
+                            <path fill-rule="evenodd" d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8zm8-7a7 7 0 0 0-5.468 11.37C3.242 11.226 4.805 10 8 10s4.757 1.225 5.468 2.37A7 7 0 0 0 8 1z"/>
+                        </svg>
+                        {% endif %}
+                    </div>
+                    <div class="mobile-profile-name">
+                        <strong>{{ current_user.username }}</strong>
+                        {% if current_user.is_admin %}
+                        <span class="badge badge-admin" style="font-size: 0.625rem; padding: 0.125rem 0.375rem; margin-left: 0.25rem;">Admin</span>
+                        {% endif %}
+                    </div>
+                </div>
+                <button onclick="closeMobileProfileMenu()" class="mobile-profile-close">
+                    <svg width="24" height="24" fill="currentColor" viewBox="0 0 16 16">
+                        <path d="M2.146 2.854a.5.5 0 1 1 .708-.708L8 7.293l5.146-5.147a.5.5 0 0 1 .708.708L8.707 8l5.147 5.146a.5.5 0 0 1-.708.708L8 8.707l-5.146 5.147a.5.5 0 0 1-.708-.708L7.293 8 2.146 2.854Z"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="mobile-profile-items">
+                <a href="javascript:void(0);" onclick="closeMobileProfileMenu(); setTimeout(function() { showSwitchGroupsModal(event); }, 100);" class="mobile-profile-item">
+                    <svg width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
+                        <path d="M15 14s1 0 1-1-1-4-5-4-5 3-5 4 1 1 1 1h8zm-7.978-1A.261.261 0 0 1 7 12.996c.001-.264.167-1.03.76-1.72C8.312 10.629 9.282 10 11 10c1.717 0 2.687.63 3.24 1.276.593.69.758 1.457.76 1.72l-.008.002a.274.274 0 0 1-.014.002H7.022zM11 7a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm3-2a3 3 0 1 1-6 0 3 3 0 0 1 6 0zM6.936 9.28a5.88 5.88 0 0 0-1.23-.247A7.35 7.35 0 0 0 5 9c-4 0-5 3-5 4 0 .667.333 1 1 1h4.216A2.238 2.238 0 0 1 5 13c0-1.01.377-2.042 1.09-2.904.243-.294.526-.569.846-.816zM4.92 10A5.493 5.493 0 0 0 4 13H1c0-.26.164-1.03.76-1.724.545-.636 1.492-1.256 3.16-1.275zM1.5 5.5a3 3 0 1 1 6 0 3 3 0 0 1-6 0zm3-2a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"/>
+                    </svg>
+                    <span>Switch Groups</span>
+                </a>
+                <a href="javascript:void(0);" onclick="closeMobileProfileMenu(); setTimeout(function() { showJoinCodeModal(event); }, 100);" class="mobile-profile-item">
+                    <svg width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
+                        <path d="M0 8a4 4 0 0 1 7.465-2H14a.5.5 0 0 1 .354.146l1.5 1.5a.5.5 0 0 1 0 .708l-1.5 1.5a.5.5 0 0 1-.708 0L13 9.207l-.646.647a.5.5 0 0 1-.708 0L11 9.207l-.646.647a.5.5 0 0 1-.708 0L9 9.207l-.646.647A.5.5 0 0 1 8 10h-.535A4 4 0 0 1 0 8zm4-3a3 3 0 1 0 2.712 4.285A.5.5 0 0 1 7.163 9h.63l.853-.854a.5.5 0 0 1 .708 0l.646.647.646-.647a.5.5 0 0 1 .708 0l.646.647.646-.647a.5.5 0 0 1 .708 0l.646.647.793-.793-1-1h-6.63a.5.5 0 0 1-.451-.285A3 3 0 0 0 4 5z"/>
+                        <path d="M4 8a1 1 0 1 1-2 0 1 1 0 0 1 2 0z"/>
+                    </svg>
+                    <span>Join by Code</span>
+                </a>
+                <a href="{{ url_for('groups.create') }}" class="mobile-profile-item" onclick="closeMobileProfileMenu()">
+                    <svg width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
+                        <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"/>
+                    </svg>
+                    <span>Create Group</span>
+                </a>
+                <div class="mobile-profile-divider"></div>
+                <a href="{{ url_for('auth.profile') }}" class="mobile-profile-item" onclick="closeMobileProfileMenu()">
+                    <svg width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
+                        <path d="M3 14s-1 0-1-1 1-4 6-4 6 3 6 4-1 1-1 1H3zm5-6a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/>
+                    </svg>
+                    <span>My Profile</span>
+                </a>
+                <a href="{{ url_for('auth.edit_profile') }}" class="mobile-profile-item" onclick="closeMobileProfileMenu()">
+                    <svg width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
+                        <path d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l10-10zM11.207 2.5 13.5 4.793 14.793 3.5 12.5 1.207 11.207 2.5zm1.586 3L10.5 3.207 4 9.707V10h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.293l6.5-6.5zm-9.761 5.175-.106.106-1.528 3.821 3.821-1.528.106-.106A.5.5 0 0 1 5 12.5V12h-.5a.5.5 0 0 1-.5-.5V11h-.5a.5.5 0 0 1-.468-.325z"/>
+                    </svg>
+                    <span>Edit Profile</span>
+                </a>
+                <div class="mobile-profile-divider"></div>
+                {% if current_group_slug %}
+                <a href="{{ url_for('main.rules', group=current_group_slug) }}" class="mobile-profile-item" onclick="closeMobileProfileMenu()">
+                    <svg width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
+                        <path d="M14 4.5V14a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V2a2 2 0 0 1 2-2h5.5L14 4.5zm-3 0A1.5 1.5 0 0 1 9.5 3V1H4a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V4.5h-2z"/>
+                        <path d="M4.603 14.087a.81.81 0 0 1-.438-.42c-.195-.388-.13-.776.08-1.102.198-.307.526-.568.897-.787a7.68 7.68 0 0 1 1.482-.645 19.697 19.697 0 0 0 1.062-2.227 7.269 7.269 0 0 1-.43-1.295c-.086-.4-.119-.796-.046-1.136.075-.354.274-.672.65-.823.192-.077.4-.12.602-.077a.7.7 0 0 1 .477.365c.088.164.12.356.127.538.007.188-.012.396-.047.614-.084.51-.27 1.134-.52 1.794a10.954 10.954 0 0 0 .98 1.686 5.753 5.753 0 0 1 1.334.05c.364.066.734.195.96.465.12.144.193.32.2.518.007.192-.047.382-.138.563a1.04 1.04 0 0 1-.354.416.856.856 0 0 1-.51.138c-.331-.014-.654-.196-.933-.417a5.712 5.712 0 0 1-.911-.95 11.651 11.651 0 0 0-1.997.406 11.307 11.307 0 0 1-1.02 1.51c-.292.35-.609.656-.927.787a.793.793 0 0 1-.58.029zm1.379-1.901c-.166.076-.32.156-.459.238-.328.194-.541.383-.647.547-.094.145-.096.25-.04.361.01.022.02.036.026.044a.266.266 0 0 0 .035-.012c.137-.056.355-.235.635-.572a8.18 8.18 0 0 0 .45-.606zm1.64-1.33a12.71 12.71 0 0 1 1.01-.193 11.744 11.744 0 0 1-.51-.858 20.801 20.801 0 0 1-.5 1.05zm2.446.45c.15.163.296.3.435.41.24.19.407.253.498.256a.107.107 0 0 0 .07-.015.307.307 0 0 0 .094-.125.436.436 0 0 0 .059-.2.095.095 0 0 0-.026-.063c-.052-.062-.2-.152-.518-.209a3.876 3.876 0 0 0-.612-.053zM8.078 7.8a6.7 6.7 0 0 0 .2-.828c.031-.188.043-.343.038-.465a.613.613 0 0 0-.032-.198.517.517 0 0 0-.145.04c-.087.035-.158.106-.196.283-.04.192-.03.469.046.822.024.111.054.227.09.346z"/>
+                    </svg>
+                    <span>Game Rules</span>
+                </a>
+                {% else %}
+                <a href="{{ url_for('main.rules') }}" class="mobile-profile-item" onclick="closeMobileProfileMenu()">
+                    <svg width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
+                        <path d="M14 4.5V14a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V2a2 2 0 0 1 2-2h5.5L14 4.5zm-3 0A1.5 1.5 0 0 1 9.5 3V1H4a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V4.5h-2z"/>
+                        <path d="M4.603 14.087a.81.81 0 0 1-.438-.42c-.195-.388-.13-.776.08-1.102.198-.307.526-.568.897-.787a7.68 7.68 0 0 1 1.482-.645 19.697 19.697 0 0 0 1.062-2.227 7.269 7.269 0 0 1-.43-1.295c-.086-.4-.119-.796-.046-1.136.075-.354.274-.672.65-.823.192-.077.4-.12.602-.077a.7.7 0 0 1 .477.365c.088.164.12.356.127.538.007.188-.012.396-.047.614-.084.51-.27 1.134-.52 1.794a10.954 10.954 0 0 0 .98 1.686 5.753 5.753 0 0 1 1.334.05c.364.066.734.195.96.465.12.144.193.32.2.518.007.192-.047.382-.138.563a1.04 1.04 0 0 1-.354.416.856.856 0 0 1-.51.138c-.331-.014-.654-.196-.933-.417a5.712 5.712 0 0 1-.911-.95 11.651 11.651 0 0 0-1.997.406 11.307 11.307 0 0 1-1.02 1.51c-.292.35-.609.656-.927.787a.793.793 0 0 1-.58.029zm1.379-1.901c-.166.076-.32.156-.459.238-.328.194-.541.383-.647.547-.094.145-.096.25-.04.361.01.022.02.036.026.044a.266.266 0 0 0 .035-.012c.137-.056.355-.235.635-.572a8.18 8.18 0 0 0 .45-.606zm1.64-1.33a12.71 12.71 0 0 1 1.01-.193 11.744 11.744 0 0 1-.51-.858 20.801 20.801 0 0 1-.5 1.05zm2.446.45c.15.163.296.3.435.41.24.19.407.253.498.256a.107.107 0 0 0 .07-.015.307.307 0 0 0 .094-.125.436.436 0 0 0 .059-.2.095.095 0 0 0-.026-.063c-.052-.062-.2-.152-.518-.209a3.876 3.876 0 0 0-.612-.053zM8.078 7.8a6.7 6.7 0 0 0 .2-.828c.031-.188.043-.343.038-.465a.613.613 0 0 0-.032-.198.517.517 0 0 0-.145.04c-.087.035-.158.106-.196.283-.04.192-.03.469.046.822.024.111.054.227.09.346z"/>
+                    </svg>
+                    <span>Game Rules</span>
+                </a>
+                {% endif %}
+                <div class="mobile-profile-divider"></div>
+                {% if current_user.is_admin %}
+                <a href="{{ url_for('main.admin') }}" class="mobile-profile-item" onclick="closeMobileProfileMenu()">
+                    <svg width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
+                        <path d="M9.405 1.05c-.413-1.4-2.397-1.4-2.81 0l-.1.34a1.464 1.464 0 0 1-2.105.872l-.31-.17c-1.283-.698-2.686.705-1.987 1.987l.169.311c.446.82.023 1.841-.872 2.105l-.34.1c-1.4.413-1.4 2.397 0 2.81l.34.1a1.464 1.464 0 0 1 .872 2.105l-.17.31c-.698 1.283.705 2.686 1.987 1.987l.311-.169a1.464 1.464 0 0 1 2.105.872l.1.34c.413 1.4 2.397 1.4 2.81 0l.1-.34a1.464 1.464 0 0 1 2.105-.872l.31.17c1.283.698 2.686-.705 1.987-1.987l-.169-.311a1.464 1.464 0 0 1 .872-2.105l.34-.1c1.4-.413 1.4-2.397 0-2.81l-.34-.1a1.464 1.464 0 0 1-.872-2.105l.17-.31c.698-1.283-.705-2.686-1.987-1.987l-.311.169a1.464 1.464 0 0 1-2.105-.872l-.1-.34zM8 10.93a2.929 2.929 0 1 1 0-5.86 2.929 2.929 0 0 1 0 5.858z"/>
+                    </svg>
+                    <span>Admin Panel</span>
+                </a>
+                {% endif %}
+                <a href="{{ url_for('auth.logout') }}" class="mobile-profile-item mobile-profile-logout" onclick="closeMobileProfileMenu()">
+                    <svg width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
+                        <path fill-rule="evenodd" d="M10 12.5a.5.5 0 0 1-.5.5h-8a.5.5 0 0 1-.5-.5v-9a.5.5 0 0 1 .5-.5h8a.5.5 0 0 1 .5.5v2a.5.5 0 0 0 1 0v-2A1.5 1.5 0 0 0 9.5 2h-8A1.5 1.5 0 0 0 0 3.5v9A1.5 1.5 0 0 0 1.5 14h8a1.5 1.5 0 0 0 1.5-1.5v-2a.5.5 0 0 0-1 0v2z"/>
+                        <path fill-rule="evenodd" d="M15.854 8.354a.5.5 0 0 0 0-.708l-3-3a.5.5 0 0 0-.708.708L14.293 7.5H5.5a.5.5 0 0 0 0 1h8.793l-2.147 2.146a.5.5 0 0 0 .708.708l3-3z"/>
+                    </svg>
+                    <span>Sign Out</span>
+                </a>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Scripts -->
+    <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+    <script src="https://cdn.socket.io/4.7.0/socket.io.min.js"></script>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    
+    <!-- Real-time Score Updates -->
+    {% if current_user.is_authenticated %}
+    <script>
+        // Initialize SocketIO connections for real-time updates
+        document.addEventListener('DOMContentLoaded', function() {
+            // Add a small delay to prevent race conditions on page load
+            setTimeout(function() {
+                try {
+                    // Connect to scores namespace with reconnection options
+                    const scoresSocket = io('/scores', {
+                        transports: ['websocket', 'polling'],  // Prefer WebSocket
+                        upgrade: true,
+                        reconnection: true,
+                        reconnectionDelay: 1000,
+                        reconnectionDelayMax: 5000,
+                        reconnectionAttempts: 5,
+                        timeout: 10000
+                    });
+                    
+                    // Connect to notifications namespace with reconnection options
+                    const notificationsSocket = io('/notifications', {
+                        transports: ['websocket', 'polling'],  // Prefer WebSocket
+                        upgrade: true,
+                        reconnection: true,
+                        reconnectionDelay: 1000,
+                        reconnectionDelayMax: 5000,
+                        reconnectionAttempts: 5,
+                        timeout: 10000
+                    });
+                    
+                    // Connection status indicators
+                    let connectionStatus = {
+                        scores: false,
+                        notifications: false
+                    };
+                    
+                    // Scores socket events
+                    scoresSocket.on('connect', function() {
+                        connectionStatus.scores = true;
+                        console.log('Connected to live scores');
+                        updateConnectionIndicator();
+                    });
+                    
+                    scoresSocket.on('disconnect', function() {
+                        connectionStatus.scores = false;
+                        console.log('Disconnected from live scores');
+                        updateConnectionIndicator();
+                    });
+                    
+                    scoresSocket.on('connect_error', function(error) {
+                        console.log('Connection error to scores:', error);
+                    });
+                    
+                    scoresSocket.on('score_update', function(data) {
+                        updateGameScore(data);
+                        showToast('Live Score Update: ' + data.away_team + ' vs ' + data.home_team, 'info');
+                    });
+            
+            scoresSocket.on('game_final', function(data) {
+                updateGameScore(data);
+                showToast('Game Final: ' + data.away_team + ' vs ' + data.home_team, 'success');
+                
+                // Refresh page after a short delay to show updated picks
+                setTimeout(() => {
+                    if (window.location.pathname.includes('/picks') || window.location.pathname.includes('/leaderboard')) {
+                        window.location.reload();
+                    }
+                }, 3000);
+            });
+            
+            scoresSocket.on('pick_result', function(data) {
+                const result = data.is_correct ? 'Correct!' : 'Incorrect';
+                const points = data.points_earned > 0 ? ` (+${data.points_earned} pts)` : '';
+                showToast('Pick Result: ' + result + points, data.is_correct ? 'success' : 'error');
+            });
+            
+            // Notifications socket events
+            notificationsSocket.on('connect', function() {
+                connectionStatus.notifications = true;
+                console.log('Connected to notifications');
+                updateConnectionIndicator();
+            });
+            
+            notificationsSocket.on('disconnect', function() {
+                connectionStatus.notifications = false;
+                console.log('Disconnected from notifications');
+                updateConnectionIndicator();
+            });
+            
+            notificationsSocket.on('notification', function(data) {
+                showToast(data.message, data.type || 'info');
+            });
+            
+            // Helper functions
+            function updateGameScore(gameData) {
+                // Update any game score displays on the page
+                const gameElements = document.querySelectorAll(`[data-game-id="${gameData.game_id}"]`);
+                gameElements.forEach(element => {
+                    const homeScoreEl = element.querySelector('.home-score');
+                    const awayScoreEl = element.querySelector('.away-score');
+                    const statusEl = element.querySelector('.game-status');
+                    
+                    if (homeScoreEl) homeScoreEl.textContent = gameData.home_score || 0;
+                    if (awayScoreEl) awayScoreEl.textContent = gameData.away_score || 0;
+                    if (statusEl) {
+                        statusEl.textContent = gameData.is_final ? 'Final' : 'Live';
+                        statusEl.className = `game-status badge ${gameData.is_final ? 'bg-success' : 'bg-warning'}`;
+                    }
+                    
+                    // Add visual effect for updates
+                    element.classList.add('score-updated');
+                    setTimeout(() => element.classList.remove('score-updated'), 2000);
+                });
+            }
+            
+            function updateConnectionIndicator() {
+                // Connection indicator visual removed (functionality still active)
+            }
+            
+            function showToast(message, type = 'info') {
+                // Create toast notification
+                const toast = document.createElement('div');
+                toast.className = `toast toast-${type} animate-slide-in`;
+                toast.innerHTML = `
+                    <div class="toast-content">
+                        <span>${message}</span>
+                        <button class="toast-close" onclick="this.parentElement.parentElement.remove()">×</button>
+                    </div>
+                `;
+                
+                // Add to toast container
+                let container = document.getElementById('toast-container');
+                if (!container) {
+                    container = document.createElement('div');
+                    container.id = 'toast-container';
+                    container.className = 'fixed top-20 right-4 z-50 space-y-2';
+                    document.body.appendChild(container);
+                }
+                
+                container.appendChild(toast);
+                
+                // Auto-remove after 5 seconds
+                setTimeout(() => {
+                    if (toast.parentElement) {
+                        toast.remove();
+                    }
+                }, 5000);
+            }
+            
+            // Subscribe to relevant updates based on current page
+            if (window.location.pathname.includes('/picks')) {
+                // Subscribe to user picks updates
+                scoresSocket.emit('subscribe_user_picks', {});
+                
+                // Subscribe to game updates for games on the page
+                document.querySelectorAll('[data-game-id]').forEach(element => {
+                    const gameId = element.getAttribute('data-game-id');
+                    scoresSocket.emit('subscribe_game', {game_id: parseInt(gameId)});
+                });
+            }
+            
+            // Connection indicator removed (kept functionality, removed visual indicator)
+                } catch (error) {
+                    console.log('SocketIO initialization error (non-critical):', error);
+                }
+            }, 500); // 500ms delay to allow page to fully load
+        });
+    </script>
+    {% endif %}
+    
+    {% block extra_js %}{% endblock %}
+    
+    <!-- Service Worker Registration & PWA Install -->
+    <script>
+        // Service Worker Registration
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', function() {
+                navigator.serviceWorker.register('/sw.js')
+                    .then(function(registration) {
+                        console.log('ServiceWorker registration successful');
+                        
+                        // Check for updates
+                        registration.addEventListener('updatefound', function() {
+                            const newWorker = registration.installing;
+                            newWorker.addEventListener('statechange', function() {
+                                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                    // New service worker available
+                                    console.log('New service worker available');
+                                }
+                            });
+                        });
+                    })
+                    .catch(function(err) {
+                        console.log('ServiceWorker registration failed: ', err);
+                    });
+            });
+        }
+
+        // PWA Install Prompt
+        let deferredPrompt;
+        
+        window.addEventListener('beforeinstallprompt', function(e) {
+            // Prevent Chrome 67 and earlier from automatically showing the prompt
+            e.preventDefault();
+            // Stash the event so it can be triggered later
+            deferredPrompt = e;
+            
+            // Show install button/banner (you can customize this)
+            console.log('PWA install prompt available');
+            
+            // Optionally show a custom install button
+            showInstallPromotion();
+        });
+        
+        function showInstallPromotion() {
+            // Create install banner
+            const installBanner = document.createElement('div');
+            installBanner.id = 'pwa-install-banner';
+            installBanner.innerHTML = `
+                <div style="position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); 
+                            background: linear-gradient(135deg, #3b82f6, #2563eb); 
+                            color: white; padding: 1rem 1.5rem; border-radius: 12px; 
+                            box-shadow: 0 10px 30px rgba(59, 130, 246, 0.4);
+                            z-index: 10000; max-width: 90%; display: flex; align-items: center; gap: 1rem;
+                            animation: slideUp 0.3s ease;">
+                    <div style="flex: 1;">
+                        <div style="font-weight: 600; margin-bottom: 0.25rem;">🏈 Install NFL Pick'em</div>
+                        <div style="font-size: 0.875rem; opacity: 0.9;">Add to your home screen for quick access!</div>
+                    </div>
+                    <button onclick="installPWA()" style="background: white; color: #3b82f6; border: none; 
+                                                          padding: 0.5rem 1rem; border-radius: 6px; 
+                                                          font-weight: 600; cursor: pointer;">
+                        Install
+                    </button>
+                    <button onclick="dismissInstallBanner()" style="background: transparent; color: white; 
+                                                                     border: 1px solid rgba(255,255,255,0.3); 
+                                                                     padding: 0.5rem 1rem; border-radius: 6px; 
+                                                                     cursor: pointer;">
+                        Later
+                    </button>
+                </div>
+            `;
+            
+            // Check if banner was dismissed in this session
+            if (!sessionStorage.getItem('pwaInstallDismissed')) {
+                document.body.appendChild(installBanner);
+            }
+        }
+        
+        window.installPWA = async function() {
+            if (!deferredPrompt) return;
+            
+            // Show the install prompt
+            deferredPrompt.prompt();
+            
+            // Wait for the user to respond to the prompt
+            const { outcome } = await deferredPrompt.userChoice;
+            console.log(`User response to the install prompt: ${outcome}`);
+            
+            // Clear the deferredPrompt
+            deferredPrompt = null;
+            
+            // Remove the install banner
+            dismissInstallBanner();
+        };
+        
+        window.dismissInstallBanner = function() {
+            const banner = document.getElementById('pwa-install-banner');
+            if (banner) {
+                banner.remove();
+            }
+            // Remember dismissal for this session
+            sessionStorage.setItem('pwaInstallDismissed', 'true');
+        };
+        
+        // Detect if app is installed
+        window.addEventListener('appinstalled', function(e) {
+            console.log('PWA was installed');
+            dismissInstallBanner();
+        });
+        
+        // Detect if running as PWA
+        if (window.matchMedia('(display-mode: standalone)').matches) {
+            console.log('Running as PWA');
+            // Hide install banner if running as PWA
+            sessionStorage.setItem('pwaInstallDismissed', 'true');
+        }
+    </script>
+
+    <!-- Footer -->
+    <footer class="app-footer" style="padding: 0.75rem 0;">
+        <div class="footer-content" style="gap: 0.75rem; font-size: 0.75rem;">
+            <div class="footer-section">
+                <p style="font-size: 0.75rem;">&copy; 2025 NFL Pick'em</p>
+            </div>
+            <div class="footer-section">
+                <a href="https://github.com/crazynudelsieb/nfl_pickem" target="_blank" rel="noopener noreferrer" class="footer-link" style="font-size: 0.75rem;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+                    </svg>
+                    <span>GitHub</span>
+                </a>
+                {% if current_user.is_authenticated and current_group_slug %}
+                <a href="{{ url_for('main.rules', group=current_group_slug) }}" class="footer-link" style="font-size: 0.75rem;">Rules</a>
+                <a href="{{ url_for('main.about', group=current_group_slug) }}" class="footer-link" style="font-size: 0.75rem;">About</a>
+                {% else %}
+                <a href="{{ url_for('main.rules') }}" class="footer-link" style="font-size: 0.75rem;">Rules</a>
+                <a href="{{ url_for('main.about') if url_for else '/about' }}" class="footer-link" style="font-size: 0.75rem;">About</a>
+                {% endif %}
+            </div>
+        </div>
+    </footer>
+    
+    <!-- Group Persistence Script -->
+    <script>
+        // On page load, ensure group persistence in session storage
+        document.addEventListener('DOMContentLoaded', function() {
+            // Get group from URL parameter
+            const urlParams = new URLSearchParams(window.location.search);
+            const urlGroup = urlParams.get('group');
+            
+            if (urlGroup) {
+                // Store it for consistency
+                sessionStorage.setItem('selectedGroup', urlGroup);
+            }
+        });
+    </script>
+    
+    <!-- Switch Groups Modal -->
+    {% if current_user.is_authenticated %}
+    <div id="switchGroupsModal" class="modal-overlay" style="display: none;">
+        <div class="modal-container" style="max-width: 600px;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); color: white;">
+                <h3 style="margin: 0; display: flex; align-items: center; gap: 0.5rem;">
+                    <svg width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
+                        <path d="M15 14s1 0 1-1-1-4-5-4-5 3-5 4 1 1 1 1h8zm-7.978-1A.261.261 0 0 1 7 12.996c.001-.264.167-1.03.76-1.72C8.312 10.629 9.282 10 11 10c1.717 0 2.687.63 3.24 1.276.593.69.758 1.457.76 1.72l-.008.002a.274.274 0 0 1-.014.002H7.022zM11 7a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm3-2a3 3 0 1 1-6 0 3 3 0 0 1 6 0zM6.936 9.28a5.88 5.88 0 0 0-1.23-.247A7.35 7.35 0 0 0 5 9c-4 0-5 3-5 4 0 .667.333 1 1 1h4.216A2.238 2.238 0 0 1 5 13c0-1.01.377-2.042 1.09-2.904.243-.294.526-.569.846-.816zM4.92 10A5.493 5.493 0 0 0 4 13H1c0-.26.164-1.03.76-1.724.545-.636 1.492-1.256 3.16-1.275zM1.5 5.5a3 3 0 1 1 6 0 3 3 0 0 1-6 0zm3-2a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"/>
+                    </svg>
+                    Switch Groups
+                </h3>
+                <button onclick="closeSwitchGroupsModal()" class="modal-close-btn">×</button>
+            </div>
+            <div class="modal-body" style="max-height: 60vh; overflow-y: auto;">
+                {% if user_groups|length > 0 %}
+                <div class="groups-grid">
+                    {% for group in user_groups %}
+                    {% set is_creator = group.creator_id == current_user.id %}
+                    {% set membership = group.members|selectattr('user_id', 'equalto', current_user.id)|first %}
+                    {% set is_admin = membership.is_admin if membership else false %}
+                    {% set is_current = current_group_slug == group.slug %}
+                    
+                    <div class="group-card {% if is_current %}active-group{% endif %}" 
+                         data-group-slug="{{ group.slug }}"
+                         {% if not is_current %}onclick="switchToGroup('{{ group.slug }}')" style="cursor: pointer;"{% endif %}>
+                        <div class="group-card-header">
+                            <div class="group-name">
+                                <h4>{{ group.name }}</h4>
+                                {% if is_current %}
+                                <span class="badge badge-primary">Current</span>
+                                {% endif %}
+                            </div>
+                            {% if is_creator %}
+                            <span class="badge badge-creator">Creator</span>
+                            {% elif is_admin %}
+                            <span class="badge badge-admin">Admin</span>
+                            {% endif %}
+                        </div>
+                        
+                        {% if group.description %}
+                        <p class="group-description">{{ group.description }}</p>
+                        {% endif %}
+                        
+                        <div class="group-stats">
+                            <span class="stat-item">
+                                <svg width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
+                                    <path d="M7 14s-1 0-1-1 1-4 5-4 5 3 5 4-1 1-1 1H7zm4-6a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/>
+                                    <path fill-rule="evenodd" d="M5.216 14A2.238 2.238 0 0 1 5 13c0-1.355.68-2.75 1.936-3.72A6.325 6.325 0 0 0 5 9c-4 0-5 3-5 4s1 1 1 1h4.216z"/>
+                                    <path d="M4.5 8a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z"/>
+                                </svg>
+                                {{ group.members|selectattr('is_active', 'equalto', true)|list|length }} members
+                            </span>
+                            <span class="stat-item">
+                                <svg width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
+                                    <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
+                                    <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"/>
+                                </svg>
+                                Code: {{ group.invite_code }}
+                            </span>
+                        </div>
+                        
+                        <div class="group-actions">
+                            {% if is_creator %}
+                            <button onclick="event.stopPropagation(); confirmDeleteGroup('{{ group.slug }}', '{{ group.name }}', {{ group.id }})" class="btn btn-sm btn-danger">
+                                <svg width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
+                                    <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
+                                    <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
+                                </svg>
+                                Delete Group
+                            </button>
+                            {% else %}
+                            <button onclick="event.stopPropagation(); confirmLeaveGroup('{{ group.slug }}', '{{ group.name }}', {{ group.id }})" class="btn btn-sm btn-secondary">
+                                <svg width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
+                                    <path fill-rule="evenodd" d="M10 12.5a.5.5 0 0 1-.5.5h-8a.5.5 0 0 1-.5-.5v-9a.5.5 0 0 1 .5-.5h8a.5.5 0 0 1 .5.5v2a.5.5 0 0 0 1 0v-2A1.5 1.5 0 0 0 9.5 2h-8A1.5 1.5 0 0 0 0 3.5v9A1.5 1.5 0 0 0 1.5 14h8a1.5 1.5 0 0 0 1.5-1.5v-2a.5.5 0 0 0-1 0v2z"/>
+                                    <path fill-rule="evenodd" d="M15.854 8.354a.5.5 0 0 0 0-.708l-3-3a.5.5 0 0 0-.708.708L14.293 7.5H5.5a.5.5 0 0 0 0 1h8.793l-2.147 2.146a.5.5 0 0 0 .708.708l3-3z"/>
+                                </svg>
+                                Leave Group
+                            </button>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="empty-state">
+                    <svg width="48" height="48" fill="currentColor" viewBox="0 0 16 16">
+                        <path d="M15 14s1 0 1-1-1-4-5-4-5 3-5 4 1 1 1 1h8zm-7.978-1A.261.261 0 0 1 7 12.996c.001-.264.167-1.03.76-1.72C8.312 10.629 9.282 10 11 10c1.717 0 2.687.63 3.24 1.276.593.69.758 1.457.76 1.72l-.008.002a.274.274 0 0 1-.014.002H7.022zM11 7a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm3-2a3 3 0 1 1-6 0 3 3 0 0 1 6 0zM6.936 9.28a5.88 5.88 0 0 0-1.23-.247A7.35 7.35 0 0 0 5 9c-4 0-5 3-5 4 0 .667.333 1 1 1h4.216A2.238 2.238 0 0 1 5 13c0-1.01.377-2.042 1.09-2.904.243-.294.526-.569.846-.816zM4.92 10A5.493 5.493 0 0 0 4 13H1c0-.26.164-1.03.76-1.724.545-.636 1.492-1.256 3.16-1.275zM1.5 5.5a3 3 0 1 1 6 0 3 3 0 0 1-6 0zm3-2a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"/>
+                    </svg>
+                    <h4>No Groups Yet</h4>
+                    <p>Create a new group or join one to get started!</p>
+                    <div style="display: flex; gap: 0.75rem; justify-content: center; margin-top: 1.5rem;">
+                        <a href="{{ url_for('groups.create') }}" class="btn btn-primary" onclick="closeSwitchGroupsModal()">
+                            <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                                <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"/>
+                            </svg>
+                            Create Group
+                        </a>
+                        <button onclick="closeSwitchGroupsModal(); setTimeout(function() { showJoinCodeModal(event); }, 100);" class="btn btn-secondary">
+                            <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                                <path d="M0 8a4 4 0 0 1 7.465-2H14a.5.5 0 0 1 .354.146l1.5 1.5a.5.5 0 0 1 0 .708l-1.5 1.5a.5.5 0 0 1-.708 0L13 9.207l-.646.647a.5.5 0 0 1-.708 0L11 9.207l-.646.647a.5.5 0 0 1-.708 0L9 9.207l-.646.647A.5.5 0 0 1 8 10h-.535A4 4 0 0 1 0 8zm4-3a3 3 0 1 0 2.712 4.285A.5.5 0 0 1 7.163 9h.63l.853-.854a.5.5 0 0 1 .708 0l.646.647.646-.647a.5.5 0 0 1 .708 0l.646.647.646-.647a.5.5 0 0 1 .708 0l.646.647.793-.793-1-1h-6.63a.5.5 0 0 1-.451-.285A3 3 0 0 0 4 5z"/>
+                                <path d="M4 8a1 1 0 1 1-2 0 1 1 0 0 1 2 0z"/>
+                            </svg>
+                            Join by Code
+                        </button>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <!-- Delete Group Modal (from Switch Groups) -->
+    <div id="deleteGroupModalFromSwitch" class="modal-overlay" style="display: none;">
+        <div class="modal-container" style="max-width: 500px;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #dc3545 0%, #c82333 100%); color: white;">
+                <h3 style="margin: 0; display: flex; align-items: center; gap: 0.5rem;">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    Delete Group?
+                </h3>
+                <button onclick="closeDeleteModalFromSwitch()" class="modal-close-btn">×</button>
+            </div>
+            <div class="modal-body">
+                <div style="background: rgba(220, 53, 69, 0.1); border-left: 4px solid #dc3545; padding: 1rem; border-radius: 6px; margin-bottom: 1.5rem;">
+                    <p style="margin: 0; color: var(--text-primary); font-weight: 600;">
+                        ⚠️ This action cannot be undone!
+                    </p>
+                </div>
+                
+                <p style="color: var(--text-secondary); margin-bottom: 1rem;">
+                    This will permanently delete the group "<strong id="deleteGroupNameFromSwitch" style="color: var(--text-primary);"></strong>" and all associated data:
+                </p>
+                
+                <ul style="color: var(--text-secondary); margin: 0 0 1.5rem 1.5rem; line-height: 1.8;">
+                    <li>All group members will be removed</li>
+                    <li>All invites will be deleted</li>
+                    <li>All per-group picks will be lost</li>
+                </ul>
+                
+                <div style="background: var(--bg-tertiary); padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem;">
+                    <label for="confirmGroupNameFromSwitch" style="display: block; font-weight: 600; color: var(--text-primary); margin-bottom: 0.5rem;">
+                        Type the group name to confirm:
+                    </label>
+                    <input type="text" 
+                           id="confirmGroupNameFromSwitch" 
+                           placeholder="Enter group name exactly"
+                           style="width: 100%; padding: 0.75rem; border: 2px solid var(--border-color); border-radius: 6px; font-size: 1rem; background: var(--input-bg); color: var(--text-primary);">
+                    <small id="confirmErrorFromSwitch" style="color: #dc3545; display: none; margin-top: 0.5rem;">Group name does not match!</small>
+                </div>
+            </div>
+            <div class="modal-footer" style="display: flex; gap: 0.75rem; justify-content: flex-end;">
+                <button onclick="closeDeleteModalFromSwitch()" class="btn btn-secondary">
+                    <i class="fas fa-times"></i> Cancel
+                </button>
+                <button onclick="submitDeleteGroup()" class="btn btn-danger">
+                    <i class="fas fa-trash"></i> Delete Group
+                </button>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    
+    <!-- Join by Code Modal -->
+    <div id="joinCodeModal" class="modal-overlay" style="display: none;">
+        <div class="modal-container" style="max-width: 500px;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); color: white;">
+                <h3 style="margin: 0; display: flex; align-items: center; gap: 0.5rem;">
+                    <i class="fas fa-key"></i>
+                    Join Group by Invite Code
+                </h3>
+            </div>
+            <div class="modal-body">
+                <p style="color: var(--text-secondary); margin-bottom: 1.5rem;">
+                    Enter the 6-character invite code you received to join a group.
+                </p>
+                
+                <form method="POST" action="{{ url_for('groups.join_by_form') }}" id="joinCodeForm">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                    <div style="margin-bottom: 1rem;">
+                        <label for="joinInviteCode" style="display: block; font-weight: 600; color: var(--text-primary); margin-bottom: 0.5rem;">
+                            Invite Code:
+                        </label>
+                        <input type="text"
+                               id="joinInviteCode"
+                               name="invite_code"
+                               placeholder="ABC123"
+                               pattern="[A-Za-z0-9]{6,8}"
+                               maxlength="8"
+                               required
+                               style="width: 100%; padding: 0.75rem; border: 2px solid var(--border-color); border-radius: 6px; font-size: 1rem; background: var(--input-bg); color: var(--text-primary); text-transform: uppercase; letter-spacing: 2px; font-weight: 600; text-align: center;">
+                        <small style="display: block; margin-top: 0.5rem; color: var(--text-secondary); font-size: 0.875rem;">
+                            Codes are 6-8 characters (letters and numbers)
+                        </small>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer" style="display: flex; gap: 0.75rem; justify-content: flex-end;">
+                <button onclick="closeJoinCodeModal()" class="btn btn-secondary">
+                    <i class="fas fa-times"></i> Cancel
+                </button>
+                <button onclick="document.getElementById('joinCodeForm').submit()" class="btn btn-primary">
+                    <i class="fas fa-sign-in-alt"></i> Join Group
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+    // Define modal functions
+    
+    window.showJoinCodeModal = function(event) {
+        if (event) {
+            event.preventDefault();
+            event.stopPropagation();
+        }
+        const modal = document.getElementById('joinCodeModal');
+        if (modal) {
+            modal.style.display = 'flex';
+            const input = document.getElementById('joinInviteCode');
+            if (input) input.focus();
+        }
+        // Close the user menu dropdown
+        const userMenu = document.getElementById('user-menu');
+        if (userMenu) {
+            userMenu.classList.add('hidden');
+        }
+        return false;
+    };
+    
+    window.closeJoinCodeModal = function() {
+        const modal = document.getElementById('joinCodeModal');
+        if (modal) {
+            modal.style.display = 'none';
+        }
+        const input = document.getElementById('joinInviteCode');
+        if (input) {
+            input.value = '';
+        }
+    };
+    
+    window.showSwitchGroupsModal = function(event) {
+        if (event) {
+            event.preventDefault();
+            event.stopPropagation();
+        }
+        const modal = document.getElementById('switchGroupsModal');
+        if (modal) {
+            modal.style.display = 'flex';
+        }
+        // Close the user menu dropdown
+        const userMenu = document.getElementById('user-menu');
+        if (userMenu) {
+            userMenu.classList.add('hidden');
+        }
+        return false;
+    };
+    
+    window.closeSwitchGroupsModal = function() {
+        const modal = document.getElementById('switchGroupsModal');
+        if (modal) {
+            modal.style.display = 'none';
+        }
+    };
+    
+    window.switchToGroup = function(groupSlug) {
+        // Update the URL with the new group parameter
+        const url = new URL(window.location.href);
+        url.searchParams.set('group', groupSlug);
+        
+        // Store in session storage for persistence
+        sessionStorage.setItem('selectedGroup', groupSlug);
+        
+        // Navigate to the new URL
+        window.location.href = url.toString();
+    };
+    
+    window.confirmLeaveGroup = function(groupSlug, groupName, groupId) {
+        if (confirm('Are you sure you want to leave "' + groupName + '"? Your picks will be preserved but you won\'t be able to see group activities.')) {
+            // Create and submit a form to leave the group
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = `/groups/${groupId}/leave`;
+            
+            // Add CSRF token
+            const csrfToken = document.querySelector('meta[name="csrf-token"]') || 
+                            document.querySelector('input[name="csrf_token"]');
+            if (csrfToken) {
+                const csrfInput = document.createElement('input');
+                csrfInput.type = 'hidden';
+                csrfInput.name = 'csrf_token';
+                csrfInput.value = csrfToken.content || csrfToken.value;
+                form.appendChild(csrfInput);
+            }
+            
+            document.body.appendChild(form);
+            form.submit();
+        }
+    };
+    
+    // Delete group modal functions
+    let deleteGroupData = { name: '', slug: '', id: null };
+    
+    window.confirmDeleteGroup = function(groupSlug, groupName, groupId) {
+        deleteGroupData = { name: groupName, slug: groupSlug, id: groupId };
+        document.getElementById('deleteGroupNameFromSwitch').textContent = groupName;
+        document.getElementById('confirmGroupNameFromSwitch').value = '';
+        document.getElementById('confirmErrorFromSwitch').style.display = 'none';
+        document.getElementById('deleteGroupModalFromSwitch').style.display = 'flex';
+    };
+    
+    window.closeDeleteModalFromSwitch = function() {
+        document.getElementById('deleteGroupModalFromSwitch').style.display = 'none';
+        deleteGroupData = { name: '', slug: '', id: null };
+    };
+    
+    window.submitDeleteGroup = function() {
+        const inputName = document.getElementById('confirmGroupNameFromSwitch').value.trim();
+        const errorEl = document.getElementById('confirmErrorFromSwitch');
+        
+        if (inputName !== deleteGroupData.name) {
+            errorEl.style.display = 'block';
+            document.getElementById('confirmGroupNameFromSwitch').style.borderColor = '#dc3545';
+            return;
+        }
+        
+        // Create and submit form to delete endpoint
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '/groups/' + deleteGroupData.id + '/delete';
+        
+        // Add CSRF token
+        const csrfToken = document.querySelector('meta[name="csrf-token"]') || 
+                        document.querySelector('input[name="csrf_token"]');
+        if (csrfToken) {
+            const csrfInput = document.createElement('input');
+            csrfInput.type = 'hidden';
+            csrfInput.name = 'csrf_token';
+            csrfInput.value = csrfToken.content || csrfToken.value;
+            form.appendChild(csrfInput);
+        }
+        
+        document.body.appendChild(form);
+        form.submit();
+    };
+    
+    // Mobile profile menu functions
+    window.toggleMobileProfileMenu = function(event) {
+        if (event) {
+            event.preventDefault();
+            event.stopPropagation();
+        }
+        const menu = document.getElementById('mobile-profile-menu');
+        if (menu) {
+            if (menu.style.display === 'none' || menu.style.display === '') {
+                menu.style.display = 'flex';
+                document.body.style.overflow = 'hidden'; // Prevent background scroll
+            } else {
+                menu.style.display = 'none';
+                document.body.style.overflow = '';
+            }
+        }
+    };
+    
+    window.closeMobileProfileMenu = function() {
+        const menu = document.getElementById('mobile-profile-menu');
+        if (menu) {
+            menu.style.display = 'none';
+            document.body.style.overflow = '';
+        }
+    };
+    
+    // User menu dropdown handler
+    document.addEventListener('DOMContentLoaded', function() {
+        
+        // Add event listener for Switch Groups button as backup
+        const switchGroupsBtn = document.getElementById('switch-groups-btn');
+        if (switchGroupsBtn) {
+            switchGroupsBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                window.showSwitchGroupsModal(e);
+                return false;
+            });
+        }
+    });
+    
+    // Close modal on escape key
+    document.addEventListener('keydown', function(event) {
+        if (event.key === 'Escape') {
+            const joinModal = document.getElementById('joinCodeModal');
+            if (joinModal && joinModal.style.display === 'flex') {
+                closeJoinCodeModal();
+            }
+            const switchModal = document.getElementById('switchGroupsModal');
+            if (switchModal && switchModal.style.display === 'flex') {
+                closeSwitchGroupsModal();
+            }
+        }
+    });
+    </script>
+</body>
+</html>

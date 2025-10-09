@@ -1,0 +1,19 @@
+{% extends "errors/base_error.html" %}
+
+{% block title %}404 - Page Not Found{% endblock %}
+{% block error_code %}404{% endblock %}
+{% block cat_code %}404{% endblock %}
+{% block cat_code_alt %}404{% endblock %}
+
+{% block error_title %}Oops! Page Not Found{% endblock %}
+
+{% block error_message %}
+    The page you're looking for seems to have wandered off like a curious cat. 
+    It might have been moved, deleted, or you may have mistyped the URL.
+    <br><br>
+    Don't worry though - there are plenty of other exciting pages to explore in our NFL Pick'em app!
+{% endblock %}
+
+{% block extra_buttons %}
+    <a href="javascript:history.back()" class="btn btn-secondary">↶ Go Back</a>
+{% endblock %}

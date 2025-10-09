@@ -1,0 +1,602 @@
+{% extends "base.html" %}
+
+{% block title %}{{ current_group.name if current_group else 'Groups' }}{% endblock %}
+
+{% block content %}
+<div class="container">
+    {% if not user_groups %}
+    <div class="mb-6">
+        <h1 class="text-3xl font-bold text-gray-900 mb-2">
+            Join or Create a Group
+        </h1>
+        <p class="text-gray-600">
+            Welcome to NFL Pick'em! To start making predictions and competing with others,
+            you'll need to join an existing group or create your own.
+        </p>
+    </div>
+    {% endif %}
+
+    <!-- Current Group -->
+    {% set group_slug = request.args.get('group') %}
+    {% if group_slug %}
+        {% set current_group = user_groups|selectattr('slug', 'equalto', group_slug)|first %}
+    {% else %}
+        {% set current_group = user_groups|first if user_groups else None %}
+    {% endif %}
+
+    {% if current_group %}
+    <div class="leaderboard-card mb-6">
+        <div class="leaderboard-header">
+            <h2 class="leaderboard-title" style="font-size: 1.25rem;">{{ current_group.name }}</h2>
+            <div class="button-group">
+                {% if current_group.is_user_admin(current_user.id) %}
+                    <a href="{{ url_for('groups.invite', group_id=current_group.id) }}" title="Invite" style="padding: 0.5rem 1rem; background: var(--accent-blue); color: white !important; border-radius: 6px; font-weight: 600; text-decoration: none; display: inline-flex; align-items: center; gap: 0.5rem; font-size: 0.875rem; border: none;">
+                        <i class="fas fa-user-plus"></i> <span>Invite</span>
+                    </a>
+                    <a href="{{ url_for('groups.members', group_id=current_group.id) }}" title="Members" style="padding: 0.5rem 1rem; background: var(--accent-blue); color: white !important; border-radius: 6px; font-weight: 600; text-decoration: none; display: inline-flex; align-items: center; gap: 0.5rem; font-size: 0.875rem; border: none;">
+                        <i class="fas fa-users-cog"></i> <span>Members</span>
+                    </a>
+                    <a href="{{ url_for('groups.edit', group_id=current_group.id) }}" title="Settings" style="padding: 0.5rem 1rem; background: var(--accent-blue); color: white !important; border-radius: 6px; font-weight: 600; text-decoration: none; display: inline-flex; align-items: center; gap: 0.5rem; font-size: 0.875rem; border: none;">
+                        <i class="fas fa-cog"></i> <span>Settings</span>
+                    </a>
+                    <a href="{{ url_for('groups.admin_picks', group_id=current_group.id) }}" title="Manage Picks" style="padding: 0.5rem 1rem; background: var(--accent-blue); color: white !important; border-radius: 6px; font-weight: 600; text-decoration: none; display: inline-flex; align-items: center; gap: 0.5rem; font-size: 0.875rem; border: none;">
+                        <i class="fas fa-clipboard-check"></i> <span>Manage Picks</span>
+                    </a>
+                {% endif %}
+                <a href="{{ url_for('groups.admin_audit', group_id=current_group.id) }}" title="Audit Log" style="padding: 0.5rem 1rem; background: var(--accent-blue); color: white !important; border-radius: 6px; font-weight: 600; text-decoration: none; display: inline-flex; align-items: center; gap: 0.5rem; font-size: 0.875rem; border: none;">
+                    <i class="fas fa-history"></i> <span>Audit Log</span>
+                </a>
+                {% if current_group.creator_id != current_user.id %}
+                    <form method="POST" action="{{ url_for('groups.leave', group_id=current_group.id) }}" style="margin: 0; display: inline;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                        <button type="submit" title="Leave" style="padding: 0.5rem 1rem; background: #ef4444; color: white !important; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 0.5rem; font-size: 0.875rem;" onclick="return confirm('Are you sure you want to leave this group?')">
+                            <i class="fas fa-sign-out-alt"></i> <span>Leave</span>
+                        </button>
+                    </form>
+                {% endif %}
+            </div>
+        </div>
+        <div style="padding: 1.5rem;">
+            {% if current_group.description %}
+            <p style="color: var(--text-secondary); margin-bottom: 1.5rem;">{{ current_group.description }}</p>
+            {% endif %}
+            
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 0.875rem; margin-bottom: 1.5rem;">
+                <div style="text-align: center; padding: 0.875rem 0.5rem; background: var(--bg-tertiary); border-radius: 6px; border: 1px solid var(--border-color);">
+                    <div style="font-size: 0.7rem; color: var(--text-secondary); text-transform: uppercase; font-weight: 600; letter-spacing: 0.03em; margin-bottom: 0.25rem;">Your Role</div>
+                    <div style="font-size: 1.5rem; font-weight: 700; color: var(--text-primary);">
+                        {% if current_group.creator_id == current_user.id %}
+                            👑
+                        {% elif current_group.is_user_admin(current_user.id) %}
+                            🛡️
+                        {% else %}
+                            👤
+                        {% endif %}
+                    </div>
+                    <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.25rem;">
+                        {% if current_group.creator_id == current_user.id %}
+                            Owner
+                        {% elif current_group.is_user_admin(current_user.id) %}
+                            Admin
+                        {% else %}
+                            Member
+                        {% endif %}
+                    </div>
+                </div>
+                <div style="text-align: center; padding: 0.875rem 0.5rem; background: var(--bg-tertiary); border-radius: 6px; border: 1px solid var(--border-color);">
+                    <div style="font-size: 0.7rem; color: var(--text-secondary); text-transform: uppercase; font-weight: 600; letter-spacing: 0.03em; margin-bottom: 0.25rem;">Members</div>
+                    <div style="font-size: 1.5rem; font-weight: 700; color: var(--text-primary);">
+                        {{ current_group.get_active_members()|length }}
+                    </div>
+                    <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.25rem;">
+                        {% if current_group.max_members %}
+                        / {{ current_group.max_members }} max
+                        {% else %}
+                        active
+                        {% endif %}
+                    </div>
+                </div>
+                <div style="text-align: center; padding: 0.875rem 0.5rem; background: var(--bg-tertiary); border-radius: 6px; border: 1px solid var(--border-color);">
+                    <div style="font-size: 0.7rem; color: var(--text-secondary); text-transform: uppercase; font-weight: 600; letter-spacing: 0.03em; margin-bottom: 0.25rem;">Visibility</div>
+                    <div style="font-size: 1.5rem; font-weight: 700; color: var(--text-primary);">
+                        {% if current_group.is_public %}
+                            🌐
+                        {% else %}
+                            🔒
+                        {% endif %}
+                    </div>
+                    <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.25rem;">
+                        {% if current_group.is_public %}
+                            Public
+                        {% else %}
+                            Private
+                        {% endif %}
+                    </div>
+                </div>
+                <div style="text-align: center; padding: 0.875rem 0.5rem; background: var(--bg-tertiary); border-radius: 6px; border: 1px solid var(--border-color);">
+                    <div style="font-size: 0.7rem; color: var(--text-secondary); text-transform: uppercase; font-weight: 600; letter-spacing: 0.03em; margin-bottom: 0.25rem;">Created</div>
+                    <div style="font-size: 1.5rem; font-weight: 700; color: var(--text-primary);">{{ current_group.created_at.strftime('%b') }}</div>
+                    <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.25rem;">{{ current_group.created_at.strftime('%Y') }}</div>
+                </div>
+            </div>
+
+            <!-- Current Season Leaderboard -->
+            {% if current_season and leaderboard %}
+                <div style="margin-bottom: 1.5rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                        <h3 style="margin: 0; font-size: 1.125rem; color: var(--text-primary); display: flex; align-items: center; gap: 0.5rem;">
+                            <i class="fas fa-trophy" style="color: #ffd700;"></i> {{ current_season.name }} Leaderboard
+                        </h3>
+                    </div>
+                    
+                    <div class="leaderboard-table" style="background: var(--bg-secondary); border-radius: 8px; overflow: hidden; border: 1px solid var(--border-color);">
+                        <table style="width: 100%; border-collapse: collapse;">
+                            <thead>
+                                <tr style="background: rgba(107, 114, 128, 0.1);">
+                                    <th style="padding: 0.75rem; text-align: left; font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; width: 3rem;">Rank</th>
+                                    <th style="padding: 0.75rem; text-align: left; font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em;">Player</th>
+                                    <th style="padding: 0.75rem; text-align: center; font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em;">Wins</th>
+                                    <th style="padding: 0.75rem; text-align: center; font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em;">Total</th>
+                                    <th style="padding: 0.75rem; text-align: center; font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em;">Accuracy</th>
+                                    <th style="padding: 0.75rem; text-align: center; font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em;">Tiebreaker</th>
+                                    <th style="padding: 0.75rem; text-align: center; font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em;">Streak</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for entry in leaderboard %}
+                                <tr class="clickable-row" data-user-id="{{ entry['user_id'] }}" data-username="{{ entry['user'].username }}" style="border-top: 1px solid var(--border-color); {% if entry['user_id'] == current_user.id %}background: rgba(59, 130, 246, 0.1); border-left: 4px solid var(--accent-blue);{% endif %} cursor: pointer;" title="Click to view {{ entry['user'].username }}'s picks">
+                                    <td style="padding: 0.75rem;">
+                                        {% if loop.index == 1 %}
+                                        <div style="font-size: 1.5rem;">🏆</div>
+                                        {% elif loop.index == 2 %}
+                                        <div style="font-size: 1.5rem;">🥈</div>
+                                        {% elif loop.index == 3 %}
+                                        <div style="font-size: 1.5rem;">🥉</div>
+                                        {% else %}
+                                        <div style="font-weight: 600; color: var(--text-secondary);">{{ loop.index }}</div>
+                                        {% endif %}
+                                    </td>
+                                    <td style="padding: 0.75rem;">
+                                        <div style="display: flex; align-items: center; gap: 0.75rem;">
+                                            <div style="width: 2rem; height: 2rem; border-radius: 50%; background: var(--accent-blue); color: white; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.875rem; overflow: hidden;">
+                                                {% if entry['user'].avatar_url %}
+                                                <img src="{{ entry['user'].avatar_url }}" alt="{{ entry['user'].username }}" style="width: 100%; height: 100%; object-fit: cover;">
+                                                {% else %}
+                                                {{ entry['user'].full_name[0].upper() }}
+                                                {% endif %}
+                                            </div>
+                                            <div>
+                                                <div style="font-weight: 600; color: var(--text-primary);">
+                                                    {{ entry['user'].full_name }}
+                                                    {% if entry['user_id'] == current_user.id %}
+                                                    <span style="color: var(--accent-blue); font-size: 0.875rem; font-weight: normal;">(You)</span>
+                                                    {% endif %}
+                                                </div>
+                                                <div style="font-size: 0.75rem; color: var(--text-secondary);">@{{ entry['user'].username }}</div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td style="padding: 0.75rem; text-align: center;">
+                                        <span style="color: var(--accent-green); font-weight: 700;">{{ entry['wins'] }}</span>
+                                    </td>
+                                    <td style="padding: 0.75rem; text-align: center;">
+                                        <span style="color: var(--text-primary); font-weight: 600;">{{ entry['completed_picks'] or entry['total_picks'] }}</span>
+                                    </td>
+                                    <td style="padding: 0.75rem; text-align: center;">
+                                        {% set accuracy = entry['accuracy'] %}
+                                        <span style="font-weight: 600; {% if accuracy >= 70 %}color: var(--accent-green);{% elif accuracy >= 50 %}color: var(--accent-orange);{% else %}color: var(--accent-red);{% endif %}">
+                                            {{ "%.1f"|format(accuracy) }}%
+                                        </span>
+                                    </td>
+                                    <td style="padding: 0.75rem; text-align: center;">
+                                        <span style="font-weight: 600; {% if entry['tiebreaker_points'] >= 0 %}color: var(--accent-green);{% else %}color: var(--accent-red);{% endif %}">
+                                            {{ entry['tiebreaker_points'] or 0 }}
+                                        </span>
+                                    </td>
+                                    <td style="padding: 0.75rem; text-align: center;">
+                                        {% if entry['longest_streak'] > 0 %}
+                                        <span style="padding: 0.25rem 0.5rem; background: rgba(16, 185, 129, 0.2); color: var(--accent-green); border-radius: 12px; font-size: 0.75rem; font-weight: 700;">{{ entry['longest_streak'] }}W</span>
+                                        {% elif entry['longest_streak'] < 0 %}
+                                        <span style="padding: 0.25rem 0.5rem; background: rgba(239, 68, 68, 0.2); color: var(--accent-red); border-radius: 12px; font-size: 0.75rem; font-weight: 700;">{{ entry['longest_streak']|abs }}L</span>
+                                        {% else %}
+                                        <span style="padding: 0.25rem 0.5rem; background: rgba(107, 114, 128, 0.2); color: var(--text-secondary); border-radius: 12px; font-size: 0.75rem; font-weight: 700;">0</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            {% elif current_season %}
+                <div style="padding: 2rem; text-align: center; background: rgba(107, 114, 128, 0.05); border-radius: 8px;">
+                    <div style="font-size: 2rem; margin-bottom: 0.5rem;">📊</div>
+                    <p style="color: var(--text-secondary); font-size: 0.875rem; margin: 0;">No picks made yet this season. The leaderboard will update as members make their weekly picks!</p>
+                </div>
+            {% endif %}
+
+        </div>
+    </div>
+    {% elif user_groups %}
+    <div class="leaderboard-card mb-6">
+        <div style="padding: 3rem 1.5rem; text-align: center;">
+            <div style="font-size: 3rem; margin-bottom: 1rem;">👥</div>
+            <h3 style="color: var(--text-primary); font-size: 1.125rem; font-weight: 600; margin-bottom: 0.5rem;">No Group Selected</h3>
+            <p style="color: var(--text-secondary); font-size: 0.875rem; margin-bottom: 1.5rem;">
+                Select a group from the dropdown menu above to view its details.
+            </p>
+        </div>
+    </div>
+    {% else %}
+    <div class="leaderboard-card mb-6">
+        <div class="leaderboard-header">
+            <h2 class="leaderboard-title" style="font-size: 1.25rem;">👥 Get Started with Groups</h2>
+        </div>
+        <div style="padding: 2rem 1.5rem; text-align: center;">
+            <p style="color: var(--text-secondary); font-size: 0.875rem; margin-bottom: 2rem; max-width: 600px; margin-left: auto; margin-right: auto;">
+                NFL Pick'em is all about competition! Choose how you want to get started:
+            </p>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1.25rem; max-width: 800px; margin: 0 auto; text-align: left;">
+                <div style="padding: 1.25rem; background: rgba(59, 130, 246, 0.1); border-radius: 12px; border: 2px solid var(--accent-blue); cursor: pointer; transition: all 0.2s ease; position: relative;" onclick="window.location.href='{{ url_for('groups.create') }}'" onmouseover="this.style.transform='translateY(-4px)'; this.style.boxShadow='0 8px 16px rgba(59, 130, 246, 0.2)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none'">
+                    <div style="font-size: 2.5rem; margin-bottom: 0.75rem;">➕</div>
+                    <div style="font-weight: 700; color: var(--text-primary); margin-bottom: 0.5rem; font-size: 1.125rem;">Create a Group</div>
+                    <p style="margin: 0; color: var(--text-secondary); font-size: 0.875rem; line-height: 1.5;">Start your own league and invite friends, family, or colleagues to compete</p>
+                </div>
+                <div style="padding: 1.25rem; background: rgba(16, 185, 129, 0.1); border-radius: 12px; border: 2px solid var(--accent-green); cursor: pointer; transition: all 0.2s ease;" onclick="showJoinCodeModal(event)" onmouseover="this.style.transform='translateY(-4px)'; this.style.boxShadow='0 8px 16px rgba(16, 185, 129, 0.2)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none'">
+                    <div style="font-size: 2.5rem; margin-bottom: 0.75rem;">🔑</div>
+                    <div style="font-weight: 700; color: var(--text-primary); margin-bottom: 0.5rem; font-size: 1.125rem;">Join with Code</div>
+                    <p style="margin: 0; color: var(--text-secondary); font-size: 0.875rem; line-height: 1.5;">Have an invite code? Enter it here to join an existing group</p>
+                </div>
+                <div style="padding: 1.25rem; background: rgba(245, 158, 11, 0.1); border-radius: 12px; border: 2px solid var(--accent-orange); cursor: pointer; transition: all 0.2s ease;" onclick="document.getElementById('public-groups-section')?.scrollIntoView({ behavior: 'smooth' })" onmouseover="this.style.transform='translateY(-4px)'; this.style.boxShadow='0 8px 16px rgba(245, 158, 11, 0.2)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none'">
+                    <div style="font-size: 2.5rem; margin-bottom: 0.75rem;">🌐</div>
+                    <div style="font-weight: 700; color: var(--text-primary); margin-bottom: 0.5rem; font-size: 1.125rem;">Browse Public Groups</div>
+                    <p style="margin: 0; color: var(--text-secondary); font-size: 0.875rem; line-height: 1.5;">Discover and join open groups looking for new members</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Public Groups -->
+    <div class="leaderboard-card mb-6" id="public-groups-section">
+        <div class="leaderboard-header">
+            <h3 style="margin: 0; font-size: 1.125rem; color: var(--text-primary);">🌐 Public Groups {% if public_groups %}<span style="color: var(--text-secondary); font-size: 0.875rem; font-weight: normal;">({{ public_groups|length }})</span>{% endif %}</h3>
+        </div>
+        {% if public_groups %}
+        <div class="overflow-x-auto">
+            <table class="leaderboard-table">
+                <thead>
+                    <tr>
+                        <th>Group Name</th>
+                        <th>Members</th>
+                        <th>Created</th>
+                        <th style="text-align: right;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for group in public_groups %}
+                    {% if not group.is_user_member(current_user.id) %}
+                    <tr>
+                        <td>
+                            <div style="display: flex; align-items: center; gap: 0.75rem;">
+                                <div style="width: 2.5rem; height: 2.5rem; border-radius: 50%; background: var(--accent-green); color: white; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 1rem; flex-shrink: 0;">
+                                    {{ group.name[0].upper() }}
+                                </div>
+                                <div>
+                                    <div style="font-weight: 600; color: var(--text-primary);">{{ group.name }}</div>
+                                    {% if group.description %}
+                                    <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.125rem;">{{ group.description[:50] }}{% if group.description|length > 50 %}...{% endif %}</div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            <span style="font-weight: 600; color: var(--text-primary);">{{ group.get_active_members()|length }}</span>
+                            {% if group.max_members %}
+                            <span style="color: var(--text-secondary); font-size: 0.875rem;"> / {{ group.max_members }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span style="color: var(--text-secondary); font-size: 0.875rem;">{{ group.created_at.strftime('%b %Y') }}</span>
+                        </td>
+                        <td style="text-align: right;">
+                            <a href="{{ url_for('groups.join', code=group.invite_code) }}" style="padding: 0.25rem 0.75rem; background: rgba(16, 185, 129, 0.1); color: var(--accent-green); border-radius: 6px; font-size: 0.75rem; font-weight: 600; text-decoration: none; display: inline-flex; align-items: center; gap: 0.25rem;">
+                                <i class="fas fa-plus"></i> Join
+                            </a>
+                        </td>
+                    </tr>
+                    {% endif %}
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div style="padding: 2.5rem 1.5rem; text-align: center;">
+            <div style="font-size: 3rem; margin-bottom: 1rem; opacity: 0.5;">🌐</div>
+            <h3 style="color: var(--text-primary); font-size: 1.125rem; font-weight: 600; margin-bottom: 0.5rem;">No Public Groups Yet</h3>
+            <p style="color: var(--text-secondary); font-size: 0.875rem; max-width: 400px; margin: 0 auto;">
+                Be the first to create a public group for others to join!
+            </p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Player Picks Modal -->
+<div id="playerPicksModal" class="modal" style="display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.4);">
+    <div class="modal-content" style="background-color: var(--card-bg); margin: 2% auto; padding: 0; border: 1px solid var(--border-color); width: 90%; max-width: 1000px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.2);">
+        <div class="modal-header" style="background: var(--bg-tertiary); padding: 1.5rem; border-bottom: 1px solid var(--border-color); border-radius: 12px 12px 0 0; display: flex; justify-content: space-between; align-items: center;">
+            <h3 id="modalPlayerName" style="display: flex; align-items: center; gap: 0.5rem; margin: 0; color: var(--text-primary); font-size: 1.25rem; font-weight: 700;">
+                <span style="font-size: 1.5rem;">📊</span> Player Picks
+            </h3>
+            <span class="modal-close" onclick="closePlayerPicks()" style="cursor: pointer; font-size: 1.5rem; color: var(--text-secondary); padding: 0.25rem; border-radius: 4px; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; transition: background 0.2s;" onmouseover="this.style.background='rgba(107, 114, 128, 0.2)'" onmouseout="this.style.background='transparent'">&times;</span>
+        </div>
+        <div class="modal-body" style="padding: 0;">
+            <div id="modalLoading" class="loading-spinner" style="padding: 3rem; text-align: center; color: var(--text-secondary);">
+                <div style="font-size: 2rem; margin-bottom: 1rem;">⏳</div>
+                <div>Loading picks...</div>
+            </div>
+            <div id="modalPicksContent" style="overflow-x: auto;"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Store current group ID for API calls
+const currentGroupId = {{ current_group.id if current_group else 'null' }};
+
+// Player picks modal functionality
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('Setting up modal functionality');
+    console.log('Current group ID:', currentGroupId);
+
+    // Add click handlers for leaderboard rows
+    const clickableRows = document.querySelectorAll('.clickable-row');
+    console.log('Found clickable rows:', clickableRows.length);
+
+    clickableRows.forEach(function(row) {
+        row.addEventListener('click', function() {
+            const userId = this.getAttribute('data-user-id');
+            const username = this.getAttribute('data-username');
+            console.log('Clicked user:', username, 'ID:', userId);
+            showPlayerPicks(userId, username);
+        });
+    });
+});
+
+// Function to show player picks modal
+function showPlayerPicks(userId, username) {
+    console.log('Loading picks for user:', username, 'userId:', userId);
+    
+    const modal = document.getElementById('playerPicksModal');
+    const modalPlayerName = document.getElementById('modalPlayerName');
+    const modalLoading = document.getElementById('modalLoading');
+    const modalContent = document.getElementById('modalPicksContent');
+    
+    // Validate elements exist
+    if (!modal || !modalPlayerName || !modalLoading || !modalContent) {
+        console.error('Modal elements not found');
+        return;
+    }
+    
+    // Set player name and show modal
+    modalPlayerName.innerHTML = '<span style="font-size: 1.5rem;">📊</span> ' + username + "'s Picks";
+    modal.style.display = 'block';
+    
+    // Show loading state
+    modalLoading.style.display = 'block';
+    modalContent.style.display = 'none';
+    modalContent.innerHTML = ''; // Clear previous content
+    
+    // Build URL with group_id parameter if available
+    let url = `/api/player-picks/${userId}`;
+    if (currentGroupId) {
+        url += `?group_id=${currentGroupId}`;
+    }
+    
+    console.log('Fetching from URL:', url);
+    
+    // Fetch player picks with timeout
+    const fetchTimeout = setTimeout(() => {
+        modalContent.innerHTML = '<p style="text-align: center; padding: 2rem; color: var(--accent-red);">Request timed out. Please try again.</p>';
+        modalLoading.style.display = 'none';
+        modalContent.style.display = 'block';
+    }, 10000); // 10 second timeout
+    
+    fetch(url)
+        .then(response => {
+            clearTimeout(fetchTimeout);
+            console.log('Response status:', response.status);
+            if (!response.ok) {
+                throw new Error(`Failed to load picks: ${response.status} ${response.statusText}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log('Received data:', data);
+            displayPlayerPicks(data);
+            modalLoading.style.display = 'none';
+            modalContent.style.display = 'block';
+        })
+        .catch(error => {
+            clearTimeout(fetchTimeout);
+            console.error('Error loading picks:', error);
+            modalContent.innerHTML = '<p style="text-align: center; padding: 2rem; color: var(--accent-red);">Failed to load picks. Please try again.<br><small>' + error.message + '</small></p>';
+            modalLoading.style.display = 'none';
+            modalContent.style.display = 'block';
+        });
+}
+
+// Function to display player picks in modal
+function displayPlayerPicks(data) {
+    const modalContent = document.getElementById('modalPicksContent');
+
+    if (!data.picks || data.picks.length === 0) {
+        modalContent.innerHTML = '<p style="text-align: center; padding: 2rem; color: var(--text-secondary);">No picks found for this player.</p>';
+        return;
+    }
+
+    let html = `
+        <table class="leaderboard-table" style="margin: 0; width: 100%; border-collapse: collapse; table-layout: fixed;">
+            <colgroup>
+                <col style="width: 10%;">
+                <col style="width: 30%;">
+                <col style="width: 15%;">
+                <col style="width: 15%;">
+                <col style="width: 20%;">
+                <col style="width: 10%;">
+            </colgroup>
+            <thead>
+                <tr style="background: rgba(107, 114, 128, 0.1);">
+                    <th style="padding: 0.75rem; text-align: left; font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase;">Week</th>
+                    <th style="padding: 0.75rem; text-align: left; font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase;">Matchup</th>
+                    <th style="padding: 0.75rem; text-align: left; font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase;">Pick</th>
+                    <th style="padding: 0.75rem; text-align: center; font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase;">Score</th>
+                    <th style="padding: 0.75rem; text-align: center; font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase;">Result</th>
+                    <th style="padding: 0.75rem; text-align: right; font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase;">Points</th>
+                </tr>
+            </thead>
+            <tbody>
+    `;
+
+    data.picks.forEach(pick => {
+        const resultIcon = pick.is_correct === true ? '✓' :
+                          pick.is_correct === false ? '✗' : '⏳';
+
+        const resultColor = pick.is_correct === true ? 'var(--accent-green)' :
+                           pick.is_correct === false ? 'var(--accent-red)' : 'var(--text-secondary)';
+
+        const bgColor = pick.is_correct === true ? 'rgba(16, 185, 129, 0.05)' : 
+                       pick.is_correct === false ? 'rgba(239, 68, 68, 0.05)' : 'transparent';
+
+        html += `
+            <tr style="background: ${bgColor}; border-top: 1px solid var(--border-color);">
+                <td style="padding: 0.75rem;">
+                    <span style="font-weight: 700; color: var(--text-primary);">Week ${pick.week}</span>
+                </td>
+                <td style="padding: 0.75rem;">
+                    <div style="font-size: 0.875rem; color: var(--text-primary);">
+                        <div>${pick.away_team} @ ${pick.home_team}</div>
+                        ${!pick.is_final ? '<div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.125rem;">' + pick.game_time + '</div>' : ''}
+                    </div>
+                </td>
+                <td style="padding: 0.75rem;">
+                    <span style="font-weight: 600; color: var(--text-primary); background: rgba(59, 130, 246, 0.1); padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.875rem;">${pick.selected_team}</span>
+                </td>
+                <td style="padding: 0.75rem; text-align: center;">
+                    ${pick.is_final ?
+                        `<div style="font-size: 0.875rem;">
+                            <span style="font-weight: 600; color: var(--text-primary);">${pick.away_score}</span>
+                            <span style="color: var(--text-muted);">-</span>
+                            <span style="font-weight: 600; color: var(--text-primary);">${pick.home_score}</span>
+                        </div>` :
+                        '<span style="color: var(--text-secondary); font-size: 0.75rem;">In Progress</span>'
+                    }
+                </td>
+                <td style="padding: 0.75rem; text-align: center;">
+                    <span style="font-size: 1.125rem; color: ${resultColor}; font-weight: 700;">${resultIcon}</span>
+                    <span style="font-size: 0.75rem; color: ${resultColor}; margin-left: 0.25rem; text-transform: uppercase; font-weight: 600;">
+                        ${pick.is_correct === true ? 'Win' : pick.is_correct === false ? 'Loss' : 'Pending'}
+                    </span>
+                </td>
+                <td style="padding: 0.75rem; text-align: right;">
+                    ${pick.tiebreaker_points !== null && pick.tiebreaker_points !== undefined ?
+                        `<span style="font-weight: 700; font-size: 1rem; color: ${pick.tiebreaker_points >= 0 ? 'var(--accent-green)' : 'var(--accent-red)'};">
+                            ${pick.tiebreaker_points > 0 ? '+' : ''}${pick.tiebreaker_points}
+                        </span>` :
+                        '<span style="color: var(--text-muted);">-</span>'
+                    }
+                </td>
+            </tr>
+        `;
+    });
+
+    html += `
+            </tbody>
+        </table>
+    `;
+
+    modalContent.innerHTML = html;
+}
+
+// Function to close modal
+function closePlayerPicks() {
+    const modal = document.getElementById('playerPicksModal');
+    modal.style.display = 'none';
+}
+
+// Close modal when clicking outside
+document.addEventListener('click', function(event) {
+    const modal = document.getElementById('playerPicksModal');
+    if (event.target === modal) {
+        closePlayerPicks();
+    }
+});
+
+// Close modal with Escape key
+document.addEventListener('keydown', function(event) {
+    if (event.key === 'Escape') {
+        closePlayerPicks();
+    }
+});
+
+function showToast(message, type) {
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    toast.textContent = message;
+    toast.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        padding: 12px 20px;
+        border-radius: 6px;
+        color: white;
+        font-weight: 600;
+        z-index: 1000;
+        transform: translateX(100%);
+        transition: transform 0.3s ease;
+        background-color: ${type === 'success' ? '#28a745' : '#dc3545'};
+    `;
+    
+    document.body.appendChild(toast);
+    
+    setTimeout(() => {
+        toast.style.transform = 'translateX(0)';
+    }, 100);
+    
+    setTimeout(() => {
+        toast.style.transform = 'translateX(100%)';
+        setTimeout(() => {
+            document.body.removeChild(toast);
+        }, 300);
+    }, 3000);
+}
+</script>
+
+<style>
+.mb-6 {
+    margin-bottom: 1.5rem;
+}
+
+.text-3xl {
+    font-size: 1.875rem;
+    line-height: 2.25rem;
+}
+
+.font-bold {
+    font-weight: 700;
+}
+
+.text-gray-900 {
+    color: var(--text-primary);
+}
+
+.mb-2 {
+    margin-bottom: 0.5rem;
+}
+
+.text-gray-600 {
+    color: var(--text-secondary);
+}
+</style>
+{% endblock %}

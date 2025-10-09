@@ -1,0 +1,702 @@
+{% extends "base.html" %}
+
+{% block title %}{{ group.name }} - Members{% endblock %}
+
+{% block content %}
+<div class="group-members-page">
+    <div class="container">
+        <!-- Page Header -->
+        <div class="page-header">
+            <div class="header-info">
+                <h1><i class="fas fa-users"></i> {{ group.name }} Members</h1>
+                <p class="group-description">Manage group members and their permissions</p>
+            </div>
+            
+            <div class="header-actions">
+                {% if is_admin %}
+                    <a href="{{ url_for('groups.invite', group_id=group.id) }}" class="btn btn-success">
+                        <i class="fas fa-user-plus"></i> Invite Members
+                    </a>
+                {% endif %}
+                <a href="{{ url_for('groups.index', group=group.slug) }}" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left"></i> Back to Group
+                </a>
+            </div>
+        </div>
+
+        <!-- Members List -->
+        <div class="leaderboard-card members-list" style="margin-bottom: 30px;">
+            <div class="leaderboard-header">
+                <h2 style="margin: 0; font-size: 1.25rem; color: var(--text-primary);">👥 All Members <span style="color: var(--text-secondary); font-size: 0.875rem; font-weight: normal;">({{ members|length }})</span></h2>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="leaderboard-table">
+                    <thead>
+                        <tr>
+                            <th>Member</th>
+                            <th>Role</th>
+                            <th>Joined</th>
+                            <th>Last Active</th>
+                            <th style="text-align: right;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for member in members %}
+                        <tr {% if member.user_id == current_user.id %}style="background: rgba(59, 130, 246, 0.1); border-left: 4px solid var(--accent-blue);"{% endif %}>
+                            <td>
+                                <div style="display: flex; align-items: center; gap: 0.75rem;">
+                                    <div class="member-avatar">
+                                        {% if member.user.avatar_url %}
+                                        <img src="{{ member.user.avatar_url }}" alt="{{ member.user.username }}">
+                                        {% else %}
+                                        {{ member.user.full_name[0].upper() }}
+                                        {% endif %}
+                                    </div>
+                                    <div>
+                                        <div style="font-weight: 600; color: var(--text-primary);">
+                                            {{ member.user.full_name }}
+                                            {% if member.user_id == current_user.id %}
+                                                <span style="color: var(--accent-blue); font-weight: normal; font-size: 0.875rem;">(You)</span>
+                                            {% endif %}
+                                        </div>
+                                        <div style="font-size: 0.75rem; color: var(--text-secondary);">@{{ member.user.username }}</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                {% if member.user_id == group.creator_id %}
+                                <span style="padding: 0.25rem 0.75rem; background: rgba(16, 185, 129, 0.2); color: var(--accent-green); border-radius: 12px; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;">
+                                    👑 Owner
+                                </span>
+                                {% elif member.is_admin %}
+                                <span style="padding: 0.25rem 0.75rem; background: rgba(245, 158, 11, 0.2); color: var(--accent-orange); border-radius: 12px; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;">
+                                    🛡️ Admin
+                                </span>
+                                {% else %}
+                                <span style="padding: 0.25rem 0.75rem; background: rgba(107, 114, 128, 0.2); color: var(--text-muted); border-radius: 12px; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;">
+                                    Member
+                                </span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <span style="color: var(--text-secondary); font-size: 0.875rem;">{{ member.joined_at.strftime('%b %d, %Y') }}</span>
+                            </td>
+                            <td>
+                                {% if member.last_active %}
+                                <span style="color: var(--text-secondary); font-size: 0.875rem;">{{ member.last_active.strftime('%b %d, %Y') }}</span>
+                                {% else %}
+                                <span style="color: var(--text-muted); font-size: 0.875rem;">-</span>
+                                {% endif %}
+                            </td>
+                            <td style="text-align: right;">
+                                {% if is_admin and member.user_id != current_user.id %}
+                                    {% if member.user_id != group.creator_id %}
+                                        <div style="display: flex; gap: 0.5rem; justify-content: flex-end; flex-wrap: wrap;">
+                                            {% if not member.is_admin %}
+                                            <button class="btn btn-sm"
+                                                    data-action="promote"
+                                                    data-group-id="{{ group.id }}"
+                                                    data-user-id="{{ member.user_id }}"
+                                                    style="padding: 0.25rem 0.75rem; background: rgba(16, 185, 129, 0.1); color: var(--accent-green); border: none; border-radius: 6px; font-size: 0.75rem; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 0.25rem;">
+                                                <i class="fas fa-arrow-up"></i> Promote
+                                            </button>
+                                            {% else %}
+                                            <button class="btn btn-sm"
+                                                    data-action="demote"
+                                                    data-group-id="{{ group.id }}"
+                                                    data-user-id="{{ member.user_id }}"
+                                                    style="padding: 0.25rem 0.75rem; background: rgba(245, 158, 11, 0.1); color: var(--accent-orange); border: none; border-radius: 6px; font-size: 0.75rem; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 0.25rem;">
+                                                <i class="fas fa-arrow-down"></i> Demote
+                                            </button>
+                                            {% endif %}
+                                            <button class="btn btn-sm"
+                                                    data-action="remove"
+                                                    data-group-id="{{ group.id }}"
+                                                    data-user-id="{{ member.user_id }}"
+                                                    data-user-name="{{ member.user.full_name }}"
+                                                    style="padding: 0.25rem 0.75rem; background: rgba(239, 68, 68, 0.1); color: var(--accent-red); border: none; border-radius: 6px; font-size: 0.75rem; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 0.25rem;">
+                                                <i class="fas fa-user-times"></i> Remove
+                                            </button>
+                                        </div>
+                                    {% else %}
+                                        <span style="color: var(--text-muted); font-size: 0.75rem;">Cannot modify owner</span>
+                                    {% endif %}
+                                {% elif member.user_id == current_user.id and member.user_id != group.creator_id %}
+                                    <form method="POST" action="{{ url_for('groups.leave', group_id=group.id) }}" style="margin: 0;">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                        <button type="submit"
+                                                onclick="return confirm('Are you sure you want to leave this group?')"
+                                                style="padding: 0.25rem 0.75rem; background: rgba(239, 68, 68, 0.1); color: var(--accent-red); border: 1px solid var(--accent-red); border-radius: 6px; font-size: 0.75rem; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 0.25rem;">
+                                            <i class="fas fa-sign-out-alt"></i> Leave Group
+                                        </button>
+                                    </form>
+                                {% else %}
+                                    <span style="color: var(--text-muted); font-size: 0.75rem;">-</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Group Statistics -->
+        <div class="stats-section">
+            <div class="section-card">
+                <h3><i class="fas fa-chart-bar"></i> Member Statistics</h3>
+                
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-users"></i>
+                        </div>
+                        <div class="stat-info">
+                            <div class="stat-value">{{ members|length }}</div>
+                            <div class="stat-label">Total Members</div>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-user-shield"></i>
+                        </div>
+                        <div class="stat-info">
+                            <div class="stat-value">{{ members|selectattr('is_admin')|list|length }}</div>
+                            <div class="stat-label">Administrators</div>
+                        </div>
+                    </div>
+                    
+                    {% if group.max_members %}
+                        <div class="stat-card">
+                            <div class="stat-icon">
+                                <i class="fas fa-limit"></i>
+                            </div>
+                            <div class="stat-info">
+                                <div class="stat-value">{{ group.max_members - members|length }}</div>
+                                <div class="stat-label">Available Spots</div>
+                            </div>
+                        </div>
+                    {% endif %}
+                    
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-calendar-plus"></i>
+                        </div>
+                        <div class="stat-info">
+                            <div class="stat-value">{{ group.created_at.strftime('%b %Y') }}</div>
+                            <div class="stat-label">Group Created</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Add event listeners to action buttons
+    document.querySelectorAll('button[data-action]').forEach(button => {
+        button.addEventListener('click', handleMemberAction);
+    });
+});
+
+async function handleMemberAction(event) {
+    const button = event.target.closest('button');
+    const action = button.dataset.action;
+    const groupId = button.dataset.groupId;
+    const userId = button.dataset.userId;
+    const userName = button.dataset.userName;
+    
+    switch (action) {
+        case 'promote':
+            await promoteMember(groupId, userId);
+            break;
+        case 'demote':
+            await demoteMember(groupId, userId);
+            break;
+        case 'remove':
+            await removeMember(groupId, userId, userName);
+            break;
+    }
+}
+
+async function promoteMember(groupId, userId) {
+    if (!confirm('Are you sure you want to promote this member to administrator?')) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`/groups/${groupId}/member/${userId}/promote`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('[name=csrf_token]').value
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            showToast(data.message, 'success');
+            location.reload();
+        } else {
+            showToast(data.error || 'Error promoting member', 'error');
+        }
+    } catch (error) {
+        showToast('Network error occurred', 'error');
+    }
+}
+
+async function demoteMember(groupId, userId) {
+    if (!confirm('Are you sure you want to demote this administrator to a regular member?')) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`/groups/${groupId}/member/${userId}/demote`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('[name=csrf_token]').value
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            showToast(data.message, 'success');
+            location.reload();
+        } else {
+            showToast(data.error || 'Error demoting member', 'error');
+        }
+    } catch (error) {
+        showToast('Network error occurred', 'error');
+    }
+}
+
+async function removeMember(groupId, userId, userName) {
+    if (!confirm(`Are you sure you want to remove ${userName} from this group? This action cannot be undone.`)) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`/groups/${groupId}/member/${userId}/remove`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('[name=csrf_token]').value
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            showToast(data.message, 'success');
+            location.reload();
+        } else {
+            showToast(data.error || 'Error removing member', 'error');
+        }
+    } catch (error) {
+        showToast('Network error occurred', 'error');
+    }
+}
+
+function showToast(message, type) {
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    toast.textContent = message;
+    toast.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        padding: 12px 20px;
+        border-radius: 6px;
+        color: white;
+        font-weight: 600;
+        z-index: 1000;
+        transform: translateX(100%);
+        transition: transform 0.3s ease;
+    `;
+    
+    if (type === 'success') {
+        toast.style.backgroundColor = '#28a745';
+    } else if (type === 'error') {
+        toast.style.backgroundColor = '#dc3545';
+    }
+    
+    document.body.appendChild(toast);
+    
+    setTimeout(() => {
+        toast.style.transform = 'translateX(0)';
+    }, 100);
+    
+    setTimeout(() => {
+        toast.style.transform = 'translateX(100%)';
+        setTimeout(() => {
+            document.body.removeChild(toast);
+        }, 300);
+    }, 3000);
+}
+</script>
+
+<style>
+.group-members-page {
+    padding: 20px 0;
+}
+
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 30px;
+    flex-wrap: wrap;
+    gap: 20px;
+}
+
+.breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 15px;
+    font-size: 0.9rem;
+}
+
+.breadcrumb a {
+    color: var(--primary-color);
+    text-decoration: none;
+}
+
+.breadcrumb i {
+    color: var(--text-muted);
+    font-size: 0.8rem;
+}
+
+.page-header h1 {
+    margin: 0 0 10px 0;
+    color: var(--primary-color);
+    font-size: 2rem;
+}
+
+.group-description {
+    color: var(--text-muted);
+    margin: 0;
+}
+
+.header-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.members-section {
+    margin-bottom: 40px;
+}
+
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 25px;
+    padding-bottom: 15px;
+    border-bottom: 2px solid var(--border-color);
+}
+
+.section-header h2 {
+    margin: 0;
+    color: var(--text-color);
+    font-size: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.members-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+    gap: 20px;
+}
+
+.member-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 20px;
+    transition: all 0.3s ease;
+}
+
+.member-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+}
+
+.member-card.current-user {
+    border-color: var(--primary-color);
+    background: linear-gradient(135deg, var(--card-bg) 0%, rgba(0, 123, 255, 0.05) 100%);
+}
+
+.member-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 15px;
+    margin-bottom: 15px;
+}
+
+.member-avatar {
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 50%;
+    background: var(--accent-blue);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 1rem;
+    flex-shrink: 0;
+    overflow: hidden;
+}
+
+.member-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.member-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.member-name {
+    margin: 0 0 5px 0;
+    color: var(--text-color);
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+.you-indicator {
+    color: var(--primary-color);
+    font-weight: normal;
+    font-size: 0.9rem;
+}
+
+.member-details {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.member-username {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+}
+
+.member-email {
+    color: var(--text-light);
+    font-size: 0.85rem;
+}
+
+.member-role {
+    flex-shrink: 0;
+}
+
+.member-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+    margin-bottom: 15px;
+    padding: 10px 0;
+    border-top: 1px solid var(--border-color);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.meta-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+
+.meta-item i {
+    color: var(--primary-color);
+}
+
+.member-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: flex-end;
+}
+
+.leave-form {
+    margin: 0;
+}
+
+.section-card {
+    background: var(--card-bg);
+    border-radius: 12px;
+    padding: 25px;
+    border: 1px solid var(--border-color);
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+
+.section-card h3 {
+    margin: 0 0 20px 0;
+    color: var(--text-color);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px;
+}
+
+.stat-card {
+    background: var(--bg-color);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 20px;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.stat-icon {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    background: rgba(0, 123, 255, 0.1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.stat-icon i {
+    font-size: 1.5rem;
+    color: var(--primary-color);
+}
+
+.stat-value {
+    font-size: 1.8rem;
+    font-weight: bold;
+    color: var(--text-color);
+    line-height: 1;
+}
+
+.stat-label {
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+
+.badge {
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.badge-primary { background: var(--primary-color); color: white; }
+.badge-success { background: var(--success-color); color: white; }
+.badge-warning { background: #ffc107; color: #212529; }
+.badge-secondary { background: #6c757d; color: white; }
+
+/* Mobile Responsiveness */
+@media (max-width: 768px) {
+    .group-members-page {
+        padding: 10px 0;
+    }
+
+    .container {
+        padding: 0 15px;
+    }
+
+    .page-header {
+        flex-direction: column;
+        align-items: stretch;
+        padding: 20px;
+        margin-bottom: 20px;
+    }
+
+    .header-actions {
+        justify-content: stretch;
+    }
+
+    .header-actions .btn {
+        flex: 1;
+    }
+
+    .section-header {
+        margin-bottom: 20px;
+        padding-bottom: 12px;
+        padding-left: 5px;
+        padding-right: 5px;
+    }
+
+    .members-section {
+        margin-bottom: 30px;
+        padding: 0 5px;
+    }
+
+    .members-grid {
+        grid-template-columns: 1fr;
+        gap: 15px;
+    }
+
+    .member-card {
+        padding: 15px;
+    }
+
+    .member-header {
+        flex-wrap: wrap;
+    }
+
+    .member-role {
+        width: 100%;
+        margin-top: 10px;
+        text-align: left;
+    }
+
+    .member-meta {
+        flex-direction: column;
+        gap: 8px;
+        padding: 12px 0;
+    }
+
+    .member-actions {
+        justify-content: flex-start;
+        flex-direction: column;
+    }
+
+    .member-actions .btn {
+        width: 100%;
+    }
+
+    .stats-section {
+        padding: 0 5px;
+    }
+
+    .section-card {
+        padding: 20px 15px;
+    }
+
+    .stats-grid {
+        grid-template-columns: 1fr;
+        gap: 15px;
+    }
+}
+</style>
+{% endblock %}

@@ -1,0 +1,407 @@
+{% extends "base.html" %}
+
+{% block title %}Scheduler Management{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row">
+        <div class="col-md-12">
+            <h2>📅 Scheduler Management Dashboard</h2>
+            <p class="text-muted">Monitor and control automatic ESPN API syncing</p>
+            
+            <!-- Scheduler Status Card -->
+            <div class="row mb-4">
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0">
+                                <i class="fas fa-cogs"></i> Scheduler Status
+                            </h5>
+                            <span class="badge bg-{{ 'success' if scheduler_status.is_running else 'danger' }}">
+                                {{ 'Running' if scheduler_status.is_running else 'Stopped' }}
+                            </span>
+                        </div>
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between mb-3">
+                                <button class="btn btn-success" id="start-scheduler" 
+                                        {{ 'disabled' if scheduler_status.is_running else '' }}>
+                                    <i class="fas fa-play"></i> Start
+                                </button>
+                                <button class="btn btn-danger" id="stop-scheduler"
+                                        {{ 'disabled' if not scheduler_status.is_running else '' }}>
+                                    <i class="fas fa-stop"></i> Stop
+                                </button>
+                                <button class="btn btn-info" id="refresh-status">
+                                    <i class="fas fa-refresh"></i> Refresh
+                                </button>
+                            </div>
+                            
+                            <h6>Quick Sync Actions</h6>
+                            <div class="btn-group-vertical w-100" role="group">
+                                <button class="btn btn-outline-primary btn-sm force-sync-btn" data-type="live">
+                                    <i class="fas fa-bolt"></i> Force Live Games Sync
+                                </button>
+                                <button class="btn btn-outline-info btn-sm force-sync-btn" data-type="status">
+                                    <i class="fas fa-clock"></i> Force Game Status Sync
+                                </button>
+                                <button class="btn btn-outline-success btn-sm force-sync-btn" data-type="hourly">
+                                    <i class="fas fa-sync"></i> Force Hourly Sync
+                                </button>
+                                <button class="btn btn-outline-warning btn-sm force-sync-btn" data-type="daily">
+                                    <i class="fas fa-calendar-day"></i> Force Daily Maintenance
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="fas fa-chart-bar"></i> Sync Statistics
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            {% set stats = scheduler_status.stats %}
+                            <div class="row text-center">
+                                <div class="col-4">
+                                    <h4 class="text-primary">{{ stats.total_syncs }}</h4>
+                                    <small class="text-muted">Total Syncs</small>
+                                </div>
+                                <div class="col-4">
+                                    <h4 class="text-success">{{ stats.successful_syncs }}</h4>
+                                    <small class="text-muted">Successful</small>
+                                </div>
+                                <div class="col-4">
+                                    <h4 class="text-danger">{{ stats.failed_syncs }}</h4>
+                                    <small class="text-muted">Failed</small>
+                                </div>
+                            </div>
+                            
+                            <hr>
+                            
+                            <div class="row text-center">
+                                <div class="col-6">
+                                    <h5 class="text-info">{{ stats.games_updated }}</h5>
+                                    <small class="text-muted">Games Updated</small>
+                                </div>
+                                <div class="col-6">
+                                    <h6 class="text-muted">
+                                        {% if stats.last_sync %}
+                                            {{ moment(stats.last_sync).fromNow() if moment else stats.last_sync }}
+                                        {% else %}
+                                            Never
+                                        {% endif %}
+                                    </h6>
+                                    <small class="text-muted">Last Sync</small>
+                                </div>
+                            </div>
+                            
+                            {% if stats.last_error %}
+                            <div class="alert alert-danger mt-3">
+                                <small><strong>Last Error:</strong> {{ stats.last_error }}</small>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Scheduled Jobs -->
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-calendar-alt"></i> Scheduled Jobs
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if scheduler_status.jobs %}
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Job Name</th>
+                                        <th>Schedule</th>
+                                        <th>Next Run</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for job in scheduler_status.jobs %}
+                                    <tr>
+                                        <td>
+                                            <strong>{{ job.name }}</strong>
+                                            <br><small class="text-muted">{{ job.id }}</small>
+                                        </td>
+                                        <td>
+                                            <code>{{ job.trigger }}</code>
+                                        </td>
+                                        <td>
+                                            {% if job.next_run %}
+                                                <span class="badge bg-info">
+                                                    {{ moment(job.next_run).fromNow() if moment else job.next_run }}
+                                                </span>
+                                                <br><small class="text-muted">{{ job.next_run }}</small>
+                                            {% else %}
+                                                <span class="badge bg-secondary">Not scheduled</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <div class="btn-group btn-group-sm" role="group">
+                                                <button class="btn btn-outline-warning pause-job-btn" 
+                                                        data-job-id="{{ job.id }}">
+                                                    <i class="fas fa-pause"></i>
+                                                </button>
+                                                <button class="btn btn-outline-success resume-job-btn" 
+                                                        data-job-id="{{ job.id }}">
+                                                    <i class="fas fa-play"></i>
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="text-center text-muted">
+                            <i class="fas fa-calendar-times fa-3x mb-3"></i>
+                            <p>No scheduled jobs found</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- Live Score Monitoring -->
+            <div class="row mt-4">
+                <div class="col-md-12">
+                    <div class="card">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0">
+                                <i class="fas fa-tv"></i> Live Score Monitoring
+                            </h5>
+                            <button class="btn btn-sm btn-outline-primary" id="refresh-live-scores">
+                                <i class="fas fa-refresh"></i> Refresh
+                            </button>
+                        </div>
+                        <div class="card-body">
+                            <div id="live-scores-container">
+                                <div class="text-center">
+                                    <div class="spinner-border" role="status">
+                                        <span class="visually-hidden">Loading...</span>
+                                    </div>
+                                    <p class="mt-2">Loading live scores...</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Status Modal -->
+<div class="modal fade" id="statusModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Action Status</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="status-message"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const statusModal = new bootstrap.Modal(document.getElementById('statusModal'));
+    
+    // Helper function to make scheduler API calls
+    async function schedulerAction(action, data = {}) {
+        try {
+            const response = await fetch('{{ url_for("main.admin_scheduler_action") }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('[name=csrf_token]').value
+                },
+                body: JSON.stringify({action: action, ...data})
+            });
+            
+            const result = await response.json();
+            
+            if (response.ok) {
+                showStatus(result.message || 'Action completed successfully', 'success');
+                if (action === 'start' || action === 'stop') {
+                    setTimeout(() => location.reload(), 1000);
+                }
+            } else {
+                showStatus(result.error || 'Action failed', 'error');
+            }
+        } catch (error) {
+            showStatus('Network error: ' + error.message, 'error');
+        }
+    }
+    
+    // Helper function to show status messages
+    function showStatus(message, type) {
+        const statusDiv = document.getElementById('status-message');
+        statusDiv.innerHTML = `
+            <div class="alert alert-${type === 'error' ? 'danger' : 'success'}" role="alert">
+                ${message}
+            </div>
+        `;
+        statusModal.show();
+    }
+    
+    // Start scheduler
+    document.getElementById('start-scheduler').addEventListener('click', function() {
+        schedulerAction('start');
+    });
+    
+    // Stop scheduler
+    document.getElementById('stop-scheduler').addEventListener('click', function() {
+        schedulerAction('stop');
+    });
+    
+    // Refresh status
+    document.getElementById('refresh-status').addEventListener('click', function() {
+        location.reload();
+    });
+    
+    // Force sync buttons
+    document.querySelectorAll('.force-sync-btn').forEach(button => {
+        button.addEventListener('click', function() {
+            const syncType = this.dataset.type;
+            this.disabled = true;
+            this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Syncing...';
+            
+            schedulerAction('force_sync', {sync_type: syncType}).finally(() => {
+                setTimeout(() => location.reload(), 2000);
+            });
+        });
+    });
+    
+    // Pause job buttons
+    document.querySelectorAll('.pause-job-btn').forEach(button => {
+        button.addEventListener('click', function() {
+            const jobId = this.dataset.jobId;
+            schedulerAction('pause_job', {job_id: jobId});
+        });
+    });
+    
+    // Resume job buttons
+    document.querySelectorAll('.resume-job-btn').forEach(button => {
+        button.addEventListener('click', function() {
+            const jobId = this.dataset.jobId;
+            schedulerAction('resume_job', {job_id: jobId});
+        });
+    });
+    
+    // Load live scores
+    async function loadLiveScores() {
+        try {
+            const response = await fetch('{{ url_for("main.api_live_scores") }}');
+            const data = await response.json();
+            
+            const container = document.getElementById('live-scores-container');
+            
+            if (data.games && data.games.length > 0) {
+                let html = '<div class="row">';
+                
+                data.games.forEach(game => {
+                    html += `
+                        <div class="col-md-6 mb-3">
+                            <div class="card">
+                                <div class="card-body">
+                                    <div class="row text-center">
+                                        <div class="col-4">
+                                            <h5>${game.away_team}</h5>
+                                            <h3 class="text-primary">${game.away_score || 0}</h3>
+                                        </div>
+                                        <div class="col-4">
+                                            <small class="text-muted">VS</small>
+                                            <br>
+                                            <span class="badge bg-${game.is_final ? 'success' : 'warning'}">
+                                                ${game.is_final ? 'Final' : 'Live'}
+                                            </span>
+                                            <br>
+                                            <small class="text-muted">Week ${game.week}</small>
+                                        </div>
+                                        <div class="col-4">
+                                            <h5>${game.home_team}</h5>
+                                            <h3 class="text-primary">${game.home_score || 0}</h3>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                html += '</div>';
+                html += `<small class="text-muted">Last updated: ${new Date(data.last_updated).toLocaleString()}</small>`;
+                
+                container.innerHTML = html;
+            } else {
+                container.innerHTML = `
+                    <div class="text-center text-muted">
+                        <i class="fas fa-football-ball fa-3x mb-3"></i>
+                        <p>No live games currently</p>
+                    </div>
+                `;
+            }
+        } catch (error) {
+            document.getElementById('live-scores-container').innerHTML = `
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    Error loading live scores: ${error.message}
+                </div>
+            `;
+        }
+    }
+    
+    // Load live scores on page load
+    loadLiveScores();
+    
+    // Refresh live scores
+    document.getElementById('refresh-live-scores').addEventListener('click', loadLiveScores);
+    
+    // Auto-refresh live scores every 30 seconds
+    setInterval(loadLiveScores, 30000);
+});
+</script>
+
+<style>
+.card {
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    border: 1px solid rgba(0, 0, 0, 0.125);
+}
+
+.badge {
+    font-size: 0.875em;
+}
+
+.btn-group-vertical .btn {
+    margin-bottom: 5px;
+}
+
+.table th {
+    border-top: none;
+    font-weight: 600;
+}
+
+.spinner-border {
+    width: 3rem;
+    height: 3rem;
+}
+</style>
+{% endblock %}

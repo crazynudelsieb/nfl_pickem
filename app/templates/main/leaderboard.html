@@ -1,0 +1,201 @@
+{% extends "base.html" %}
+
+{% block title %}Leaderboard - NFL Pick'em{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- Leaderboard -->
+    {% if leaderboard_data %}
+    <div class="leaderboard-card">
+        <div class="leaderboard-header">
+            <div class="leaderboard-title-container">
+                <h2 class="leaderboard-title">
+                    <span class="leaderboard-main-title">Global Leaderboard</span>
+                    {% if filter_type == 'all-time' %}
+                    <span class="leaderboard-subtitle">All-Time Rankings</span>
+                    {% elif selected_season %}
+                    <span class="leaderboard-subtitle">{{ selected_season.year }} Season</span>
+                    {% endif %}
+                </h2>
+                <p style="color: var(--text-secondary); margin: 0.5rem 0 0 0; font-size: 0.875rem;">
+                    {% if filter_type == 'all-time' %}
+                    Showing overall statistics across all players, all groups, and all seasons
+                    {% elif selected_season %}
+                    Showing {{ selected_season.year }} season statistics across all players and groups
+                    {% endif %}
+                </p>
+            </div>
+        </div>
+        
+        <!-- Filter Controls -->
+        <div style="border-top: 1px solid var(--border-color); padding: 1.5rem;">
+            <h3 style="margin: 0 0 1rem 0; font-size: 1rem; color: var(--text-primary); font-weight: 600;">🔍 Filters</h3>
+            <form method="GET" action="{{ url_for('main.leaderboard') }}" style="display: flex; gap: 1rem; align-items: end; flex-wrap: wrap;">
+                <div style="flex: 1; min-width: 200px;">
+                    <label for="filter" style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--text-primary); font-size: 0.875rem;">
+                        View:
+                    </label>
+                    <select id="filter" name="filter" class="filter-select" style="width: 100%;" onchange="toggleSeasonSelect()">
+                        <option value="all-time" {% if filter_type == 'all-time' %}selected{% endif %}>All-Time Statistics</option>
+                        <option value="season" {% if filter_type == 'season' %}selected{% endif %}>By Season</option>
+                    </select>
+                </div>
+                
+                <div id="season-select-container" style="flex: 1; min-width: 200px; {% if filter_type == 'all-time' %}display: none;{% endif %}">
+                    <label for="season_id" style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--text-primary); font-size: 0.875rem;">
+                        Season:
+                    </label>
+                    <select id="season_id" name="season_id" class="filter-select" style="width: 100%;">
+                        {% for season in all_seasons %}
+                        <option value="{{ season.id }}" {% if selected_season and season.id == selected_season.id %}selected{% endif %}>
+                            {{ season.year }} Season
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <div>
+                    <button type="submit" style="padding: 0.75rem 1.5rem; background: var(--accent-blue); color: white; border: none; border-radius: 6px; font-weight: 600; cursor: pointer;">
+                        Apply Filters
+                    </button>
+                </div>
+            </form>
+        </div>
+        
+        <div style="border-top: 1px solid var(--border-color);"></div>
+        
+        <div class="overflow-x-auto">
+            <table class="leaderboard-table">
+                <thead>
+                    <tr>
+                        <th>Rank</th>
+                        <th>Player</th>
+                        <th>Wins</th>
+                        <th>Losses</th>
+                        <th>Missed</th>
+                        <th>Accuracy</th>
+                        <th>Tiebreaker</th>
+                        <th>Longest Streak</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for entry in leaderboard_data %}
+                    <tr {% if entry.user_id == current_user.id %}class="current-user"{% endif %}>
+                        <td>
+                            {% if loop.index == 1 %}
+                            <div style="font-size: 1.5rem;">🏆</div>
+                            {% elif loop.index == 2 %}
+                            <div style="font-size: 1.5rem;">🥈</div>
+                            {% elif loop.index == 3 %}
+                            <div style="font-size: 1.5rem;">🥉</div>
+                            {% else %}
+                            <div style="font-weight: 600; color: var(--text-secondary);">{{ loop.index }}</div>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="player-info">
+                                <div class="player-avatar">
+                                    {% if entry.user.avatar_url %}
+                                    <img src="{{ entry.user.avatar_url }}" alt="{{ entry.user.username }}">
+                                    {% else %}
+                                    {{ entry.user.username[0] }}
+                                    {% endif %}
+                                </div>
+                                <div class="player-details">
+                                    <h4>{{ entry.user.full_name or entry.user.username }}</h4>
+                                    <p>@{{ entry.user.username }}</p>
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            <span class="stat-value" style="color: var(--accent-green); font-weight: 700;">{{ entry.wins }}</span>
+                        </td>
+                        <td>
+                            <span class="stat-value" style="color: var(--accent-red); font-weight: 700;">{{ entry.losses if entry.losses is defined else (entry.completed_picks - entry.wins) }}</span>
+                        </td>
+                        <td>
+                            <span class="stat-value" style="color: var(--warning-color); font-weight: 700;">{{ entry.missed_games if entry.missed_games is defined else 0 }}</span>
+                        </td>
+                        <td>
+                            {% if entry.accuracy is defined %}
+                                {% set accuracy = entry.accuracy %}
+                            {% elif entry.total_picks > 0 %}
+                                {% set accuracy = entry.wins / entry.total_picks * 100 %}
+                            {% else %}
+                                {% set accuracy = 0 %}
+                            {% endif %}
+                            <span class="stat-accuracy 
+                                {% if accuracy >= 70 %}high
+                                {% elif accuracy >= 50 %}medium
+                                {% else %}low{% endif %}">
+                                {{ "%.1f"|format(accuracy) }}%
+                            </span>
+                        </td>
+                        <td>
+                            <span class="stat-tiebreaker 
+                                {% if entry.tiebreaker_points >= 0 %}positive
+                                {% else %}negative{% endif %}">
+                                {{ entry.tiebreaker_points or 0 }}
+                            </span>
+                        </td>
+                        <td>
+                            {% if entry.longest_streak > 0 %}
+                            <span class="badge-streak wins">{{ entry.longest_streak }}W</span>
+                            {% elif entry.longest_streak < 0 %}
+                            <span class="badge-streak losses">{{ entry.longest_streak|abs }}L</span>
+                            {% else %}
+                            <span class="badge-streak neutral">0</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    {% else %}
+    <div class="leaderboard-card">
+        <div class="leaderboard-header">
+            <h3 class="leaderboard-title">No Data Available</h3>
+        </div>
+        <div class="empty-state">
+            <div class="empty-icon">📊</div>
+            <h2 class="empty-title">No data available</h2>
+            <p class="empty-message">
+                No picks have been made yet for the selected criteria.
+            </p>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+console.log('Leaderboard script is loading...');
+
+// Toggle season select visibility based on filter type
+function toggleSeasonSelect() {
+    const filterSelect = document.getElementById('filter');
+    const seasonContainer = document.getElementById('season-select-container');
+    
+    if (filterSelect.value === 'all-time') {
+        seasonContainer.style.display = 'none';
+    } else {
+        seasonContainer.style.display = 'block';
+    }
+}
+</script>
+{% if has_live_games %}
+<script>
+// Auto-refresh if there are live games (every 30 seconds)
+setInterval(function() {
+    if (!document.hidden) {
+        window.location.reload();
+    }
+}, 30000);
+</script>
+{% endif %}
+{% endblock %}
