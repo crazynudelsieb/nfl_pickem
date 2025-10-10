@@ -713,11 +713,15 @@ def admin_picks(group_id):
             # Create new pick
             if admin_override:
                 # Admin override: create pick directly without validation
+                # Set group_id based on user's picks_are_global setting
+                pick_group_id = None if target_user.picks_are_global else group_id
+
                 pick = Pick(
                     user_id=user_id,
                     game_id=game_id,
                     season_id=current_season.id,
                     selected_team_id=team_id,
+                    group_id=pick_group_id,
                 )
                 db.session.add(pick)
                 db.session.flush()
