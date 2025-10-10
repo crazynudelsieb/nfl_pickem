@@ -152,9 +152,10 @@ def setup_logging(app):
     logging.getLogger("werkzeug").setLevel(logging.WARNING)
     logging.getLogger("urllib3").setLevel(logging.WARNING)
     logging.getLogger("requests").setLevel(logging.WARNING)
+    logging.getLogger("flask_limiter").setLevel(logging.WARNING)
 
-    # Set APScheduler logging to INFO to see job executions
-    logging.getLogger("apscheduler").setLevel(logging.INFO)
+    # Set APScheduler logging to WARNING to reduce verbosity (change to INFO for debugging)
+    logging.getLogger("apscheduler").setLevel(logging.WARNING)
 
     app.logger.info(f"Logging configured - Level: {logging.getLevelName(log_level)}")
 
