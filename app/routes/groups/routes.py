@@ -692,6 +692,14 @@ def admin_picks(group_id):
                     return redirect(url_for("groups.admin_picks", group_id=group_id))
 
             # Validation passed or admin override enabled - commit the update
+
+            # If game is already final, immediately calculate result
+            if game.is_final:
+                existing_pick.update_result()
+                logger.info(
+                    f"Updated pick for final game - auto-scored: is_correct={existing_pick.is_correct}, points={existing_pick.points_earned}"
+                )
+
             # Log the update
             AdminAction.log_pick_update(
                 current_user,
@@ -726,6 +734,13 @@ def admin_picks(group_id):
                 db.session.add(pick)
                 db.session.flush()
 
+                # If game is already final, immediately calculate result
+                if game.is_final:
+                    pick.update_result()
+                    logger.info(
+                        f"Game already final - auto-scored pick: is_correct={pick.is_correct}, points={pick.points_earned}"
+                    )
+
                 # Log the creation
                 AdminAction.log_pick_creation(
                     current_user,
@@ -746,6 +761,13 @@ def admin_picks(group_id):
                 # Use normal validation
                 pick, message = Pick.create_pick(user_id, game_id, team_id)
                 if pick:
+                    # If game is already final, immediately calculate result
+                    if game.is_final:
+                        pick.update_result()
+                        logger.info(
+                            f"Game already final - auto-scored pick: is_correct={pick.is_correct}, points={pick.points_earned}"
+                        )
+
                     # Log the creation
                     AdminAction.log_pick_creation(
                         current_user, target_user, group, pick
