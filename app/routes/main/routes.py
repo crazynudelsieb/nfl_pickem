@@ -12,7 +12,7 @@ from flask import (
 )
 from flask_login import current_user, login_required
 
-from app import db
+from app import db, limiter
 from app.models import Game, Group, GroupMember, Pick, Season, Team, User
 from app.routes.main import bp
 
@@ -983,8 +983,9 @@ def offline():
 
 
 @bp.route("/health")
+@limiter.exempt
 def health():
-    """Health check endpoint"""
+    """Health check endpoint - exempt from rate limiting for monitoring systems"""
     return jsonify(
         {"status": "healthy", "timestamp": datetime.now(timezone.utc).isoformat()}
     )

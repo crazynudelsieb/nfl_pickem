@@ -117,7 +117,6 @@ class DataSync:
         self._enforce_rate_limit()
 
         try:
-            logger.debug(f"Making API request to: {url}")
             response = self.session.get(url, params=params, timeout=30)
             response.raise_for_status()
             return response

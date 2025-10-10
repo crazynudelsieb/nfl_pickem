@@ -57,7 +57,7 @@ if redis_url:
 
 limiter = Limiter(
     key_func=get_real_ip,
-    default_limits=["500 per day", "100 per hour"],
+    default_limits=["10000 per day", "1000 per hour"],  # Liberal limits - Cloudflare/Traefik provide primary protection
     storage_uri=limiter_storage_uri,
 )
 

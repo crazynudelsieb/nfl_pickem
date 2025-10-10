@@ -167,8 +167,6 @@ class SchedulerService:
                 if not self._is_game_time():
                     return
 
-                logger.debug("Running live games sync...")
-
                 current_season = Season.get_current_season()
                 if not current_season:
                     return
@@ -179,8 +177,7 @@ class SchedulerService:
                 ).all()
 
                 if not live_games:
-                    logger.debug("No live games found")
-                    return
+                    return  # Silent - no need to log when no games are live
 
                 # Update live games
                 updates = 0
@@ -213,7 +210,6 @@ class SchedulerService:
         """Medium-frequency sync for game status changes"""
         with self.app.app_context():
             try:
-                logger.debug("Running game status sync...")
 
                 current_season = Season.get_current_season()
                 if not current_season:
