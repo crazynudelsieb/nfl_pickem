@@ -51,9 +51,9 @@ if redis_url:
         redis_client = redis.Redis.from_url(redis_url)
         redis_client.ping()
         limiter_storage_uri = redis_url
-        print(f"✓ Rate limiter using Redis storage at {redis_url}")
+        print(f"[OK] Rate limiter using Redis storage at {redis_url}")
     except (ImportError, redis.exceptions.ConnectionError) as e:
-        print(f"⚠ Redis not available for rate limiter, using memory storage: {e}")
+        print(f"[WARN] Redis not available for rate limiter, using memory storage: {e}")
 
 limiter = Limiter(
     key_func=get_real_ip,
@@ -109,9 +109,9 @@ def create_app(config_name=None):
             redis_client = redis.Redis.from_url(redis_url)
             redis_client.ping()
             message_queue = redis_url
-            print(f"✓ Socket.IO using Redis message queue at {redis_url}")
+            print(f"[OK] Socket.IO using Redis message queue at {redis_url}")
         except (ImportError, redis.exceptions.ConnectionError) as e:
-            print(f"⚠ Redis not available for Socket.IO message queue: {e}")
+            print(f"[WARN] Redis not available for Socket.IO message queue: {e}")
 
     socketio.init_app(
         app,
