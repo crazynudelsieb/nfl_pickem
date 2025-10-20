@@ -242,13 +242,14 @@ class SchedulerService:
                     db.session.expire_all()
                     self._update_stats(True, updates)
 
-                    # Invalidate caches before processing completed games
+                    # Invalidate caches after updates
                     invalidate_model_cache("Game")
                     invalidate_model_cache("Pick")
 
-                    # Process newly completed games
-                    for game in newly_final_games:
-                        self._process_completed_game(game)
+                    # Emit real-time updates for updated games
+                    # Note: Pick scoring is now handled in data_sync._update_game_score()
+                    # via Game.update_score(), so we don't need to call _process_completed_game()
+                    self._emit_score_updates(recent_games)
 
                     # Check if Super Bowl just completed
                     if newly_final_games:
@@ -405,40 +406,18 @@ class SchedulerService:
         return game_start_hour <= current_hour <= game_end_hour
 
     def _process_completed_game(self, game):
-        """Process a newly completed game"""
-        try:
-            # Reload game from database to ensure we have latest data
-            db.session.refresh(game)
+        """
+        DEPRECATED: Process a newly completed game
 
-            # Verify game is actually final to prevent race conditions
-            if not game.is_final:
-                logger.warning(
-                    f"Game {game.id} no longer final, skipping pick processing"
-                )
-                return
-
-            # Update all picks for this game
-            picks = Pick.query.filter_by(game_id=game.id).all()
-
-            updated_picks = 0
-            for pick in picks:
-                pick.update_result()
-                updated_picks += 1
-
-            if updated_picks > 0:
-                db.session.commit()
-                # Invalidate pick cache after updates
-                invalidate_model_cache("Pick")
-
-            logger.info(
-                f"Processed completed game: {game.away_team.abbreviation} vs {game.home_team.abbreviation}, updated {updated_picks} picks"
-            )
-
-        except Exception as e:
-            db.session.rollback()
-            logger.error(
-                f"Error processing completed game {game.id}: {e}", exc_info=True
-            )
+        This method is no longer used as pick scoring is now handled directly
+        in data_sync._update_game_score() via Game.update_score().
+        Kept for backwards compatibility but should not be called.
+        """
+        logger.warning(
+            "_process_completed_game() is deprecated - picks are now scored "
+            "automatically in Game.update_score()"
+        )
+        # Method body removed to prevent duplicate scoring
 
     def _check_season_completion(self):
         """Check if season (Super Bowl) is complete and finalize"""
