@@ -75,6 +75,7 @@ nul
 debug_*.py
 test_*.py
 manual_*.py
+fix_*.py
 cookies.txt
 *.ps1
 build.ps1
@@ -87,6 +88,7 @@ docker-compose.dev.yml
 # Documentation artifacts
 *CLEANUP*.md
 *AUDIT*.md
+*DEPLOYMENT*.md
 CLAUDE.md
 DEV_README.md
 QUICK_REF.md
