@@ -436,16 +436,16 @@ class DataSync:
             status_changed = is_final != game.is_final
 
             if score_changed or status_changed:
-                # Update game data
-                if home_score is not None:
-                    game.home_score = home_score
-                if away_score is not None:
-                    game.away_score = away_score
-                game.is_final = is_final
-
-                # Note: We don't call game.update_score() here to avoid
-                # updating picks multiple times. The scheduler service
-                # handles pick updates in _process_completed_game()
+                # Use Game.update_score() method to ensure picks are updated
+                if home_score is not None and away_score is not None:
+                    game.update_score(home_score, away_score, is_final)
+                else:
+                    # Fallback if we only have status change
+                    game.is_final = is_final
+                    if is_final:
+                        # Update all related picks even if score didn't change
+                        for pick in game.picks:
+                            pick.update_result()
 
                 return True
 
