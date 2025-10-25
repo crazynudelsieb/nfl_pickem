@@ -70,6 +70,7 @@ instance/
 app.db
 logs/*.log
 nul
+.serena/
 
 # Development artifacts
 debug_*.py
