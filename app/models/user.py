@@ -33,7 +33,7 @@ class User(UserMixin, db.Model):
 
     # Password reset
     reset_token = db.Column(db.String(100), unique=True, nullable=True)
-    reset_token_expiry = db.Column(db.DateTime, nullable=True)
+    reset_token_expiry = db.Column(db.DateTime(timezone=True), nullable=True)
 
     # Timestamps
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
