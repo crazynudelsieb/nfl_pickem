@@ -253,7 +253,7 @@ def change_password():
 
 
 @bp.route("/forgot_password", methods=["GET", "POST"])
-@limiter.limit("5 per hour")
+@limiter.limit("20 per hour")
 def forgot_password():
     if current_user.is_authenticated:
         return redirect(url_for("main.dashboard"))
@@ -292,7 +292,7 @@ def forgot_password():
 
 
 @bp.route("/reset_password/<token>", methods=["GET", "POST"])
-@limiter.limit("10 per hour")
+@limiter.limit("30 per hour")
 def reset_password(token):
     if current_user.is_authenticated:
         return redirect(url_for("main.dashboard"))
