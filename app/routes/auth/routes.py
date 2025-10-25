@@ -301,6 +301,16 @@ def reset_password(token):
         return redirect(url_for("auth.forgot_password"))
 
     if request.method == "POST":
+        # Validate CSRF token
+        from flask_wtf.csrf import validate_csrf
+        from wtforms import ValidationError
+
+        try:
+            validate_csrf(request.form.get('csrf_token'))
+        except ValidationError:
+            flash("Security validation failed. Please try again.", "error")
+            return render_template("auth/reset_password.html", token=token)
+
         password = request.form.get("password")
         confirm_password = request.form.get("confirm_password")
 
