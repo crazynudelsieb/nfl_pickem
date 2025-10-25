@@ -125,9 +125,14 @@ class User(UserMixin, db.Model):
         if (
             user
             and user.reset_token_expiry
-            and user.reset_token_expiry > datetime.now(timezone.utc)
         ):
-            return user
+            # Ensure both datetimes are timezone-aware for comparison
+            expiry = user.reset_token_expiry
+            if expiry.tzinfo is None:
+                expiry = expiry.replace(tzinfo=timezone.utc)
+            
+            if expiry > datetime.now(timezone.utc):
+                return user
         return None
 
     def clear_reset_token(self):
