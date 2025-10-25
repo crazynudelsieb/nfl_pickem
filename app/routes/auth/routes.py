@@ -3,6 +3,8 @@ from urllib.parse import urlparse
 
 from flask import flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required, login_user, logout_user
+from flask_wtf.csrf import validate_csrf
+from wtforms import ValidationError
 
 from app import db, limiter, login_manager
 from app.forms.auth import (
@@ -302,9 +304,6 @@ def reset_password(token):
 
     if request.method == "POST":
         # Validate CSRF token
-        from flask_wtf.csrf import validate_csrf
-        from wtforms import ValidationError
-
         try:
             validate_csrf(request.form.get('csrf_token'))
         except ValidationError:
