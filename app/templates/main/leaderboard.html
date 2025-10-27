@@ -119,12 +119,12 @@
                         <td>
                             {% if entry.accuracy is defined %}
                                 {% set accuracy = entry.accuracy %}
-                            {% elif entry.total_picks > 0 %}
-                                {% set accuracy = entry.total_score / entry.total_picks * 100 %}
+                            {% elif (entry.completed_picks + (entry.missed_games if entry.missed_games is defined else 0)) > 0 %}
+                                {% set accuracy = (entry.wins if entry.wins is defined else entry.total_score) / (entry.completed_picks + (entry.missed_games if entry.missed_games is defined else 0)) * 100 %}
                             {% else %}
                                 {% set accuracy = 0 %}
                             {% endif %}
-                            <span class="stat-accuracy 
+                            <span class="stat-accuracy
                                 {% if accuracy >= 70 %}high
                                 {% elif accuracy >= 50 %}medium
                                 {% else %}low{% endif %}">
