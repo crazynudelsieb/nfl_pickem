@@ -219,7 +219,7 @@
                                     {% endif %}
                                 </div>
                                 {% if away_pick_count > 0 %}
-                                <div class="team-pick-badge">{{ away_pick_count }}</div>
+                                <div class="team-pick-badge" data-tooltip="{{ away_pick_count }} {{ 'pick' if away_pick_count == 1 else 'picks' }}">{{ away_pick_count }}</div>
                                 {% endif %}
                             </label>
 
@@ -255,7 +255,7 @@
                                     {% endif %}
                                 </div>
                                 {% if home_pick_count > 0 %}
-                                <div class="team-pick-badge">{{ home_pick_count }}</div>
+                                <div class="team-pick-badge" data-tooltip="{{ home_pick_count }} {{ 'pick' if home_pick_count == 1 else 'picks' }}">{{ home_pick_count }}</div>
                                 {% endif %}
                             </label>
                         </div>
@@ -398,69 +398,6 @@
         </div>
     </div>
     {% endif %}
-
-    <!-- Other Users' Picks -->
-    {% if other_users_picks and (pickable_games or completed_games) %}
-    <div class="leaderboard-card mb-6">
-        <div class="leaderboard-header">
-            <h3 style="margin: 0; font-size: 1.125rem; color: var(--text-primary);">👥 Group Members' Picks</h3>
-            <p style="color: var(--text-secondary); margin: 0.5rem 0 0 0; font-size: 0.875rem;">See what other players in {{ current_group.name }} have picked</p>
-        </div>
-        <div style="padding: 1.5rem;">
-            <div class="other-picks-container">
-                {% for user_id, user_data in other_users_picks.items() %}
-                <div class="user-picks-section">
-                    <div class="user-picks-header">
-                        <div class="user-info">
-                            {% if user_data.user.avatar_url %}
-                            <img src="{{ user_data.user.avatar_url }}" alt="{{ user_data.user.username }}" class="user-avatar">
-                            {% else %}
-                            <div class="user-avatar">{{ user_data.user.username[0] }}</div>
-                            {% endif %}
-                            <div class="user-details">
-                                <h4>{{ user_data.user.full_name or user_data.user.username }}</h4>
-                                <p>@{{ user_data.user.username }}</p>
-                            </div>
-                        </div>
-                        <div class="user-pick-count">
-                            {{ user_data.picks|length }}/{{ (pickable_games + completed_games)|length }} picks
-                        </div>
-                    </div>
-                    
-                    <div class="user-picks-grid">
-                        {% for game in pickable_games + completed_games %}
-                        <div class="pick-item">
-                            <div class="game-info">
-                                <span class="matchup">{{ game.away_team.abbreviation }} @ {{ game.home_team.abbreviation }}</span>
-                                {% if game.is_final %}
-                                <span class="score">{{ game.away_score }}-{{ game.home_score }}</span>
-                                {% endif %}
-                            </div>
-                            <div class="pick-choice">
-                                {% if user_data.picks.get(game.id) %}
-                                    {% set pick = user_data.picks[game.id] %}
-                                    <span class="selected-team 
-                                        {% if pick.is_correct %}correct
-                                        {% elif pick.is_correct == False %}incorrect
-                                        {% else %}pending{% endif %}">
-                                        {{ pick.selected_team.abbreviation }}
-                                        {% if pick.is_correct %}✓
-                                        {% elif pick.is_correct == False %}✗
-                                        {% endif %}
-                                    </span>
-                                {% else %}
-                                    <span class="no-pick">-</span>
-                                {% endif %}
-                            </div>
-                        </div>
-                        {% endfor %}
-                    </div>
-                </div>
-                {% endfor %}
-            </div>
-        </div>
-    </div>
-    {% endif %}
 </div>
 
 <style>
@@ -541,128 +478,6 @@
 .info-message p {
     margin: 0;
     color: var(--text-secondary);
-    font-size: 0.875rem;
-}
-
-/* User picks section styling */
-.other-picks-container {
-    display: flex;
-    flex-direction: column;
-    gap: 1.5rem;
-}
-
-.user-picks-section {
-    padding: 1rem;
-    background: var(--bg-tertiary);
-    border-radius: 8px;
-    border: 1px solid var(--border-color);
-}
-
-.user-picks-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 1rem;
-    padding-bottom: 1rem;
-    border-bottom: 1px solid var(--border-color);
-}
-
-.user-info {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-}
-
-.user-avatar {
-    width: 2.5rem;
-    height: 2.5rem;
-    border-radius: 50%;
-    background: var(--accent-blue);
-    color: white;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: 700;
-    font-size: 1rem;
-}
-
-.user-details h4 {
-    margin: 0;
-    color: var(--text-primary);
-    font-size: 1rem;
-}
-
-.user-details p {
-    margin: 0;
-    color: var(--text-secondary);
-    font-size: 0.875rem;
-}
-
-.user-pick-count {
-    color: var(--text-secondary);
-    font-size: 0.875rem;
-    font-weight: 600;
-}
-
-.user-picks-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-    gap: 0.75rem;
-}
-
-.pick-item {
-    padding: 0.75rem;
-    background: var(--bg-secondary);
-    border-radius: 6px;
-    border: 1px solid var(--border-color);
-}
-
-.game-info {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 0.5rem;
-}
-
-.matchup {
-    color: var(--text-primary);
-    font-size: 0.875rem;
-    font-weight: 600;
-}
-
-.score {
-    color: var(--text-secondary);
-    font-size: 0.75rem;
-}
-
-.pick-choice {
-    text-align: center;
-}
-
-.selected-team {
-    padding: 0.25rem 0.75rem;
-    border-radius: 6px;
-    font-weight: 700;
-    font-size: 0.875rem;
-}
-
-.selected-team.correct {
-    background: rgba(16, 185, 129, 0.2);
-    color: var(--accent-green);
-}
-
-.selected-team.incorrect {
-    background: rgba(239, 68, 68, 0.2);
-    color: var(--accent-red);
-}
-
-.selected-team.pending {
-    background: rgba(107, 114, 128, 0.2);
-    color: var(--text-muted);
-}
-
-.no-pick {
-    color: var(--text-muted);
     font-size: 0.875rem;
 }
 
@@ -757,16 +572,6 @@
 
 /* Mobile responsive improvements */
 @media (max-width: 768px) {
-    .user-picks-grid {
-        grid-template-columns: 1fr;
-    }
-
-    .user-picks-header {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 0.5rem;
-    }
-
     .combined-score {
         font-size: 1rem;
     }
