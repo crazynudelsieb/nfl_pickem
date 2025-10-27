@@ -197,14 +197,15 @@
                         <div class="pick-teams-container">
                             <!-- Away Team -->
                             {% set away_available = available_teams.get(game.away_team.id, {}) %}
-                            {% set away_pick_count = 0 %}
+                            {% set away_pickers = [] %}
                             {% if other_users_picks %}
                                 {% for user_data in other_users_picks.values() %}
                                     {% if user_data.picks.get(game.id) and user_data.picks.get(game.id).selected_team_id == game.away_team.id %}
-                                        {% set away_pick_count = away_pick_count + 1 %}
+                                        {% if away_pickers.append(user_data.user.id) %}{% endif %}
                                     {% endif %}
                                 {% endfor %}
                             {% endif %}
+                            {% set away_pick_count = away_pickers|length %}
                             <!-- DEBUG: away_pick_count={{ away_pick_count }}, other_users={{ other_users_picks|length }} -->
                             <label class="team-pick-compact {% if user_picks.get(game.id) and user_picks[game.id].selected_team_id == game.away_team.id %}selected{% endif %} {% if not away_available.get('can_pick', True) %}unavailable{% endif %}"
                                    data-team-id="{{ game.away_team.id }}"
@@ -234,14 +235,15 @@
 
                             <!-- Home Team -->
                             {% set home_available = available_teams.get(game.home_team.id, {}) %}
-                            {% set home_pick_count = 0 %}
+                            {% set home_pickers = [] %}
                             {% if other_users_picks %}
                                 {% for user_data in other_users_picks.values() %}
                                     {% if user_data.picks.get(game.id) and user_data.picks.get(game.id).selected_team_id == game.home_team.id %}
-                                        {% set home_pick_count = home_pick_count + 1 %}
+                                        {% if home_pickers.append(user_data.user.id) %}{% endif %}
                                     {% endif %}
                                 {% endfor %}
                             {% endif %}
+                            {% set home_pick_count = home_pickers|length %}
                             <label class="team-pick-compact {% if user_picks.get(game.id) and user_picks[game.id].selected_team_id == game.home_team.id %}selected{% endif %} {% if not home_available.get('can_pick', True) %}unavailable{% endif %}"
                                    data-team-id="{{ game.home_team.id }}"
                                    data-team-abbr="{{ game.home_team.abbreviation }}"
