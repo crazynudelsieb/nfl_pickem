@@ -460,8 +460,10 @@ function displayPlayerPicks(data) {
     `;
 
     data.picks.forEach(pick => {
-        // Check if it's a tie game (is_correct null but game is final and scores equal)
-        const isTie = pick.is_correct === null && pick.is_final && pick.away_score === pick.home_score;
+        // Three states: is_correct determines everything
+        // True = Win, False = Loss, null = Tie (if game final) or Pending (if not final)
+        const isTie = pick.is_correct === null && pick.is_final;
+        const isPending = pick.is_correct === null && !pick.is_final;
         
         const resultIcon = pick.is_correct === true ? '✓' :
                           pick.is_correct === false ? '✗' :
