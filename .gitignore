@@ -70,7 +70,11 @@ instance/
 app.db
 logs/*.log
 nul
+
+# AI/Claude specific - keep private
 .serena/
+.claude/
+CLAUDE.md
 
 # Development artifacts
 debug_*.py
@@ -90,7 +94,6 @@ docker-compose.dev.yml
 *CLEANUP*.md
 *AUDIT*.md
 *DEPLOYMENT*.md
-CLAUDE.md
 DEV_README.md
 QUICK_REF.md
 REDIS_SETUP.md

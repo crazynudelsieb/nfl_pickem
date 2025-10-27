@@ -20,8 +20,6 @@ A modern Progressive Web App for managing NFL Pick'em leagues with real-time upd
 
 ## Quick Start
 
-## Quick Start
-
 ### Using Pre-built Images (Recommended)
 
 ```bash
