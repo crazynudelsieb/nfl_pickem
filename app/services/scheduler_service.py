@@ -283,8 +283,7 @@ class SchedulerService:
                 success, message = self.data_sync.update_live_scores()
 
                 if success:
-                    # Update all scores for the season
-                    self.scoring_calc.update_all_scores(current_season.id)
+                    # Picks auto-update via Pick.update_result() when games finalize
                     # Expire session to prevent stale data reads
                     db.session.expire_all()
 
@@ -322,9 +321,7 @@ class SchedulerService:
                     # Clean up old sync stats
                     self._cleanup_old_data()
 
-                    # Update all scoring
-                    self.scoring_calc.update_all_scores(current_season.id)
-
+                    # Picks auto-update via Pick.update_result() when games finalize
                     # Expire session to prevent stale data reads
                     db.session.expire_all()
 
