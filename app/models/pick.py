@@ -211,7 +211,7 @@ class Pick(db.Model):
 
         # Check if game is a tie
         if self.game.is_tie:
-            # Tie game: award half points and special tiebreaker
+            # Tie game: award 0.5 points, but no tiebreaker (no score differential)
             self.is_correct = None  # Neither correct nor incorrect
 
             # Calculate points using ScoringEngine (handles playoff multipliers for ties)
@@ -219,9 +219,8 @@ class Pick(db.Model):
             scoring = ScoringEngine()
             self.points_earned = scoring.calculate_pick_score(self)
 
-            # Tiebreaker for ties: half the total score
-            total_score = self.game.total_score or 0
-            self.tiebreaker_points = total_score / 2.0
+            # No tiebreaker points for ties (no point differential)
+            self.tiebreaker_points = 0
             return
 
         # Determine if pick is correct (win/loss)
