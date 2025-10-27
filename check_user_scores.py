@@ -2,28 +2,26 @@
 """Check scoring for specific users"""
 from app import create_app
 from app.models import User, Pick, Game
-from app.utils.scoring import ScoringEngine
 
 app = create_app()
 
 with app.app_context():
     users = User.query.filter(User.username.in_(['Andi', 'Vera'])).all()
-    se = ScoringEngine()
     
     for user in users:
         print(f"\n{'='*60}")
         print(f"User: {user.username} (ID: {user.id})")
         print(f"{'='*60}")
         
-        # Get season score
-        score = se.calculate_user_season_score(user.id, 1)
-        print(f"\nSeason Score:")
-        print(f"  Total Score: {score['total_score']}")
-        print(f"  Wins: {score['wins']}")
-        print(f"  Ties: {score['ties']}")
-        print(f"  Losses: {score['losses']}")
-        print(f"  Tiebreaker: {score.get('tiebreaker_points', 'N/A')}")
-        print(f"  Total Picks: {score['total_picks']}")
+        # Get season stats using User model method
+        stats = user.get_season_stats(season_id=1)
+        print(f"\nSeason Stats:")
+        print(f"  Total Score: {stats['total']['total_score']}")
+        print(f"  Wins: {stats['total']['wins']}")
+        print(f"  Ties: {stats['total']['ties']}")
+        print(f"  Losses: {stats['total']['losses']}")
+        print(f"  Tiebreaker: {stats['total']['tiebreaker_points']}")
+        print(f"  Total Picks: {stats['total']['total_picks']}")
         
         # Get all picks
         picks = Pick.query.join(Game).filter(
