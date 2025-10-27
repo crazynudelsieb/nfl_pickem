@@ -27,10 +27,10 @@
                         💎 Win Points
                     </div>
                     <div style="font-size: 1.5rem; font-weight: 700; color: var(--accent-green);">
-                        {{ user_stats.total.wins if user_stats else 0 }}
+                        {{ user_stats.total.total_score if user_stats else 0 }}
                     </div>
                     <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.25rem;">
-                        Total Wins
+                        Total Score
                     </div>
                 </div>
 
@@ -129,7 +129,7 @@
                                         </div>
                                     </td>
                                     <td style="padding: 0.75rem; text-align: center;">
-                                        <span style="color: var(--accent-green); font-weight: 700;">{{ entry['wins'] }}</span>
+                                        <span style="color: var(--accent-green); font-weight: 700;">{{ entry['total_score'] }}</span>
                                     </td>
                                     <td style="padding: 0.75rem; text-align: center;">
                                         <span style="color: var(--text-primary); font-weight: 600;">{{ entry['completed_picks'] or entry['total_picks'] }}</span>
