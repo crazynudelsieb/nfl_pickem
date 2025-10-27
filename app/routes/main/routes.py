@@ -816,9 +816,24 @@ def leaderboard():
             if not all_picks:
                 continue
 
-            all_completed_picks = [p for p in all_picks if p.is_correct is not None]
-            all_wins = sum(1 for p in all_completed_picks if p.is_correct)
-            all_losses = sum(1 for p in all_completed_picks if not p.is_correct)
+            # Separate completed picks into wins, losses, and ties
+            # A pick is "completed" if: is_correct is True/False OR (is_correct is None AND game is final = tie)
+            all_completed_picks = []
+            all_wins = 0
+            all_ties = 0
+            all_losses = 0
+
+            for p in all_picks:
+                if p.is_correct is True:
+                    all_wins += 1
+                    all_completed_picks.append(p)
+                elif p.is_correct is False:
+                    all_losses += 1
+                    all_completed_picks.append(p)
+                elif p.is_correct is None and p.game and p.game.is_final:
+                    # This is a tie - game is final but is_correct is None
+                    all_ties += 1
+                    all_completed_picks.append(p)
 
             # Count missed games
             picked_game_ids = {p.game_id for p in all_picks}
@@ -828,10 +843,13 @@ def leaderboard():
             missed_game_ids = completed_game_ids - picked_game_ids
             all_missed_games = len(missed_game_ids)
 
+            # Calculate total_score: wins + (0.5 × ties)
+            total_score = all_wins + (0.5 * all_ties)
+
             # Calculate accuracy (includes missed games as losses)
             accuracy_denominator = len(all_completed_picks) + all_missed_games
             accuracy = (
-                (all_wins / accuracy_denominator * 100)
+                (total_score / accuracy_denominator * 100)
                 if accuracy_denominator > 0
                 else 0
             )
@@ -847,8 +865,9 @@ def leaderboard():
                 {
                     "user_id": user.id,
                     "user": user,
-                    "total_score": all_wins,  # Add total_score for template consistency
+                    "total_score": total_score,  # Wins + (0.5 × ties)
                     "wins": all_wins,
+                    "ties": all_ties,
                     "losses": all_losses,
                     "missed_games": all_missed_games,
                     "completed_picks": len(all_completed_picks),

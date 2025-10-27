@@ -57,7 +57,9 @@ body {
     --danger-text: #ef4444;
     --warning-bg: rgba(245, 158, 11, 0.1);
     --warning-text: #f59e0b;
-    
+    --warning-color: #f59e0b;
+    --accent-yellow: #f59e0b;
+
     /* RGB Values for Alpha Compositing */
     --accent-blue-rgb: 59, 130, 246;
     --accent-green-rgb: 16, 185, 129;
