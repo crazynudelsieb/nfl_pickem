@@ -1233,6 +1233,7 @@ def api_player_picks(user_id):
                     pick.selected_team.abbreviation if pick.selected_team else "TBD"
                 ),
                 "is_correct": pick.is_correct,
+                "points_earned": pick.points_earned,
                 "tiebreaker_points": pick.tiebreaker_points,
                 "home_score": game.home_score,
                 "away_score": game.away_score,
