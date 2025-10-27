@@ -19,12 +19,8 @@ class ScoringEngine:
 
     def __init__(self):
         self.regular_season_points = 1
-        self.playoff_multipliers = {
-            "Wild Card": 2,
-            "Divisional": 3,
-            "Conference Championship": 4,
-            "Super Bowl": 5,
-        }
+        # Playoff multipliers removed - all games score the same (KISS principle)
+        # Competition happens through player elimination, not increased point values
 
     def calculate_pick_score(self, pick):
         """Calculate score for a single pick"""
@@ -33,17 +29,8 @@ class ScoringEngine:
 
         # Check if game is a tie
         if pick.game.is_tie:
-            # Tie game: award half points
-            points = self.regular_season_points / 2.0
-
-            # Apply playoff multiplier if applicable
-            season = pick.game.season
-            if season.is_playoff_week(pick.game.week):
-                week_info = season.get_weeks()[pick.game.week - 1]
-                multiplier = self.playoff_multipliers.get(week_info["name"], 1)
-                points *= multiplier
-
-            return points
+            # Tie game: award half points (same for all weeks)
+            return self.regular_season_points / 2.0
 
         # Check if pick is correct
         winning_team = pick.game.winning_team
@@ -54,17 +41,8 @@ class ScoringEngine:
         if not is_correct:
             return 0.0
 
-        # Base points
-        points = self.regular_season_points
-
-        # Apply playoff multiplier if applicable
-        season = pick.game.season
-        if season.is_playoff_week(pick.game.week):
-            week_info = season.get_weeks()[pick.game.week - 1]
-            multiplier = self.playoff_multipliers.get(week_info["name"], 1)
-            points *= multiplier
-
-        return float(points)
+        # Win: 1 point for all games (regular season and playoffs)
+        return float(self.regular_season_points)
 
     def calculate_user_week_score(self, user_id, season_id, week):
         """Calculate total score for a user in a specific week"""
@@ -78,15 +56,18 @@ class ScoringEngine:
 
         total_score = 0
         correct_picks = 0
+        tiebreaker_points = 0
 
         for pick in picks:
             score = self.calculate_pick_score(pick)
             total_score += score
+            tiebreaker_points += pick.tiebreaker_points or 0
             if score > 0:
                 correct_picks += 1
 
         return {
             "total_score": total_score,
+            "tiebreaker_points": tiebreaker_points,
             "correct_picks": correct_picks,
             "total_picks": len(picks),
         }
@@ -107,12 +88,16 @@ class ScoringEngine:
         wins = 0
         ties = 0
         losses = 0
+        tiebreaker_points = 0  # Sum of all tiebreaker points
         weekly_scores = defaultdict(int)
 
         for pick in picks:
             score = self.calculate_pick_score(pick)
             total_score += score
             weekly_scores[pick.game.week] += score
+            
+            # Add tiebreaker points
+            tiebreaker_points += pick.tiebreaker_points or 0
 
             # Properly classify pick result
             if pick.is_correct is True:
@@ -126,6 +111,7 @@ class ScoringEngine:
 
         return {
             "total_score": total_score,
+            "tiebreaker_points": tiebreaker_points,
             "wins": wins,
             "ties": ties,
             "losses": losses,
@@ -153,6 +139,7 @@ class ScoringEngine:
                     "user_id": member.user_id,
                     "user": member.user,
                     "total_score": score_data["total_score"],
+                    "tiebreaker_points": score_data["tiebreaker_points"],
                     "wins": score_data["wins"],
                     "ties": score_data["ties"],
                     "losses": score_data["losses"],
@@ -163,9 +150,9 @@ class ScoringEngine:
                 }
             )
 
-        # Sort by total score, then by win percentage
+        # Sort by total score (win points), then by tiebreaker points
         leaderboard.sort(
-            key=lambda x: (x["total_score"], x["win_percentage"]), reverse=True
+            key=lambda x: (x["total_score"], x["tiebreaker_points"]), reverse=True
         )
 
         # Add rankings
@@ -190,6 +177,7 @@ class ScoringEngine:
                     "user_id": member.user_id,
                     "user": member.user,
                     "week_score": score_data["total_score"],
+                    "tiebreaker_points": score_data["tiebreaker_points"],
                     "correct_picks": score_data["correct_picks"],
                     "total_picks": score_data["total_picks"],
                     "win_percentage": (
@@ -200,9 +188,9 @@ class ScoringEngine:
                 }
             )
 
-        # Sort by week score, then by win percentage
+        # Sort by week score (win points), then by tiebreaker points
         leaderboard.sort(
-            key=lambda x: (x["week_score"], x["win_percentage"]), reverse=True
+            key=lambda x: (x["week_score"], x["tiebreaker_points"]), reverse=True
         )
 
         # Add rankings

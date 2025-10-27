@@ -179,7 +179,8 @@ class Pick(db.Model):
                 )
 
         # RULE 3: Loser can't be picked twice in a row (must have a game week between)
-        if self.game.week > 1:
+        # This rule only applies to regular season, not playoffs
+        if self.game.week > 1 and not is_special_game:
             prev_week_filter = base_filter + [Game.week == self.game.week - 1]
 
             previous_week_pick = (
