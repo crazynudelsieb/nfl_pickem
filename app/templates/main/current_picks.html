@@ -166,12 +166,6 @@
                     <p style="margin: 0; color: var(--text-secondary); font-size: 0.875rem;">
                         📋 Showing {{ pickable_games|length }} game{{ 's' if pickable_games|length != 1 else '' }} for this week
                     </p>
-                    {% if current_user.is_admin %}
-                    <!-- Debug info for admin -->
-                    <p style="margin: 0.5rem 0 0 0; color: var(--text-muted); font-size: 0.75rem; font-family: monospace;">
-                        🔧 Debug: {{ other_users_picks|length }} other users with picks
-                    </p>
-                    {% endif %}
                 </div>
             <form method="POST" action="{{ url_for('main.submit_picks') }}" id="picks-form">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
@@ -201,12 +195,11 @@
                             {% if other_users_picks %}
                                 {% for user_data in other_users_picks.values() %}
                                     {% if user_data.picks.get(game.id) and user_data.picks.get(game.id).selected_team_id == game.away_team.id %}
-                                        {% if away_pickers.append(user_data.user.id) %}{% endif %}
+                                        {% if away_pickers.append({'username': user_data.user.username, 'display_name': user_data.user.display_name or user_data.user.username}) %}{% endif %}
                                     {% endif %}
                                 {% endfor %}
                             {% endif %}
                             {% set away_pick_count = away_pickers|length %}
-                            <!-- DEBUG: away_pick_count={{ away_pick_count }}, other_users={{ other_users_picks|length }} -->
                             <label class="team-pick-compact {% if user_picks.get(game.id) and user_picks[game.id].selected_team_id == game.away_team.id %}selected{% endif %} {% if not away_available.get('can_pick', True) %}unavailable{% endif %}"
                                    data-team-id="{{ game.away_team.id }}"
                                    data-team-abbr="{{ game.away_team.abbreviation }}"
@@ -227,7 +220,13 @@
                                     {% endif %}
                                 </div>
                                 {% if away_pick_count > 0 %}
-                                <div class="team-pick-badge" data-tooltip="{{ away_pick_count }} {{ 'pick' if away_pick_count == 1 else 'picks' }}">{{ away_pick_count }}</div>
+                                <div class="team-pick-badge"
+                                     data-team-name="{{ game.away_team.name }}"
+                                     data-team-abbr="{{ game.away_team.abbreviation }}"
+                                     data-pickers='{{ away_pickers|tojson }}'
+                                     onclick="showPickerPopup(this, event)">
+                                    {{ away_pick_count }}
+                                </div>
                                 {% endif %}
                             </label>
 
@@ -239,7 +238,7 @@
                             {% if other_users_picks %}
                                 {% for user_data in other_users_picks.values() %}
                                     {% if user_data.picks.get(game.id) and user_data.picks.get(game.id).selected_team_id == game.home_team.id %}
-                                        {% if home_pickers.append(user_data.user.id) %}{% endif %}
+                                        {% if home_pickers.append({'username': user_data.user.username, 'display_name': user_data.user.display_name or user_data.user.username}) %}{% endif %}
                                     {% endif %}
                                 {% endfor %}
                             {% endif %}
@@ -264,7 +263,13 @@
                                     {% endif %}
                                 </div>
                                 {% if home_pick_count > 0 %}
-                                <div class="team-pick-badge" data-tooltip="{{ home_pick_count }} {{ 'pick' if home_pick_count == 1 else 'picks' }}">{{ home_pick_count }}</div>
+                                <div class="team-pick-badge"
+                                     data-team-name="{{ game.home_team.name }}"
+                                     data-team-abbr="{{ game.home_team.abbreviation }}"
+                                     data-pickers='{{ home_pickers|tojson }}'
+                                     onclick="showPickerPopup(this, event)">
+                                    {{ home_pick_count }}
+                                </div>
                                 {% endif %}
                             </label>
                         </div>
@@ -1144,5 +1149,102 @@ function rebuildPickStatusBadges() {
     }
 }
 </style>
+
+<!-- Picker Popup -->
+<div class="pick-badge-popup-overlay" id="pickerPopupOverlay" onclick="closePickerPopup()"></div>
+<div class="pick-badge-popup" id="pickerPopup">
+    <div class="pick-badge-popup-header">
+        <div class="pick-badge-popup-title" id="pickerPopupTitle"></div>
+        <button class="pick-badge-popup-close" onclick="closePickerPopup()">&times;</button>
+    </div>
+    <div class="pick-badge-popup-users" id="pickerPopupUsers"></div>
+</div>
+
+<script>
+function showPickerPopup(badge, event) {
+    event.stopPropagation();
+
+    const teamName = badge.getAttribute('data-team-name');
+    const teamAbbr = badge.getAttribute('data-team-abbr');
+    const pickersJson = badge.getAttribute('data-pickers');
+
+    if (!pickersJson) return;
+
+    let pickers;
+    try {
+        pickers = JSON.parse(pickersJson);
+    } catch (e) {
+        console.error('Failed to parse pickers data:', e);
+        return;
+    }
+
+    // Set title
+    const title = document.getElementById('pickerPopupTitle');
+    title.textContent = `Picked ${teamAbbr}`;
+
+    // Build users list
+    const usersContainer = document.getElementById('pickerPopupUsers');
+    usersContainer.innerHTML = '';
+
+    pickers.forEach(function(picker) {
+        const userDiv = document.createElement('div');
+        userDiv.className = 'pick-badge-popup-user';
+
+        const avatar = document.createElement('div');
+        avatar.className = 'pick-badge-popup-user-avatar';
+        avatar.textContent = picker.display_name.charAt(0).toUpperCase();
+
+        const name = document.createElement('div');
+        name.className = 'pick-badge-popup-user-name';
+        name.textContent = picker.display_name;
+
+        userDiv.appendChild(avatar);
+        userDiv.appendChild(name);
+        usersContainer.appendChild(userDiv);
+    });
+
+    // Position popup
+    const popup = document.getElementById('pickerPopup');
+    const overlay = document.getElementById('pickerPopupOverlay');
+
+    // Check if mobile
+    const isMobile = window.innerWidth <= 768;
+
+    if (!isMobile) {
+        // Desktop: position near badge
+        const rect = badge.getBoundingClientRect();
+        popup.style.left = (rect.left + rect.width + 10) + 'px';
+        popup.style.top = rect.top + 'px';
+
+        // Adjust if off-screen
+        setTimeout(function() {
+            const popupRect = popup.getBoundingClientRect();
+            if (popupRect.right > window.innerWidth) {
+                popup.style.left = (rect.left - popupRect.width - 10) + 'px';
+            }
+            if (popupRect.bottom > window.innerHeight) {
+                popup.style.top = (window.innerHeight - popupRect.height - 10) + 'px';
+            }
+        }, 0);
+    }
+    // Mobile positioning is handled by CSS
+
+    // Show popup
+    popup.classList.add('show');
+    overlay.classList.add('show');
+}
+
+function closePickerPopup() {
+    document.getElementById('pickerPopup').classList.remove('show');
+    document.getElementById('pickerPopupOverlay').classList.remove('show');
+}
+
+// Close on escape key
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        closePickerPopup();
+    }
+});
+</script>
 
 {% endblock %}
