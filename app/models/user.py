@@ -257,9 +257,11 @@ class User(UserMixin, db.Model):
                 regular_picks.append(pick)
 
         # Calculate regular season stats
-        regular_completed = [p for p in regular_picks if p.is_correct is not None]
-        regular_wins = sum(1 for p in regular_completed if p.is_correct)
-        regular_losses = sum(1 for p in regular_completed if not p.is_correct)
+        # Include all picks where game is final (is_correct can be True/False/None)
+        regular_completed = [p for p in regular_picks if p.game and p.game.is_final]
+        regular_wins = sum(1 for p in regular_completed if p.is_correct is True)
+        regular_ties = sum(1 for p in regular_completed if p.is_correct is None)
+        regular_losses = sum(1 for p in regular_completed if p.is_correct is False)
         regular_total_tiebreaker = sum(
             p.tiebreaker_points or 0 for p in regular_completed
         )
@@ -278,9 +280,11 @@ class User(UserMixin, db.Model):
         )
 
         # Calculate playoff stats
-        playoff_completed = [p for p in playoff_picks if p.is_correct is not None]
-        playoff_wins = sum(1 for p in playoff_completed if p.is_correct)
-        playoff_losses = sum(1 for p in playoff_completed if not p.is_correct)
+        # Include all picks where game is final (is_correct can be True/False/None)
+        playoff_completed = [p for p in playoff_picks if p.game and p.game.is_final]
+        playoff_wins = sum(1 for p in playoff_completed if p.is_correct is True)
+        playoff_ties = sum(1 for p in playoff_completed if p.is_correct is None)
+        playoff_losses = sum(1 for p in playoff_completed if p.is_correct is False)
         playoff_total_tiebreaker = sum(
             p.tiebreaker_points or 0 for p in playoff_completed
         )
@@ -300,6 +304,7 @@ class User(UserMixin, db.Model):
 
         # Total stats
         total_wins = regular_wins + playoff_wins
+        total_ties = regular_ties + playoff_ties
         total_losses = regular_losses + playoff_losses
         total_missed_games = regular_missed_games + playoff_missed_games
         total_tiebreaker = regular_total_tiebreaker + playoff_total_tiebreaker
@@ -320,6 +325,7 @@ class User(UserMixin, db.Model):
         return {
             "regular_season": {
                 "wins": regular_wins,
+                "ties": regular_ties,
                 "losses": regular_losses,
                 "missed_games": regular_missed_games,
                 "total_picks": len(regular_picks),
@@ -329,6 +335,7 @@ class User(UserMixin, db.Model):
             },
             "playoffs": {
                 "wins": playoff_wins,
+                "ties": playoff_ties,
                 "losses": playoff_losses,
                 "missed_games": playoff_missed_games,
                 "total_picks": len(playoff_picks),
@@ -338,6 +345,7 @@ class User(UserMixin, db.Model):
             },
             "total": {
                 "wins": total_wins,
+                "ties": total_ties,
                 "losses": total_losses,
                 "missed_games": total_missed_games,
                 "total_picks": total_picks,
