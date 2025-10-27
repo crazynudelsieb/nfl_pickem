@@ -75,6 +75,7 @@ nul
 .serena/
 .claude/
 CLAUDE.md
+copilot-instructions.md
 
 # Development artifacts
 debug_*.py
