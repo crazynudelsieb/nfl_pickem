@@ -10,7 +10,12 @@ A modern Progressive Web App for managing NFL Pick'em leagues with real-time upd
 - **Real-time Updates**: Live scores via WebSockets
 - **PWA Support**: Install as native app on any device
 - **Mobile Optimized**: Responsive design with touch-friendly interface
-- **Comprehensive Scoring**: Points + margin-based tiebreakers
+- **Scoring**: 
+- **Win**: 1 point
+- **Tie**: 0.5 points (half point)
+- **Loss**: 0 points
+- **Tiebreaker**: Margin of victory (winning pick) or negative margin (losing pick) stored in `Pick.tiebreaker_points`
+- **Leaderboards**: Sort by `total_score` (includes 0.5 for ties), then by `tiebreaker_points`
 - **Admin Tools**: Manage picks, view audit logs, control scheduler
 
 ## Quick Start
@@ -88,13 +93,22 @@ For detailed security guidance, see [SECURITY.md](SECURITY.md).
 
 ```
 app/
-├── models/          # Database models
-├── routes/          # API & page routes
-├── services/        # Background services
-├── static/          # CSS, JS, PWA assets
-├── templates/       # Jinja2 templates
-└── utils/           # Helper functions
+├── models/          # Database models (User, Pick, Game, Season, Team, Group)
+├── routes/          # API & page routes (auth, main, groups, api)
+├── services/        # Background services (scheduler_service)
+├── static/          # CSS, JS, PWA assets (manifest.json, sw.js)
+├── templates/       # Jinja2 templates (base, main, auth, groups, errors)
+└── utils/           # Helper functions (scoring, data_sync, cache_utils)
 ```
+
+### Key Files
+- **`app/models/user.py`**: User stats & leaderboard methods (`get_season_stats()`, `get_season_leaderboard()`)
+- **`app/models/pick.py`**: Pick validation & scoring (`is_valid_pick()`, `update_result()`)
+- **`app/models/game.py`**: Game state & tie detection (`is_tie`, `is_final`, `winning_team`)
+- **`app/utils/scoring.py`**: Individual pick scoring (`ScoringEngine.calculate_pick_score()`)
+- **`app/services/scheduler_service.py`**: Background data sync (ESPN API integration)
+- **`config.py`**: Environment-specific configuration classes
+- **`.github/copilot-instructions.md`**: AI agent instructions for development
 
 ## Usage
 
@@ -156,6 +170,24 @@ python run.py
 flask db migrate -m "Description"
 flask db upgrade
 ```
+
+### Recent Changes (v1.0.13 - v1.0.16)
+
+**Tie Game Support & Scoring Fixes**:
+- ✅ Added tri-state `Pick.is_correct` (True/False/None for ties)
+- ✅ Tie games award 0.5 points correctly
+- ✅ Fixed leaderboards to display `total_score` (wins + 0.5×ties) instead of just win count
+- ✅ Fixed `User.get_season_leaderboard()` to sort by `total_score` not wins
+- ✅ UI shows yellow "TIE" indicator for tied games
+- ✅ Modal displays correct tie status with points
+
+**Code Cleanup (cleanup-unused-scoring-code branch)**:
+- ✅ Removed ~240 lines of unused `ScoringEngine` methods
+- ✅ Single source of truth: `User.get_season_stats()` and `User.get_season_leaderboard()`
+- ✅ Simplified architecture following KISS principle
+- ✅ Easy revert: `git checkout main` or `git revert <commit>`
+
+See [CHANGELOG.md](CHANGELOG.md) for complete version history.
 
 ## Mobile Optimization
 
