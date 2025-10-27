@@ -166,6 +166,12 @@
                     <p style="margin: 0; color: var(--text-secondary); font-size: 0.875rem;">
                         📋 Showing {{ pickable_games|length }} game{{ 's' if pickable_games|length != 1 else '' }} for this week
                     </p>
+                    {% if current_user.is_admin %}
+                    <!-- Debug info for admin -->
+                    <p style="margin: 0.5rem 0 0 0; color: var(--text-muted); font-size: 0.75rem; font-family: monospace;">
+                        🔧 Debug: {{ other_users_picks|length }} other users with picks
+                    </p>
+                    {% endif %}
                 </div>
             <form method="POST" action="{{ url_for('main.submit_picks') }}" id="picks-form">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
@@ -199,6 +205,7 @@
                                     {% endif %}
                                 {% endfor %}
                             {% endif %}
+                            <!-- DEBUG: away_pick_count={{ away_pick_count }}, other_users={{ other_users_picks|length }} -->
                             <label class="team-pick-compact {% if user_picks.get(game.id) and user_picks[game.id].selected_team_id == game.away_team.id %}selected{% endif %} {% if not away_available.get('can_pick', True) %}unavailable{% endif %}"
                                    data-team-id="{{ game.away_team.id }}"
                                    data-team-abbr="{{ game.away_team.abbreviation }}"
