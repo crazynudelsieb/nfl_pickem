@@ -395,6 +395,81 @@ def rollback_migration(revision):
 
 # Info Commands
 @cli.command()
+@click.option(
+    "--season",
+    type=int,
+    help="Season year to update (default: current season)",
+)
+@with_appcontext
+def update_tie_games(season):
+    """Update all tie game picks with half points (retroactive fix)"""
+    click.echo("🏈 Updating Tie Game Picks")
+    click.echo("=" * 40)
+
+    # Determine which season to update
+    if season:
+        season_obj = Season.query.filter_by(year=season).first()
+        if not season_obj:
+            click.echo(f"❌ Season {season} not found")
+            return
+    else:
+        season_obj = Season.get_current_season()
+        if not season_obj:
+            click.echo("❌ No current season found")
+            return
+
+    click.echo(f"📅 Season: {season_obj.year}")
+
+    # Find all tie games
+    from app.models import Pick
+
+    tie_games = Game.query.filter(
+        Game.season_id == season_obj.id,
+        Game.is_final == True,
+        Game.home_score == Game.away_score,
+        Game.home_score.isnot(None),
+    ).all()
+
+    click.echo(f"🔍 Found {len(tie_games)} tie games")
+
+    if not tie_games:
+        click.echo("✅ No tie games to update")
+        return
+
+    # Update picks for each tie game
+    updated_count = 0
+    for game in tie_games:
+        click.echo(
+            f"\n🎮 Game: {game.away_team.abbreviation} @ {game.home_team.abbreviation} "
+            f"(Week {game.week}) - Score: {game.home_score}-{game.away_score}"
+        )
+
+        # Get all picks for this game
+        picks = Pick.query.filter_by(game_id=game.id).all()
+
+        for pick in picks:
+            # Update the pick with tie game logic
+            pick.is_correct = None
+            pick.points_earned = 0.5  # Half point for ties
+            total_score = game.total_score or 0
+            pick.tiebreaker_points = total_score / 2.0
+
+            updated_count += 1
+            click.echo(
+                f"   ✅ Updated pick for user {pick.user_id}: "
+                f"0.5 points, tiebreaker: {pick.tiebreaker_points}"
+            )
+
+    # Commit all changes
+    try:
+        db.session.commit()
+        click.echo(f"\n🎉 Successfully updated {updated_count} tie game picks!")
+    except Exception as e:
+        db.session.rollback()
+        click.echo(f"\n❌ Error updating picks: {str(e)}")
+
+
+@cli.command()
 @with_appcontext
 def status():
     """Show application status"""
