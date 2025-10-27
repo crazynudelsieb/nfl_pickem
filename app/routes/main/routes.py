@@ -847,6 +847,7 @@ def leaderboard():
                 {
                     "user_id": user.id,
                     "user": user,
+                    "total_score": all_wins,  # Add total_score for template consistency
                     "wins": all_wins,
                     "losses": all_losses,
                     "missed_games": all_missed_games,
@@ -866,9 +867,9 @@ def leaderboard():
             group_id=None,  # None = all groups
         )
 
-    # Sort by wins (descending), then by tiebreaker points (descending)
+    # Sort by total_score (descending), then by tiebreaker points (descending)
     leaderboard_data.sort(
-        key=lambda x: (x["wins"], x["tiebreaker_points"]), reverse=True
+        key=lambda x: (x["total_score"], x["tiebreaker_points"]), reverse=True
     )
 
     return render_template(
