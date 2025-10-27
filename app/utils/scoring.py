@@ -104,22 +104,36 @@ class ScoringEngine:
         )
 
         total_score = 0
-        correct_picks = 0
+        wins = 0
+        ties = 0
+        losses = 0
         weekly_scores = defaultdict(int)
 
         for pick in picks:
             score = self.calculate_pick_score(pick)
             total_score += score
-            if score > 0:
-                correct_picks += 1
             weekly_scores[pick.game.week] += score
+
+            # Properly classify pick result
+            if pick.is_correct is True:
+                wins += 1
+            elif pick.is_correct is None:
+                ties += 1
+            else:  # pick.is_correct is False
+                losses += 1
+
+        total_picks = len(picks)
 
         return {
             "total_score": total_score,
-            "correct_picks": correct_picks,
-            "total_picks": len(picks),
-            "win_percentage": correct_picks / len(picks) if picks else 0,
+            "wins": wins,
+            "ties": ties,
+            "losses": losses,
+            "total_picks": total_picks,
+            "win_percentage": wins / total_picks if total_picks else 0,
             "weekly_scores": dict(weekly_scores),
+            # Legacy field for backward compatibility (wins + ties)
+            "correct_picks": wins + ties,
         }
 
     def get_group_leaderboard(self, group_id, season_id):
@@ -139,11 +153,13 @@ class ScoringEngine:
                     "user_id": member.user_id,
                     "user": member.user,
                     "total_score": score_data["total_score"],
-                    "correct_picks": score_data["correct_picks"],
+                    "wins": score_data["wins"],
+                    "ties": score_data["ties"],
+                    "losses": score_data["losses"],
                     "total_picks": score_data["total_picks"],
                     "win_percentage": score_data["win_percentage"],
-                    "wins": score_data["correct_picks"],
-                    "losses": score_data["total_picks"] - score_data["correct_picks"],
+                    # Legacy field for backward compatibility
+                    "correct_picks": score_data["correct_picks"],
                 }
             )
 

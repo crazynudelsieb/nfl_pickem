@@ -202,6 +202,10 @@ class Pick(db.Model):
 
     def update_result(self):
         """Update pick result after game completion"""
+        # Null check for game relationship
+        if not self.game:
+            return
+
         if not self.game.is_final:
             return
 

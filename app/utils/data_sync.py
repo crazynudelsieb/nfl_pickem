@@ -444,7 +444,8 @@ class DataSync:
                     game.is_final = is_final
                     if is_final:
                         # Update all related picks even if score didn't change
-                        for pick in game.picks:
+                        # NOTE: picks is lazy="dynamic", so we need .all()
+                        for pick in game.picks.all():
                             pick.update_result()
 
                 return True

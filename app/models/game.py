@@ -168,7 +168,8 @@ class Game(db.Model):
 
         if is_final:
             # Update all related picks
-            for pick in self.picks:
+            # NOTE: picks is lazy="dynamic", so we need .all() to get actual list
+            for pick in self.picks.all():
                 pick.update_result()
 
     def get_picks_count(self):

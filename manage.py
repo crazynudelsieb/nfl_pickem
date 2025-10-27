@@ -421,8 +421,6 @@ def update_tie_games(season):
     click.echo(f"📅 Season: {season_obj.year}")
 
     # Find all tie games
-    from app.models import Pick
-
     tie_games = Game.query.filter(
         Game.season_id == season_obj.id,
         Game.is_final == True,

@@ -175,6 +175,111 @@ def initialize_season_data():
         return None
 
 
+def run_database_migrations():
+    """Run database migrations for schema changes"""
+    print("\n🔄 Checking for database migrations...")
+
+    try:
+        # Check if points_earned is already Float type
+        result = db.session.execute(db.text("""
+            SELECT data_type
+            FROM information_schema.columns
+            WHERE table_name='picks' AND column_name='points_earned'
+        """))
+        current_type = result.fetchone()
+
+        if current_type and current_type[0] == 'integer':
+            print("   Converting points_earned to Float...")
+            db.session.execute(db.text("""
+                ALTER TABLE picks
+                ALTER COLUMN points_earned TYPE DOUBLE PRECISION
+            """))
+            db.session.commit()
+            print("   ✅ Converted points_earned to Float")
+        else:
+            print(f"   ✅ points_earned already type: {current_type[0] if current_type else 'unknown'}")
+
+        # Check if tiebreaker_points is already Float type
+        result = db.session.execute(db.text("""
+            SELECT data_type
+            FROM information_schema.columns
+            WHERE table_name='picks' AND column_name='tiebreaker_points'
+        """))
+        current_type = result.fetchone()
+
+        if current_type and current_type[0] == 'integer':
+            print("   Converting tiebreaker_points to Float...")
+            db.session.execute(db.text("""
+                ALTER TABLE picks
+                ALTER COLUMN tiebreaker_points TYPE DOUBLE PRECISION
+            """))
+            db.session.commit()
+            print("   ✅ Converted tiebreaker_points to Float")
+        else:
+            print(f"   ✅ tiebreaker_points already type: {current_type[0] if current_type else 'unknown'}")
+
+        print("✅ Database migrations complete")
+        return True
+
+    except Exception as e:
+        print(f"⚠️  Migration error (may be normal on first run): {e}")
+        db.session.rollback()
+        return False
+
+
+def update_tie_game_picks():
+    """Update all tie game picks with half points"""
+    print("\n🔄 Checking for tie game picks to update...")
+
+    try:
+        # Find all tie games with picks
+        result = db.session.execute(db.text("""
+            SELECT COUNT(DISTINCT p.id)
+            FROM picks p
+            JOIN games g ON p.game_id = g.id
+            WHERE g.is_final = true
+            AND g.home_score = g.away_score
+            AND g.home_score IS NOT NULL
+            AND (p.is_correct IS NOT NULL OR p.points_earned != 0.5)
+        """))
+
+        count = result.fetchone()[0]
+
+        if count == 0:
+            print("   ✅ No tie game picks need updating")
+            return True
+
+        print(f"   Found {count} tie game picks to update...")
+
+        # Update tie game picks
+        db.session.execute(db.text("""
+            UPDATE picks
+            SET
+                points_earned = 0.5,
+                tiebreaker_points = (
+                    SELECT (COALESCE(g.home_score, 0) + COALESCE(g.away_score, 0)) / 2.0
+                    FROM games g
+                    WHERE g.id = picks.game_id
+                ),
+                is_correct = NULL
+            WHERE game_id IN (
+                SELECT id FROM games
+                WHERE is_final = true
+                AND home_score = away_score
+                AND home_score IS NOT NULL
+            )
+        """))
+
+        db.session.commit()
+        print(f"   ✅ Updated {count} tie game picks with 0.5 points")
+        return True
+
+    except Exception as e:
+        print(f"⚠️  Tie game update error: {e}")
+        db.session.rollback()
+        return False
+
+
 def check_initialization_needed():
     """Check if initialization is needed"""
     try:
@@ -227,6 +332,12 @@ def main():
                 f"   Database URI: {app.config.get('SQLALCHEMY_DATABASE_URI', 'Not set')}"
             )
             sys.exit(1)
+
+        # Run database migrations (always check, idempotent)
+        run_database_migrations()
+
+        # Update tie game picks (always check, idempotent)
+        update_tie_game_picks()
 
         # Check if initialization is needed
         if not check_initialization_needed():
