@@ -1,5 +1,34 @@
 # NFL Pick'em - AI Agent Instructions
 
+## AI Development Environment
+
+**Compatible with**: GitHub Copilot, Claude Code (C:\Users\q913966\.claude), Claude API  
+**Primary IDE**: Visual Studio Code with Copilot/Claude Code extensions  
+**Version Control**: Git with feature branch workflow  
+**OS**: Windows with PowerShell (pwsh.exe)
+
+### Available Tools & Services
+- **Serena MCP Server**: Semantic code search, symbol navigation, refactoring tools
+- **Context7 MCP**: Library documentation retrieval
+- **Playwright MCP**: Browser automation for testing
+- **Sequential Thinking MCP**: Complex problem-solving chains
+- **GitHub Copilot**: Code completion, chat assistance
+- **Claude Code**: Autonomous coding agent for multi-step tasks
+
+### Tool Usage Guidelines
+1. **Semantic Search**: Use Serena's `find_symbol` and `search_for_pattern` to navigate code efficiently
+2. **Code Edits**: Prefer Serena's `replace_symbol_body` for symbol-level changes, `replace_string_in_file` for line-level edits
+3. **Documentation**: Use Context7 for up-to-date library docs (Flask, SQLAlchemy, etc.)
+4. **Testing**: Use Playwright for UI/integration tests, pytest for unit tests
+5. **Thinking**: Use Sequential Thinking MCP for complex architectural decisions
+
+### Best Practices
+- **Read Minimal Code**: Use symbol overview and targeted reads, avoid reading entire files
+- **KISS Principle**: Keep solutions simple, avoid over-engineering
+- **Feature Branches**: Always work on feature branches for easy revert
+- **Commit Often**: Small, focused commits with clear messages
+- **Test Before Merge**: Verify changes with Docker/local tests before merging
+
 ## Project Overview
 Flask-based Progressive Web App for NFL pick'em leagues with real-time score updates. Users make weekly picks following specific game rules, compete in groups, and track standings with tiebreaker systems.
 
@@ -28,7 +57,18 @@ These rules are enforced in `Pick.is_valid_pick()` and `User.can_pick_team()`:
 2. **One team per season**: Teams can't be reused during regular season (weeks 1-18), but reusable in playoffs
 3. **No consecutive losses**: If team loses in week N, can't pick same team in week N+1 (must skip a week)
 
-**Scoring**: 1 point per win. Tiebreaker: margin of victory (winning pick) or negative margin (losing pick) stored in `Pick.tiebreaker_points`
+**Scoring System (v1.0.13+)**:
+- **Win**: 1 point (`Pick.points_earned = 1.0`)
+- **Tie**: 0.5 points (`Pick.points_earned = 0.5`, `Pick.is_correct = None`)
+- **Loss**: 0 points (`Pick.points_earned = 0.0`, `Pick.is_correct = False`)
+- **Tiebreaker**: Margin of victory (winning pick) or negative margin (losing pick) stored in `Pick.tiebreaker_points`
+- **Leaderboards**: Sort by `total_score` (sum of `points_earned`), then by `tiebreaker_points`
+
+**Tri-State Pick Results** (CRITICAL):
+- `Pick.is_correct = True`: Win (team won the game)
+- `Pick.is_correct = False`: Loss (team lost the game)
+- `Pick.is_correct = None`: Tie (game ended in a tie)
+- Use `is_correct is None` not `is_correct == None` for tie detection
 
 ## Critical Developer Workflows
 
@@ -116,6 +156,31 @@ from app.utils.cache_utils import invalidate_model_cache
 invalidate_model_cache('pick')  # Clear Redis cache for model
 ```
 
+### Scoring Architecture (v1.0.16+ Cleanup)
+
+**Single Source of Truth** (KISS Principle):
+- **User Model Methods**: Primary source for stats & leaderboards
+  - `User.get_season_stats(season_id, group_id=None)`: Returns wins/ties/losses/total_score/tiebreaker
+  - `User.get_season_leaderboard(season_id, group_id=None)`: Returns sorted leaderboard with total_score
+- **ScoringEngine**: Only for individual pick scoring
+  - `ScoringEngine.calculate_pick_score(pick)`: Returns 0.0, 0.5, or 1.0 based on game result
+  - Used by `Pick.update_result()` when games finalize
+
+**Removed in v1.0.16 Cleanup** (~240 lines of duplicate code):
+- ❌ `ScoringEngine.calculate_user_week_score()` → Use `User.get_season_stats()` filtered by week
+- ❌ `ScoringEngine.calculate_user_season_score()` → Use `User.get_season_stats()`
+- ❌ `ScoringEngine.get_group_leaderboard()` → Use `User.get_season_leaderboard()`
+- ❌ `ScoringEngine.get_weekly_leaderboard()` → Use `User.get_season_leaderboard()` + filter
+- ❌ `ScoringEngine.update_all_scores()` → Picks auto-update via `Pick.update_result()`
+- ❌ `ScoringEngine.get_pick_accuracy_stats()` → Use `User.get_season_stats()`
+
+**Key Points**:
+1. Picks auto-update their `points_earned` when games finalize via `Pick.update_result()`
+2. Never call `update_all_scores()` - it's redundant and removed
+3. Always use `User.get_season_stats()` for aggregated statistics
+4. Always use `User.get_season_leaderboard()` for sorted rankings
+5. ScoringEngine only calculates individual pick scores (0.0, 0.5, or 1.0)
+
 ### Admin Override Pattern
 Admins can manage picks for any user and edit past games:
 ```python
@@ -177,6 +242,42 @@ SELECT * FROM games WHERE week=N ORDER BY game_time;
 2. **Group filtering**: Always check `user.picks_are_global` before filtering by `group_id`
 3. **Timezone-naive datetimes**: Use `datetime.now(timezone.utc)` not `datetime.now()`
 4. **N+1 queries**: Use `db.joinedload()` for relationships, check SQL logs with `SQLALCHEMY_ECHO=True`
+5. **Tie detection**: Use `is_correct is None` not `is_correct == None` for proper SQL generation
+6. **Scoring methods**: Don't use removed `ScoringEngine` methods - use `User` model methods instead
+7. **Total score vs wins**: Display `total_score` (includes 0.5 for ties), not `wins` in leaderboards
+
+## Version History & Recent Changes
+
+### v1.0.13 - Tie Game Foundation
+- Added tri-state `Pick.is_correct` (True/False/None)
+- Implemented 0.5 point scoring for tie games
+- Added `Game.is_tie` property for tie detection
+- Updated `Pick.update_result()` to handle ties correctly
+
+### v1.0.14 - UI & Template Fixes
+- Fixed all templates to display `total_score` instead of `wins`
+- Added `total_score` calculation to `User.get_season_stats()`
+- Updated dashboard, leaderboard, and group templates
+- Fixed accuracy calculations to account for ties
+
+### v1.0.15 - CRITICAL Leaderboard Sort Fix
+- Fixed `User.get_season_leaderboard()` to sort by `total_score` not `wins`
+- Added `total_score` to leaderboard return dictionary
+- Fixed tie count in loss calculations (losses = total_picks - wins - ties)
+- Leaderboards now rank correctly with tie points
+
+### v1.0.16 - Modal & API Enhancement
+- Added `points_earned` to player-picks API response
+- Fixed modal tie display to show yellow "TIE" text
+- Enhanced real-time pick updates with accurate tie status
+
+### cleanup-unused-scoring-code Branch - Code Simplification
+- Removed ~240 lines of unused `ScoringEngine` methods
+- Established `User` model as single source of truth for stats/leaderboards
+- Removed redundant `update_all_scores()` calls from scheduler
+- Updated debug scripts to use new architecture
+- KISS principle: Simplified scoring to one method per concern
+- **Branch Status**: Ready for testing, easy revert via `git checkout main`
 
 ## Example: Adding a New Pick Validation Rule
 
