@@ -195,6 +195,8 @@
                                         {% else %}
                                         <div style="padding: 0.35rem 0.5rem; background: rgba(239, 68, 68, 0.15); color: var(--accent-red); border-radius: 6px; font-weight: 700; font-size: 0.75rem; white-space: nowrap;">Loss</div>
                                         {% endif %}
+                                    {% elif pick.game.is_final and pick.game.is_tie %}
+                                    <div style="padding: 0.35rem 0.5rem; background: rgba(245, 158, 11, 0.15); color: var(--accent-yellow); border-radius: 6px; font-weight: 700; font-size: 0.75rem; white-space: nowrap;">Tie</div>
                                     {% else %}
                                     <div style="padding: 0.35rem 0.5rem; background: rgba(107, 114, 128, 0.15); color: var(--text-muted); border-radius: 6px; font-weight: 600; font-size: 0.75rem; white-space: nowrap;">Pending</div>
                                     {% endif %}
@@ -360,11 +362,16 @@ function displayPlayerPicks(data) {
     `;
 
     data.picks.forEach(pick => {
+        // Check if it's a tie game (is_correct null but game is final)
+        const isTie = pick.is_correct === null && pick.game && pick.game.is_final && pick.game.is_tie;
+        
         const resultIcon = pick.is_correct === true ? '✓' :
-                          pick.is_correct === false ? '✗' : '⏳';
+                          pick.is_correct === false ? '✗' : 
+                          isTie ? '=' : '⏳';
 
         const resultColor = pick.is_correct === true ? 'var(--accent-green)' :
-                           pick.is_correct === false ? 'var(--accent-red)' : 'var(--text-secondary)';
+                           pick.is_correct === false ? 'var(--accent-red)' : 
+                           isTie ? 'var(--accent-yellow)' : 'var(--text-secondary)';
 
         const bgColor = pick.is_correct === true ? 'rgba(16, 185, 129, 0.05)' : 
                        pick.is_correct === false ? 'rgba(239, 68, 68, 0.05)' : 'transparent';
@@ -396,7 +403,7 @@ function displayPlayerPicks(data) {
                 <td style="padding: 0.75rem 0.5rem; text-align: center;">
                     <span style="font-size: 1.125rem; color: ${resultColor}; font-weight: 700;">${resultIcon}</span>
                     <span style="font-size: 0.75rem; color: ${resultColor}; margin-left: 0.25rem; text-transform: uppercase; font-weight: 600;">
-                        ${pick.is_correct === true ? 'Win' : pick.is_correct === false ? 'Loss' : 'Pending'}
+                        ${pick.is_correct === true ? 'Win' : pick.is_correct === false ? 'Loss' : isTie ? 'Tie' : 'Pending'}
                     </span>
                 </td>
                 <td style="padding: 0.75rem 0.5rem; text-align: right;">
