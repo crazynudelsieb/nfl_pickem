@@ -21,10 +21,10 @@ class Pick(db.Model):
 
     # Results (calculated after game completion)
     is_correct = db.Column(db.Boolean)
-    points_earned = db.Column(db.Integer, default=0)
+    points_earned = db.Column(db.Float, default=0.0)
     tiebreaker_points = db.Column(
-        db.Integer, default=0
-    )  # Point differential for tiebreaking
+        db.Float, default=0.0
+    )  # Point differential for tiebreaking (half for ties)
 
     # Timestamps
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
@@ -205,12 +205,27 @@ class Pick(db.Model):
         if not self.game.is_final:
             return
 
-        # Determine if pick is correct
+        # Check if game is a tie
+        if self.game.is_tie:
+            # Tie game: award half points and special tiebreaker
+            self.is_correct = None  # Neither correct nor incorrect
+
+            # Calculate points using ScoringEngine (handles playoff multipliers for ties)
+            from app.utils.scoring import ScoringEngine
+            scoring = ScoringEngine()
+            self.points_earned = scoring.calculate_pick_score(self)
+
+            # Tiebreaker for ties: half the total score
+            total_score = self.game.total_score or 0
+            self.tiebreaker_points = total_score / 2.0
+            return
+
+        # Determine if pick is correct (win/loss)
         winning_team = self.game.winning_team
         if winning_team:
             self.is_correct = self.selected_team_id == winning_team.id
         else:
-            # Tie game - consider incorrect for now (league rules may vary)
+            # Should not reach here if is_tie check above works
             self.is_correct = False
 
         # Calculate points using ScoringEngine to apply playoff multipliers
@@ -224,12 +239,12 @@ class Pick(db.Model):
             # Use scoring engine to calculate points (handles playoff multipliers)
             self.points_earned = scoring.calculate_pick_score(self)
             # Tiebreaker: add margin of victory
-            self.tiebreaker_points = margin
+            self.tiebreaker_points = float(margin)
         else:
             # No points for loss
-            self.points_earned = 0
+            self.points_earned = 0.0
             # Tiebreaker: subtract margin of loss
-            self.tiebreaker_points = -margin
+            self.tiebreaker_points = float(-margin)
 
     def get_user_season_picks(self):
         """Get all picks by this user for this season"""

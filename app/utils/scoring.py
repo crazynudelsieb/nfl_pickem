@@ -29,16 +29,30 @@ class ScoringEngine:
     def calculate_pick_score(self, pick):
         """Calculate score for a single pick"""
         if not pick.game or not pick.game.is_final:
-            return 0
+            return 0.0
+
+        # Check if game is a tie
+        if pick.game.is_tie:
+            # Tie game: award half points
+            points = self.regular_season_points / 2.0
+
+            # Apply playoff multiplier if applicable
+            season = pick.game.season
+            if season.is_playoff_week(pick.game.week):
+                week_info = season.get_weeks()[pick.game.week - 1]
+                multiplier = self.playoff_multipliers.get(week_info["name"], 1)
+                points *= multiplier
+
+            return points
 
         # Check if pick is correct
         winning_team = pick.game.winning_team
-        if not winning_team:  # Tie game
-            return 0
+        if not winning_team:  # Should not reach here if is_tie check works
+            return 0.0
 
         is_correct = pick.selected_team_id == winning_team.id
         if not is_correct:
-            return 0
+            return 0.0
 
         # Base points
         points = self.regular_season_points
@@ -50,7 +64,7 @@ class ScoringEngine:
             multiplier = self.playoff_multipliers.get(week_info["name"], 1)
             points *= multiplier
 
-        return points
+        return float(points)
 
     def calculate_user_week_score(self, user_id, season_id, week):
         """Calculate total score for a user in a specific week"""
