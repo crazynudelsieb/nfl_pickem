@@ -108,10 +108,10 @@
                             </div>
                         </td>
                         <td>
-                            <span class="stat-value" style="color: var(--accent-green); font-weight: 700;">{{ entry.wins }}</span>
+                            <span class="stat-value" style="color: var(--accent-green); font-weight: 700;">{{ entry.total_score }}</span>
                         </td>
                         <td>
-                            <span class="stat-value" style="color: var(--accent-red); font-weight: 700;">{{ entry.losses if entry.losses is defined else (entry.completed_picks - entry.wins) }}</span>
+                            <span class="stat-value" style="color: var(--accent-red); font-weight: 700;">{{ entry.losses if entry.losses is defined else (entry.completed_picks - entry.wins - entry.ties) }}</span>
                         </td>
                         <td>
                             <span class="stat-value" style="color: var(--warning-color); font-weight: 700;">{{ entry.missed_games if entry.missed_games is defined else 0 }}</span>
@@ -120,7 +120,7 @@
                             {% if entry.accuracy is defined %}
                                 {% set accuracy = entry.accuracy %}
                             {% elif entry.total_picks > 0 %}
-                                {% set accuracy = entry.wins / entry.total_picks * 100 %}
+                                {% set accuracy = entry.total_score / entry.total_picks * 100 %}
                             {% else %}
                                 {% set accuracy = 0 %}
                             {% endif %}

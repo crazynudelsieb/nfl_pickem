@@ -262,6 +262,7 @@ class User(UserMixin, db.Model):
         regular_wins = sum(1 for p in regular_completed if p.is_correct is True)
         regular_ties = sum(1 for p in regular_completed if p.is_correct is None)
         regular_losses = sum(1 for p in regular_completed if p.is_correct is False)
+        regular_total_score = sum(p.points_earned or 0 for p in regular_completed)
         regular_total_tiebreaker = sum(
             p.tiebreaker_points or 0 for p in regular_completed
         )
@@ -285,6 +286,7 @@ class User(UserMixin, db.Model):
         playoff_wins = sum(1 for p in playoff_completed if p.is_correct is True)
         playoff_ties = sum(1 for p in playoff_completed if p.is_correct is None)
         playoff_losses = sum(1 for p in playoff_completed if p.is_correct is False)
+        playoff_total_score = sum(p.points_earned or 0 for p in playoff_completed)
         playoff_total_tiebreaker = sum(
             p.tiebreaker_points or 0 for p in playoff_completed
         )
@@ -306,6 +308,7 @@ class User(UserMixin, db.Model):
         total_wins = regular_wins + playoff_wins
         total_ties = regular_ties + playoff_ties
         total_losses = regular_losses + playoff_losses
+        total_score = regular_total_score + playoff_total_score
         total_missed_games = regular_missed_games + playoff_missed_games
         total_tiebreaker = regular_total_tiebreaker + playoff_total_tiebreaker
         total_picks = len(regular_picks) + len(playoff_picks)
@@ -327,6 +330,7 @@ class User(UserMixin, db.Model):
                 "wins": regular_wins,
                 "ties": regular_ties,
                 "losses": regular_losses,
+                "total_score": regular_total_score,
                 "missed_games": regular_missed_games,
                 "total_picks": len(regular_picks),
                 "completed_picks": len(regular_completed),
@@ -337,6 +341,7 @@ class User(UserMixin, db.Model):
                 "wins": playoff_wins,
                 "ties": playoff_ties,
                 "losses": playoff_losses,
+                "total_score": playoff_total_score,
                 "missed_games": playoff_missed_games,
                 "total_picks": len(playoff_picks),
                 "completed_picks": len(playoff_completed),
@@ -347,6 +352,7 @@ class User(UserMixin, db.Model):
                 "wins": total_wins,
                 "ties": total_ties,
                 "losses": total_losses,
+                "total_score": total_score,
                 "missed_games": total_missed_games,
                 "total_picks": total_picks,
                 "completed_picks": total_completed,
@@ -733,7 +739,9 @@ class User(UserMixin, db.Model):
                 {
                     "user_id": user.id,
                     "user": user,
+                    "total_score": user_stats["total_score"],
                     "wins": user_stats["wins"],
+                    "ties": user_stats.get("ties", 0),
                     "losses": user_stats.get("losses", 0),
                     "missed_games": user_stats.get("missed_games", 0),
                     "completed_picks": user_stats["completed_picks"],
@@ -744,9 +752,9 @@ class User(UserMixin, db.Model):
                 }
             )
 
-        # Sort by wins (descending), then by tiebreaker points (descending)
+        # Sort by total score (descending), then by tiebreaker points (descending)
         leaderboard.sort(
-            key=lambda x: (x["wins"], x["tiebreaker_points"]), reverse=True
+            key=lambda x: (x["total_score"], x["tiebreaker_points"]), reverse=True
         )
 
         return leaderboard
