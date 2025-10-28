@@ -68,7 +68,7 @@ instance/
 # NFL Pick'em specific
 *.db
 app.db
-logs/*.log
+logs/
 nul
 
 # AI/Claude specific - keep private
@@ -241,4 +241,5 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 
-*.ps1
+*.ps1.archive/
+.archive/

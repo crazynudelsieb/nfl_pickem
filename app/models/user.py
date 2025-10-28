@@ -1,3 +1,5 @@
+import html
+import random
 import secrets
 from datetime import datetime, timedelta, timezone
 
@@ -76,8 +78,6 @@ class User(UserMixin, db.Model):
     @staticmethod
     def generate_avatar_url(seed=None):
         """Generate a random avatar URL using DiceBear API"""
-        import random
-
         if seed is None:
             seed = secrets.token_urlsafe(16)
 
@@ -99,10 +99,49 @@ class User(UserMixin, db.Model):
         """Set password hash"""
         self.password_hash = generate_password_hash(password)
 
+    def get_group_id_for_filtering(self, group_id=None):
+        """Helper to determine the correct group_id value for pick filtering
+
+        Args:
+            group_id: The requested group_id (can be None)
+
+        Returns:
+            None if user has global picks, otherwise the provided group_id
+        """
+        return None if self.picks_are_global else group_id
+
+    def build_pick_filter(self, season_id=None, group_id=None, **extra_filters):
+        """Build pick query filter dict respecting picks_are_global setting
+
+        Args:
+            season_id: Optional season ID to filter by
+            group_id: Optional group ID (respects picks_are_global)
+            **extra_filters: Additional filter key-value pairs
+
+        Returns:
+            dict: Filter dictionary for Pick.query.filter_by()
+
+        Example:
+            filter_dict = user.build_pick_filter(season_id=2024, group_id=5)
+            picks = Pick.query.filter_by(**filter_dict).all()
+        """
+        pick_filter = {"user_id": self.id}
+
+        if season_id is not None:
+            pick_filter["season_id"] = season_id
+
+        # Apply group filtering based on picks_are_global setting
+        effective_group_id = self.get_group_id_for_filtering(group_id)
+        if effective_group_id is not None:
+            pick_filter["group_id"] = effective_group_id
+
+        # Add any additional filters
+        pick_filter.update(extra_filters)
+
+        return pick_filter
+
     def set_display_name(self, display_name):
         """Set display name with sanitization"""
-        import html
-
         if display_name:
             self.display_name = html.escape(display_name.strip())
         else:
@@ -217,14 +256,8 @@ class User(UserMixin, db.Model):
         if not season:
             return None
 
-        # Build filter for picks based on picks_are_global setting
-        pick_filter = {"user_id": self.id, "season_id": season_id}
-
-        # For users with per-group picks, filter by group_id
-        if not self.picks_are_global and group_id is not None:
-            pick_filter["group_id"] = group_id
-
-        # Get all user picks for this season using filtered query
+        # Get all user picks for this season using helper
+        pick_filter = self.build_pick_filter(season_id=season_id, group_id=group_id)
         picks = Pick.query.filter_by(**pick_filter).all()
 
         # Get all completed games in this season
@@ -247,79 +280,27 @@ class User(UserMixin, db.Model):
         playoff_weeks_with_games = set(g.week for g in playoff_completed_games)
 
         # Separate user picks into regular season and playoff picks
-        regular_picks = []
-        playoff_picks = []
+        regular_picks = [p for p in picks if not season.is_playoff_week(p.game.week)]
+        playoff_picks = [p for p in picks if season.is_playoff_week(p.game.week)]
 
-        for pick in picks:
-            if season.is_playoff_week(pick.game.week):
-                playoff_picks.append(pick)
-            else:
-                regular_picks.append(pick)
+        # Calculate stats using shared helper
+        regular_stats = self._compute_stats_for_picks(regular_picks, regular_season_weeks_with_games)
+        playoff_stats = self._compute_stats_for_picks(playoff_picks, playoff_weeks_with_games)
 
-        # Calculate regular season stats
-        # Include all picks where game is final (is_correct can be True/False/None)
-        regular_completed = [p for p in regular_picks if p.game and p.game.is_final]
-        regular_wins = sum(1 for p in regular_completed if p.is_correct is True)
-        regular_ties = sum(1 for p in regular_completed if p.is_correct is None)
-        regular_losses = sum(1 for p in regular_completed if p.is_correct is False)
-        regular_total_score = sum(p.points_earned or 0 for p in regular_completed)
-        regular_total_tiebreaker = sum(
-            p.tiebreaker_points or 0 for p in regular_completed
-        )
+        # Calculate total stats (combine regular and playoffs)
+        total_wins = regular_stats["wins"] + playoff_stats["wins"]
+        total_ties = regular_stats["ties"] + playoff_stats["ties"]
+        total_losses = regular_stats["losses"] + playoff_stats["losses"]
+        total_score = regular_stats["score"] + playoff_stats["score"]
+        total_missed = regular_stats["missed"] + playoff_stats["missed"]
+        total_tiebreaker = regular_stats["tiebreaker"] + playoff_stats["tiebreaker"]
+        total_picks = regular_stats["total_picks"] + playoff_stats["total_picks"]
+        total_completed = regular_stats["completed"] + playoff_stats["completed"]
 
-        # Count missed games in regular season (weeks with completed games but no pick)
-        regular_picks_by_week = {p.week for p in regular_picks}
-        regular_missed_weeks = regular_season_weeks_with_games - regular_picks_by_week
-        regular_missed_games = len(regular_missed_weeks)
-
-        # Accuracy includes missed games as losses
-        regular_accuracy_denominator = len(regular_completed) + regular_missed_games
-        regular_accuracy = (
-            (regular_wins / regular_accuracy_denominator * 100)
-            if regular_accuracy_denominator > 0
-            else 0
-        )
-
-        # Calculate playoff stats
-        # Include all picks where game is final (is_correct can be True/False/None)
-        playoff_completed = [p for p in playoff_picks if p.game and p.game.is_final]
-        playoff_wins = sum(1 for p in playoff_completed if p.is_correct is True)
-        playoff_ties = sum(1 for p in playoff_completed if p.is_correct is None)
-        playoff_losses = sum(1 for p in playoff_completed if p.is_correct is False)
-        playoff_total_score = sum(p.points_earned or 0 for p in playoff_completed)
-        playoff_total_tiebreaker = sum(
-            p.tiebreaker_points or 0 for p in playoff_completed
-        )
-
-        # Count missed games in playoffs
-        playoff_picks_by_week = {p.week for p in playoff_picks}
-        playoff_missed_weeks = playoff_weeks_with_games - playoff_picks_by_week
-        playoff_missed_games = len(playoff_missed_weeks)
-
-        # Accuracy includes missed games as losses
-        playoff_accuracy_denominator = len(playoff_completed) + playoff_missed_games
-        playoff_accuracy = (
-            (playoff_wins / playoff_accuracy_denominator * 100)
-            if playoff_accuracy_denominator > 0
-            else 0
-        )
-
-        # Total stats
-        total_wins = regular_wins + playoff_wins
-        total_ties = regular_ties + playoff_ties
-        total_losses = regular_losses + playoff_losses
-        total_score = regular_total_score + playoff_total_score
-        total_missed_games = regular_missed_games + playoff_missed_games
-        total_tiebreaker = regular_total_tiebreaker + playoff_total_tiebreaker
-        total_picks = len(regular_picks) + len(playoff_picks)
-        total_completed = len(regular_completed) + len(playoff_completed)
-
-        # Total accuracy includes missed games as losses
-        total_accuracy_denominator = total_completed + total_missed_games
+        # Total accuracy
+        total_accuracy_denominator = total_completed + total_missed
         total_accuracy = (
-            (total_wins / total_accuracy_denominator * 100)
-            if total_accuracy_denominator > 0
-            else 0
+            (total_wins / total_accuracy_denominator * 100) if total_accuracy_denominator > 0 else 0
         )
 
         # Calculate longest streak for the season
@@ -327,33 +308,33 @@ class User(UserMixin, db.Model):
 
         return {
             "regular_season": {
-                "wins": regular_wins,
-                "ties": regular_ties,
-                "losses": regular_losses,
-                "total_score": regular_total_score,
-                "missed_games": regular_missed_games,
-                "total_picks": len(regular_picks),
-                "completed_picks": len(regular_completed),
-                "tiebreaker_points": regular_total_tiebreaker,
-                "accuracy": regular_accuracy,
+                "wins": regular_stats["wins"],
+                "ties": regular_stats["ties"],
+                "losses": regular_stats["losses"],
+                "total_score": regular_stats["score"],
+                "missed_games": regular_stats["missed"],
+                "total_picks": regular_stats["total_picks"],
+                "completed_picks": regular_stats["completed"],
+                "tiebreaker_points": regular_stats["tiebreaker"],
+                "accuracy": regular_stats["accuracy"],
             },
             "playoffs": {
-                "wins": playoff_wins,
-                "ties": playoff_ties,
-                "losses": playoff_losses,
-                "total_score": playoff_total_score,
-                "missed_games": playoff_missed_games,
-                "total_picks": len(playoff_picks),
-                "completed_picks": len(playoff_completed),
-                "tiebreaker_points": playoff_total_tiebreaker,
-                "accuracy": playoff_accuracy,
+                "wins": playoff_stats["wins"],
+                "ties": playoff_stats["ties"],
+                "losses": playoff_stats["losses"],
+                "total_score": playoff_stats["score"],
+                "missed_games": playoff_stats["missed"],
+                "total_picks": playoff_stats["total_picks"],
+                "completed_picks": playoff_stats["completed"],
+                "tiebreaker_points": playoff_stats["tiebreaker"],
+                "accuracy": playoff_stats["accuracy"],
             },
             "total": {
                 "wins": total_wins,
                 "ties": total_ties,
                 "losses": total_losses,
                 "total_score": total_score,
-                "missed_games": total_missed_games,
+                "missed_games": total_missed,
                 "total_picks": total_picks,
                 "completed_picks": total_completed,
                 "tiebreaker_points": total_tiebreaker,
@@ -362,39 +343,67 @@ class User(UserMixin, db.Model):
             },
         }
 
-    def _calculate_longest_streak(self, season_id, group_id=None):
-        """Calculate longest winning or losing streak for a season
+    @staticmethod
+    def _compute_stats_for_picks(picks, completed_weeks):
+        """Calculate win/loss/tie stats for a set of picks
 
         Args:
-            season_id: Season ID
-            group_id: Optional group ID to filter picks by (for users with per-group picks)
+            picks: List of Pick objects
+            completed_weeks: Set of weeks with completed games (for missed game tracking)
+
+        Returns:
+            dict: {"wins": int, "ties": int, "losses": int, "completed": int,
+                   "missed": int, "total_picks": int, "score": int,
+                   "tiebreaker": int, "accuracy": float}
+        """
+        # Get completed picks (game is final)
+        completed = [p for p in picks if p.game and p.game.is_final]
+
+        # Count results
+        wins = sum(1 for p in completed if p.is_correct is True)
+        ties = sum(1 for p in completed if p.is_correct is None)
+        losses = sum(1 for p in completed if p.is_correct is False)
+
+        # Sum points
+        total_score = sum(p.points_earned or 0 for p in completed)
+        total_tiebreaker = sum(p.tiebreaker_points or 0 for p in completed)
+
+        # Count missed games (weeks with completed games but no pick)
+        picks_by_week = {p.week for p in picks}
+        missed_weeks = completed_weeks - picks_by_week
+        missed_games = len(missed_weeks)
+
+        # Calculate accuracy (missed games count as losses)
+        accuracy_denominator = len(completed) + missed_games
+        accuracy = (
+            (wins / accuracy_denominator * 100) if accuracy_denominator > 0 else 0
+        )
+
+        return {
+            "wins": wins,
+            "ties": ties,
+            "losses": losses,
+            "completed": len(completed),
+            "missed": missed_games,
+            "total_picks": len(picks),
+            "score": total_score,
+            "tiebreaker": total_tiebreaker,
+            "accuracy": accuracy,
+        }
+
+    @staticmethod
+    def _compute_longest_streak_from_picks(picks):
+        """Shared utility to compute longest streak from a list of picks
+
+        Args:
+            picks: List of Pick objects ordered chronologically
 
         Returns:
             Longest streak (positive for wins, negative for losses)
         """
-        from .game import Game
-        from .pick import Pick
-
-        # Build filter for picks based on picks_are_global setting
-        pick_filter = {"user_id": self.id, "season_id": season_id}
-
-        # For users with per-group picks, filter by group_id
-        if not self.picks_are_global and group_id is not None:
-            pick_filter["group_id"] = group_id
-
-        # Get completed picks ordered by week
-        picks = (
-            Pick.query.filter_by(**pick_filter)
-            .join(Game)
-            .filter(Pick.is_correct.isnot(None))
-            .order_by(Game.week.asc())
-            .all()
-        )
-
         if not picks:
             return 0
 
-        # Calculate all streaks and find the longest
         longest_win_streak = 0
         longest_loss_streak = 0
         current_streak = 0
@@ -433,6 +442,31 @@ class User(UserMixin, db.Model):
             return longest_win_streak
         else:
             return longest_loss_streak
+
+    def _calculate_longest_streak(self, season_id, group_id=None):
+        """Calculate longest winning or losing streak for a season
+
+        Args:
+            season_id: Season ID
+            group_id: Optional group ID to filter picks by (for users with per-group picks)
+
+        Returns:
+            Longest streak (positive for wins, negative for losses)
+        """
+        from .game import Game
+        from .pick import Pick
+
+        # Get completed picks ordered by week using helper
+        pick_filter = self.build_pick_filter(season_id=season_id, group_id=group_id)
+        picks = (
+            Pick.query.filter_by(**pick_filter)
+            .join(Game)
+            .filter(Pick.is_correct.isnot(None))
+            .order_by(Game.week.asc())
+            .all()
+        )
+
+        return self._compute_longest_streak_from_picks(picks)
 
     def calculate_alltime_longest_streak(self):
         """Calculate longest winning or losing streak across all seasons
@@ -451,83 +485,7 @@ class User(UserMixin, db.Model):
             .all()
         )
 
-        if not picks:
-            return 0
-
-        # Calculate all streaks and find the longest
-        longest_win_streak = 0
-        longest_loss_streak = 0
-        current_streak = 0
-        last_result = None
-
-        for pick in picks:
-            if last_result is None or pick.is_correct == last_result:
-                # Continue streak
-                if pick.is_correct:
-                    current_streak += 1
-                else:
-                    current_streak -= 1
-            else:
-                # Streak ended, check if it was longest
-                if current_streak > 0:
-                    longest_win_streak = max(longest_win_streak, current_streak)
-                else:
-                    longest_loss_streak = min(longest_loss_streak, current_streak)
-
-                # Start new streak
-                if pick.is_correct:
-                    current_streak = 1
-                else:
-                    current_streak = -1
-
-            last_result = pick.is_correct
-
-        # Check final streak
-        if current_streak > 0:
-            longest_win_streak = max(longest_win_streak, current_streak)
-        else:
-            longest_loss_streak = min(longest_loss_streak, current_streak)
-
-        # Return the streak with largest absolute value
-        if abs(longest_win_streak) >= abs(longest_loss_streak):
-            return longest_win_streak
-        else:
-            return longest_loss_streak
-
-    def _calculate_current_streak(self, season_id):
-        """Calculate current winning/losing streak - DEPRECATED, use _calculate_longest_streak instead"""
-        from .game import Game
-        from .pick import Pick
-
-        # Get completed picks ordered by week (most recent first)
-        picks = (
-            Pick.query.join(Game)
-            .filter(
-                Pick.user_id == self.id,
-                Pick.season_id == season_id,
-                Pick.is_correct.isnot(None),
-            )
-            .order_by(Game.week.desc())
-            .all()
-        )
-
-        if not picks:
-            return 0
-
-        # Calculate streak from most recent pick
-        streak = 0
-        last_result = picks[0].is_correct
-
-        for pick in picks:
-            if pick.is_correct == last_result:
-                if pick.is_correct:
-                    streak += 1  # Winning streak (positive)
-                else:
-                    streak -= 1  # Losing streak (negative)
-            else:
-                break
-
-        return streak
+        return self._compute_longest_streak_from_picks(picks)
 
     def is_playoff_eligible(self, season_id, group_id=None):
         """Check if user is in top 4 for playoff eligibility

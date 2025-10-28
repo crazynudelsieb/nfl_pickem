@@ -169,7 +169,9 @@ flask db migrate -m "Description"
 flask db upgrade
 ```
 
-### Recent Changes (v1.0.13 - v1.0.16)
+### Recent Changes
+
+#### v1.0.13 - v1.0.16 Updates
 
 **Tie Game Support & Scoring Fixes**:
 - ✅ Added tri-state `Pick.is_correct` (True/False/None for ties)

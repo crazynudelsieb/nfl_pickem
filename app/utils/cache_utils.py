@@ -7,7 +7,7 @@ import functools
 
 from flask import current_app, request
 
-from app import cache
+from app import cache, db
 
 
 def make_cache_key(*args, **kwargs):
@@ -110,6 +110,42 @@ def invalidate_model_cache(model_name):
         model_name: Name of the model to invalidate
     """
     invalidate_cache_pattern(f"*{model_name}*")
+
+
+def invalidate_pick_related_caches():
+    """
+    Invalidate all pick-related caches including Pick and User models
+
+    This is a common operation after pick submissions or updates
+    """
+    invalidate_model_cache("Pick")
+    invalidate_model_cache("User")
+
+
+def commit_and_refresh():
+    """
+    Commit database changes and refresh all objects
+
+    This is a common pattern to ensure fresh data is loaded after database writes.
+    Combines db.session.commit() and db.session.expire_all() in one call.
+    """
+    db.session.commit()
+    db.session.expire_all()
+
+
+def commit_refresh_and_invalidate_picks():
+    """
+    Complete database commit with cache invalidation for pick-related data
+
+    This combines three frequently-paired operations:
+    1. Commit database changes
+    2. Expire SQLAlchemy objects to force reload
+    3. Invalidate pick-related caches
+
+    Use after pick submissions, updates, or deletions
+    """
+    commit_and_refresh()
+    invalidate_pick_related_caches()
 
 
 class CacheManager:

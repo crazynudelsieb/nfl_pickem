@@ -15,7 +15,10 @@ from apscheduler.triggers.interval import IntervalTrigger
 
 from app import db
 from app.models import Game, Pick, Season
-from app.utils.cache_utils import invalidate_model_cache
+from app.utils.cache_utils import (
+    commit_refresh_and_invalidate_picks,
+    invalidate_model_cache,
+)
 from app.utils.data_sync import DataSync
 from app.utils.scoring import ScoringEngine
 
@@ -186,14 +189,9 @@ class SchedulerService:
                         updates += 1
 
                 if updates > 0:
-                    db.session.commit()
-                    # Expire session to prevent stale data reads
-                    db.session.expire_all()
-                    self._update_stats(True, updates)
-
-                    # Invalidate relevant caches
+                    commit_refresh_and_invalidate_picks()
                     invalidate_model_cache("Game")
-                    invalidate_model_cache("Pick")
+                    self._update_stats(True, updates)
 
                     # Trigger real-time updates
                     self._emit_score_updates(live_games)
@@ -237,14 +235,9 @@ class SchedulerService:
                             newly_final_games.append(game)
 
                 if updates > 0:
-                    db.session.commit()
-                    # Expire session to prevent stale data reads
-                    db.session.expire_all()
-                    self._update_stats(True, updates)
-
-                    # Invalidate caches after updates
+                    commit_refresh_and_invalidate_picks()
                     invalidate_model_cache("Game")
-                    invalidate_model_cache("Pick")
+                    self._update_stats(True, updates)
 
                     # Emit real-time updates for updated games
                     # Note: Pick scoring is now handled in data_sync._update_game_score()
@@ -284,10 +277,7 @@ class SchedulerService:
 
                 if success:
                     # Picks auto-update via Pick.update_result() when games finalize
-                    # Expire session to prevent stale data reads
                     db.session.expire_all()
-
-                    # Invalidate caches after updates
                     invalidate_model_cache("Game")
                     invalidate_model_cache("Pick")
 
@@ -322,10 +312,7 @@ class SchedulerService:
                     self._cleanup_old_data()
 
                     # Picks auto-update via Pick.update_result() when games finalize
-                    # Expire session to prevent stale data reads
                     db.session.expire_all()
-
-                    # Invalidate caches after updates
                     invalidate_model_cache("Game")
                     invalidate_model_cache("Pick")
                     invalidate_model_cache("Team")
@@ -401,20 +388,6 @@ class SchedulerService:
 
         current_hour = eastern_time.hour
         return game_start_hour <= current_hour <= game_end_hour
-
-    def _process_completed_game(self, game):
-        """
-        DEPRECATED: Process a newly completed game
-
-        This method is no longer used as pick scoring is now handled directly
-        in data_sync._update_game_score() via Game.update_score().
-        Kept for backwards compatibility but should not be called.
-        """
-        logger.warning(
-            "_process_completed_game() is deprecated - picks are now scored "
-            "automatically in Game.update_score()"
-        )
-        # Method body removed to prevent duplicate scoring
 
     def _check_season_completion(self):
         """Check if season (Super Bowl) is complete and finalize"""

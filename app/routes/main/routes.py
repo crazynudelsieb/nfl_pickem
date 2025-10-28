@@ -1,4 +1,5 @@
 import logging
+import os
 from datetime import datetime, timezone
 
 from flask import (
@@ -17,6 +18,205 @@ from app.models import Game, Group, GroupMember, Pick, Season, Team, User
 from app.routes.main import bp
 
 logger = logging.getLogger(__name__)
+
+
+# Helper functions for current_picks route
+def _get_user_group_context(user, group_slug=None):
+    """Get group context for picks page
+
+    Returns:
+        tuple: (current_group, user_groups) or (None, []) if no groups
+    """
+    user_groups = user.get_groups()
+    if not user_groups:
+        return None, []
+
+    # Find group by slug or use latest
+    current_group = None
+    if group_slug:
+        current_group = next((g for g in user_groups if g.slug == group_slug), None)
+
+    if not current_group:
+        current_group = user_groups[-1]
+
+    return current_group, user_groups
+
+
+def _get_admin_selected_user(admin_user, user_id_param):
+    """Get target user for admin override
+
+    Returns:
+        tuple: (selected_user, all_users, admin_override_flag)
+    """
+    if not admin_user.is_admin:
+        return admin_user, [], False
+
+    selected_user = admin_user
+    if user_id_param:
+        user = User.query.get(user_id_param)
+        if user:
+            selected_user = user
+        else:
+            flash("Selected user not found.", "error")
+
+    all_users = User.query.filter_by(is_active=True).order_by(User.username).all()
+    return selected_user, all_users, True
+
+
+def _get_user_picks_for_week(user, game_ids, group_id=None):
+    """Query user's existing picks for given games
+
+    Args:
+        user: User object
+        game_ids: List of game IDs to query
+        group_id: Optional group_id (respects user.picks_are_global)
+
+    Returns:
+        dict: {game_id: Pick} mapping
+    """
+    if not game_ids:
+        return {}
+
+    picks_query = Pick.query.filter(
+        Pick.user_id == user.id, Pick.game_id.in_(game_ids)
+    )
+
+    # Use helper method for group filtering
+    effective_group_id = user.get_group_id_for_filtering(group_id)
+    if effective_group_id is not None:
+        picks_query = picks_query.filter(Pick.group_id == effective_group_id)
+
+    picks_list = picks_query.options(db.joinedload(Pick.selected_team)).all()
+    return {pick.game_id: pick for pick in picks_list}
+
+
+def _calculate_team_availability(
+    user, games, current_week, season, group_id, user_picks, is_admin=False
+):
+    """Calculate which teams are available for picking
+
+    Args:
+        user: User making picks
+        games: List of Game objects
+        current_week: Current week number
+        season: Season object
+        group_id: Group ID for rule checking (respects user.picks_are_global)
+        user_picks: Dict of existing picks {game_id: Pick}
+        is_admin: Admin override flag
+
+    Returns:
+        dict: {team_id: {"can_pick": bool, "reason": str}}
+    """
+    available_teams = {}
+    effective_group_id = user.get_group_id_for_filtering(group_id)
+
+    # Get previous week's pick for consecutive opponent check
+    prev_week_pick = None
+    if current_week > 1 and not season.is_playoff_week(current_week):
+        pick_filter = [
+            Pick.user_id == user.id,
+            Pick.season_id == season.id,
+        ]
+        if effective_group_id is not None:
+            pick_filter.append(Pick.group_id == effective_group_id)
+        else:
+            pick_filter.append(Pick.group_id.is_(None))
+
+        prev_week_pick = (
+            Pick.query.join(Game)
+            .filter(*pick_filter, Game.week == current_week - 1)
+            .first()
+        )
+
+    for game in games:
+        existing_pick = user_picks.get(game.id)
+        exclude_pick_id = existing_pick.id if existing_pick else None
+
+        for team in [game.home_team, game.away_team]:
+            # Game started check (admin override)
+            if not game.is_pickable() and not is_admin:
+                available_teams[team.id] = {
+                    "can_pick": False,
+                    "reason": "Game has started",
+                }
+                continue
+
+            # Standard rule checking
+            can_pick, reason = user.can_pick_team(
+                team.id,
+                current_week,
+                season.id,
+                group_id=effective_group_id,
+                exclude_pick_id=exclude_pick_id,
+            )
+
+            # Consecutive opponent check (regular season only)
+            if (
+                can_pick
+                and prev_week_pick
+                and not season.is_playoff_week(current_week)
+            ):
+                opponent_id = (
+                    game.home_team.id if team.id == game.away_team.id else game.away_team.id
+                )
+                prev_game = prev_week_pick.game
+
+                if opponent_id in [prev_game.home_team_id, prev_game.away_team_id]:
+                    opponent_team = Team.query.get(opponent_id)
+                    can_pick = False
+                    reason = f"{opponent_team.abbreviation} was involved in your week {current_week - 1} pick"
+
+            available_teams[team.id] = {"can_pick": can_pick, "reason": reason}
+
+    return available_teams
+
+
+def _get_other_users_picks(group, games, exclude_user_id):
+    """Get other group members' picks for comparison
+
+    Args:
+        group: Group object
+        games: List of Game objects
+        exclude_user_id: User ID to exclude (current user)
+
+    Returns:
+        dict: {user_id: {"user": User, "picks": {game_id: Pick}}}
+    """
+    if not games or not group:
+        return {}
+
+    # Get group members excluding current user
+    group_members = [
+        membership.user
+        for membership in group.members
+        if membership.user.id != exclude_user_id
+    ]
+
+    if not group_members:
+        return {}
+
+    game_ids = [game.id for game in games]
+    group_picks_query = db.session.query(Pick).filter(
+        Pick.game_id.in_(game_ids),
+        Pick.user_id.in_([user.id for user in group_members]),
+        db.or_(
+            Pick.group_id == group.id,  # Per-group picks
+            Pick.group_id.is_(None),  # Global picks
+        ),
+    )
+
+    group_picks = group_picks_query.options(
+        db.joinedload(Pick.user), db.joinedload(Pick.selected_team)
+    ).all()
+
+    # Organize by user and game
+    other_users_picks = {}
+    for pick in group_picks:
+        if pick.user_id not in other_users_picks:
+            other_users_picks[pick.user_id] = {"user": pick.user, "picks": {}}
+        other_users_picks[pick.user_id]["picks"][pick.game_id] = pick
+
+    return other_users_picks
 
 
 @bp.route("/")
@@ -51,37 +251,18 @@ def index():
 @login_required
 def current_picks():
     """Simplified current game week picks interface"""
-    # Check if user has any groups first
-    user_groups = current_user.get_groups()
-    if not user_groups:
+    # Get group context
+    current_group, user_groups = _get_user_group_context(
+        current_user, request.args.get("group")
+    )
+    if not current_group:
         flash("You need to join or create a group before you can make picks!", "info")
         return redirect(url_for("groups.index"))
 
-    # Get current group from query parameter or use first group as default
-    current_group = None
-    group_slug = request.args.get("group")
-    if group_slug:
-        # Find the group by slug
-        current_group = next((g for g in user_groups if g.slug == group_slug), None)
-
-    # If no valid group found, use the latest group
-    if not current_group:
-        current_group = user_groups[-1]
-
-    # Admin functionality: Allow admins to manage picks for other users
-    selected_user = current_user  # Default to current user
-    all_users = []
-    if current_user.is_admin:
-        # Get selected user from query parameter
-        selected_user_id = request.args.get("user_id", type=int)
-        if selected_user_id:
-            selected_user = User.query.get(selected_user_id)
-            if not selected_user:
-                flash("Selected user not found.", "error")
-                selected_user = current_user
-
-        # Get all users for admin dropdown
-        all_users = User.query.filter_by(is_active=True).order_by(User.username).all()
+    # Get admin-selected user if applicable
+    selected_user, all_users, admin_override = _get_admin_selected_user(
+        current_user, request.args.get("user_id", type=int)
+    )
 
     # Get current season
     current_season = Season.get_current_season()
@@ -106,51 +287,18 @@ def current_picks():
     # Get games for current week
     current_games = Game.get_games_for_week(current_season.id, current_week)
 
-    # Get user's existing picks for current week (for selected user if admin) - optimized query
-    # Filter by group_id if picks are not global
-    user_picks = {}
-    if current_games:
-        game_ids = [game.id for game in current_games]
-        picks_query = Pick.query.filter(
-            Pick.user_id == selected_user.id, Pick.game_id.in_(game_ids)
-        )
+    # Get user's existing picks using helper
+    game_ids = [game.id for game in current_games] if current_games else []
+    user_picks = _get_user_picks_for_week(selected_user, game_ids, current_group.id)
 
-        # Filter by group if user has per-group picks enabled
-        logger.debug(
-            f"User {selected_user.username} picks_are_global={selected_user.picks_are_global}, current_group={current_group.name} (id={current_group.id})"
-        )
-        if not selected_user.picks_are_global:
-            picks_query = picks_query.filter(Pick.group_id == current_group.id)
-            logger.debug(f"Filtering picks by group_id={current_group.id}")
+    # Get pickable games (admin override allows all)
+    pickable_games = current_games
+    completed_games = [] if admin_override else [g for g in current_games if not g.is_pickable()]
 
-        picks_list = picks_query.options(db.joinedload(Pick.selected_team)).all()
-        logger.debug(
-            f"Found {len(picks_list)} picks for user {selected_user.username} in group {current_group.name}"
-        )
-        for pick in picks_list:
-            logger.debug(
-                f"Pick {pick.id}: game_id={pick.game_id}, team={pick.selected_team.abbreviation}, group_id={pick.group_id}"
-            )
-        user_picks = {pick.game_id: pick for pick in picks_list}
+    # Get user stats
+    effective_group_id = selected_user.get_group_id_for_filtering(current_group.id)
+    user_season_stats = selected_user.get_season_stats(current_season.id, group_id=effective_group_id)
 
-    # Get pickable games (not started yet, or admin override)
-    if current_user.is_admin:
-        # Admins can edit all games for data migration
-        pickable_games = current_games
-        completed_games = []
-        admin_override = True
-    else:
-        # For regular users: show all games in the picks section
-        # Games that haven't started are pickable, others are shown as read-only
-        pickable_games = current_games  # Show all games
-        completed_games = [game for game in current_games if not game.is_pickable()]
-        admin_override = False
-
-    # Get user's comprehensive stats using new rules system (for selected user)
-    user_season_stats = selected_user.get_season_stats(
-        current_season.id,
-        group_id=current_group.id if not selected_user.picks_are_global else None,
-    )
     if user_season_stats:
         stats = user_season_stats["total"]
         stats["regular_season"] = user_season_stats["regular_season"]
@@ -167,129 +315,30 @@ def current_picks():
             "playoffs": {"wins": 0, "total_picks": 0, "tiebreaker_points": 0},
         }
 
-    # Get list of teams user has already used this season (for rule validation) - for selected user
-    # Pass group_id if user has per-group picks enabled
-    group_id_for_rules = (
-        current_group.id if not selected_user.picks_are_global else None
-    )
-    used_teams = selected_user.get_used_teams_this_season(
-        current_season.id, group_id=group_id_for_rules
-    )
+    # Get used teams and calculate availability
+    used_teams = selected_user.get_used_teams_this_season(current_season.id, group_id=effective_group_id)
     used_team_ids = [team.id for team in used_teams]
 
-    # Check which teams are available for this week (for selected user)
-    available_teams = {}
-    for game in pickable_games:
-        # Check if user has an existing pick for this game
-        existing_pick_for_game = user_picks.get(game.id)
-        exclude_pick_id = existing_pick_for_game.id if existing_pick_for_game else None
-
-        # Get previous week's pick for consecutive opponent check
-        prev_week_pick = None
-        if current_week > 1 and not current_season.is_playoff_week(current_week):
-            pick_filter = [
-                Pick.user_id == selected_user.id,
-                Pick.season_id == current_season.id,
-            ]
-            if not selected_user.picks_are_global:
-                pick_filter.append(Pick.group_id == group_id_for_rules)
-            else:
-                pick_filter.append(Pick.group_id.is_(None))
-            if exclude_pick_id:
-                pick_filter.append(Pick.id != exclude_pick_id)
-
-            prev_week_pick = (
-                Pick.query.join(Game)
-                .filter(*pick_filter, Game.week == current_week - 1)
-                .first()
-            )
-
-        for team in [game.home_team, game.away_team]:
-            # If game has started and user is not admin, mark as not pickable
-            if not game.is_pickable() and not current_user.is_admin:
-                available_teams[team.id] = {
-                    "can_pick": False,
-                    "reason": "Game has started",
-                }
-            else:
-                can_pick, reason = selected_user.can_pick_team(
-                    team.id,
-                    current_week,
-                    current_season.id,
-                    group_id=group_id_for_rules,
-                    exclude_pick_id=exclude_pick_id,
-                )
-
-                # Additional check: Consecutive opponent rule (regular season only)
-                if (
-                    can_pick
-                    and prev_week_pick
-                    and not current_season.is_playoff_week(current_week)
-                ):
-                    # Determine opponent for this potential pick
-                    opponent_id = (
-                        game.home_team.id
-                        if team.id == game.away_team.id
-                        else game.away_team.id
-                    )
-                    prev_game = prev_week_pick.game
-
-                    # Check if opponent was involved in previous week's game
-                    if opponent_id in [prev_game.home_team_id, prev_game.away_team_id]:
-                        opponent_team = Team.query.get(opponent_id)
-                        can_pick = False
-                        reason = f"{opponent_team.abbreviation} was involved in your week {current_week - 1} pick"
-
-                available_teams[team.id] = {"can_pick": can_pick, "reason": reason}
-
-    # Check playoff eligibility (for selected user)
-    playoff_eligible, playoff_status = selected_user.is_playoff_eligible(
-        current_season.id,
-        group_id=current_group.id if not selected_user.picks_are_global else None,
+    available_teams = _calculate_team_availability(
+        selected_user,
+        pickable_games,
+        current_week,
+        current_season,
+        current_group.id,
+        user_picks,
+        admin_override,
     )
 
-    # Get all weeks for navigation (for admins)
-    all_weeks = current_season.get_weeks() if current_user.is_admin else []
+    # Check playoff eligibility
+    playoff_eligible, playoff_status = selected_user.is_playoff_eligible(
+        current_season.id, group_id=effective_group_id
+    )
 
-    # Get other users' picks for this week (for comparison)
-    other_users_picks = {}
-    if current_games and current_group:
-        # Get users in the same group
-        group_members = [
-            membership.user
-            for membership in current_group.members
-            if membership.user.id != selected_user.id
-        ]
+    # Get admin-only data
+    all_weeks = current_season.get_weeks() if admin_override else []
 
-        if group_members:
-            game_ids = [game.id for game in current_games]
-            # Build query to get group members' picks
-            group_picks_query = db.session.query(Pick).filter(
-                Pick.game_id.in_(game_ids),
-                Pick.user_id.in_([user.id for user in group_members]),
-            )
-
-            # Filter by group_id for users with per-group picks
-            # For users with global picks, we don't need to filter by group_id (they'll have group_id=None)
-            # But for per-group users, only show picks from THIS group
-            group_picks_query = group_picks_query.filter(
-                db.or_(
-                    Pick.group_id == current_group.id,  # Per-group picks for this group
-                    Pick.group_id.is_(
-                        None
-                    ),  # Global picks (users with picks_are_global=True)
-                )
-            )
-
-            group_picks = group_picks_query.options(
-                db.joinedload(Pick.user), db.joinedload(Pick.selected_team)
-            ).all()
-
-            # Organize picks by user and game
-            for pick in group_picks:
-                if pick.user_id not in other_users_picks:
-                    other_users_picks[pick.user_id] = {"user": pick.user, "picks": {}}
-                other_users_picks[pick.user_id]["picks"][pick.game_id] = pick
+    # Get other users' picks for comparison
+    other_users_picks = _get_other_users_picks(current_group, current_games, selected_user.id)
 
     return render_template(
         "main/current_picks.html",
@@ -1014,8 +1063,6 @@ def health():
 @bp.route("/manifest.json")
 def manifest():
     """Serve manifest.json with correct MIME type"""
-    import os
-
     return send_from_directory(
         os.path.join(bp.root_path, "..", "static"),
         "manifest.json",
@@ -1026,8 +1073,6 @@ def manifest():
 @bp.route("/sw.js")
 def service_worker():
     """Serve service worker with correct MIME type"""
-    import os
-
     return send_from_directory(
         os.path.join(bp.root_path, "..", "static"),
         "sw.js",
