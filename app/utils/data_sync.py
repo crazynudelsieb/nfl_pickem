@@ -439,16 +439,22 @@ class DataSync:
                 # Use Game.update_score() method to ensure picks are updated
                 if home_score is not None and away_score is not None:
                     game.update_score(home_score, away_score, is_final)
+                    return True
                 else:
-                    # Fallback if we only have status change
-                    game.is_final = is_final
-                    if is_final:
-                        # Update all related picks even if score didn't change
-                        # NOTE: picks is lazy="dynamic", so we need .all()
-                        for pick in game.picks.all():
-                            pick.update_result()
-
-                return True
+                    # Fallback if we only have status change but no scores
+                    # IMPORTANT: Don't update picks without valid scores!
+                    # Setting is_final without scores would cause 0==0 tie bug
+                    if not is_final:
+                        # Only update status if game is NOT final
+                        game.is_final = is_final
+                        return True
+                    else:
+                        # Game marked final but no scores - wait for scores
+                        logger.warning(
+                            f"Game {game.id} marked final but no scores available - "
+                            f"skipping pick updates until scores arrive"
+                        )
+                        return False
 
             return False
 
