@@ -137,71 +137,25 @@ class Pick(db.Model):
         return True, "Week rules valid"
 
     def _validate_team_rules(self):
-        """Validate team-based rules"""
-        from .game import Game
-        from .season import Season
-
-        # Get season info
-        season = Season.query.get(self.season_id)
-        if not season:
-            return False, "Invalid season"
-
-        # Build base filter that respects group context
-        # If this pick has a group_id, only check within that group
-        # If this pick has no group_id (global), only check global picks
-        base_filter = [
-            Pick.user_id == self.user_id,
-            Pick.season_id == self.season_id,
-            Pick.id != self.id,
-        ]
-
-        if self.group_id is not None:
-            base_filter.append(Pick.group_id == self.group_id)
-        else:
-            base_filter.append(Pick.group_id.is_(None))
-
-        # RULE 2: One pick per team per season (except playoffs, super bowl, and special games)
-        is_special_game = season.is_playoff_week(self.game.week)
-
-        if not is_special_game:
-            team_filter = base_filter + [
-                Pick.selected_team_id == self.selected_team_id,
-                Game.week < self.game.week,
-            ]
-
-            previous_team_pick = (
-                Pick.query.join(Game)
-                .filter(*team_filter)
-                .first()
-            )
-
-            if previous_team_pick:
-                return (
-                    False,
-                    f"Team {self.selected_team.abbreviation} already used in game week {previous_team_pick.game.week}",
-                )
-
-        # RULE 3: Loser can't be picked twice in a row (must have a game week between)
-        # This rule only applies to regular season, not playoffs
-        if self.game.week > 1 and not is_special_game:
-            prev_week_filter = base_filter + [Game.week == self.game.week - 1]
-
-            previous_week_pick = (
-                Pick.query.join(Game)
-                .filter(*prev_week_filter)
-                .first()
-            )
-
-            if (
-                previous_week_pick
-                and previous_week_pick.is_correct is False
-                and previous_week_pick.selected_team_id == self.selected_team_id
-            ):
-                return (
-                    False,
-                    f"Cannot use {self.selected_team.abbreviation} - they lost last game week. Must have a game week between using losing teams.",
-                )
-
+        """Validate team-based rules by delegating to User.can_pick_team()"""
+        # Delegate to User.can_pick_team() to avoid duplicate validation logic
+        can_pick, reason = self.user.can_pick_team(
+            team_id=self.selected_team_id,
+            week=self.game.week,
+            season_id=self.season_id,
+            group_id=self.group_id,
+            exclude_pick_id=self.id  # Exclude this pick when checking (for updates)
+        )
+        
+        if not can_pick:
+            # Make error messages more specific with team abbreviation
+            if "already used" in reason.lower():
+                return False, f"Team {self.selected_team.abbreviation} already used this season"
+            elif "losing team" in reason.lower():
+                return False, f"Cannot use {self.selected_team.abbreviation} - they lost last game week. Must have a game week between using losing teams."
+            else:
+                return False, reason
+        
         return True, "Team rules valid"
 
     def update_result(self):

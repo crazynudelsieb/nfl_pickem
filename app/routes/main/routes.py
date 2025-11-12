@@ -162,7 +162,8 @@ def _calculate_team_availability(
                 prev_game = prev_week_pick.game
 
                 if opponent_id in [prev_game.home_team_id, prev_game.away_team_id]:
-                    opponent_team = Team.query.get(opponent_id)
+                    # Use preloaded team objects instead of querying
+                    opponent_team = game.home_team if opponent_id == game.home_team_id else game.away_team
                     can_pick = False
                     reason = f"{opponent_team.abbreviation} was involved in your week {current_week - 1} pick"
 
@@ -389,11 +390,7 @@ def _process_single_pick(
     if game.season_id != current_season.id:
         return False, "Game does not belong to current season"
 
-    # Validate team exists and is playing in this game
-    team = Team.query.get(team_id)
-    if not team:
-        return False, "Team not found"
-
+    # Validate team exists in this game (using preloaded relationships)
     if team_id not in [game.home_team_id, game.away_team_id]:
         return False, "Team is not playing in this game"
 
@@ -445,9 +442,10 @@ def _process_single_pick(
             exclude_pick_id=exclude_pick_id,
         )
         if not can_pick:
+            # Use preloaded team relationships instead of additional query
             team_name = (
-                Team.query.get(team_id).abbreviation
-                if Team.query.get(team_id)
+                game.home_team.abbreviation if team_id == game.home_team_id 
+                else game.away_team.abbreviation if team_id == game.away_team_id
                 else "Unknown"
             )
             return False, f"Cannot pick {team_name}: {reason}"
@@ -485,7 +483,8 @@ def _process_single_pick(
                     # This checks BOTH: if they picked this team OR if this team was their opponent
                     prev_game = prev_week_pick.game
                     if opponent_id in [prev_game.home_team_id, prev_game.away_team_id]:
-                        opponent_team = Team.query.get(opponent_id)
+                        # Use preloaded team objects instead of query
+                        opponent_team = game.home_team if opponent_id == game.home_team_id else game.away_team
                         return (
                             False,
                             f"Cannot pick this game: {opponent_team.abbreviation} was involved in your week {game.week - 1} pick (consecutive weeks not allowed)",
@@ -860,53 +859,11 @@ def leaderboard():
         all_users = User.query.filter_by(is_active=True).all()
 
         for user in all_users:
-            # Get all picks for this user
-            all_picks = Pick.query.filter_by(user_id=user.id).all()
-            if not all_picks:
-                continue
-
-            # Separate completed picks into wins, losses, and ties
-            # A pick is "completed" if: is_correct is True/False OR (is_correct is None AND game is final = tie)
-            all_completed_picks = []
-            all_wins = 0
-            all_ties = 0
-            all_losses = 0
-
-            for p in all_picks:
-                if p.is_correct is True:
-                    all_wins += 1
-                    all_completed_picks.append(p)
-                elif p.is_correct is False:
-                    all_losses += 1
-                    all_completed_picks.append(p)
-                elif p.is_correct is None and p.game and p.game.is_final:
-                    # This is a tie - game is final but is_correct is None
-                    all_ties += 1
-                    all_completed_picks.append(p)
-
-            # Count missed games
-            picked_game_ids = {p.game_id for p in all_picks}
-            # NOTE: Must use is_final column, not status property (status is @property, can't filter)
-            completed_game_ids = {
-                g.id for g in Game.query.filter(Game.is_final == True).all()
-            }
-            missed_game_ids = completed_game_ids - picked_game_ids
-            all_missed_games = len(missed_game_ids)
-
-            # Calculate total_score: wins + (0.5 × ties)
-            total_score = all_wins + (0.5 * all_ties)
-
-            # Calculate accuracy (includes missed games as losses)
-            accuracy_denominator = len(all_completed_picks) + all_missed_games
-            accuracy = (
-                (total_score / accuracy_denominator * 100)
-                if accuracy_denominator > 0
-                else 0
-            )
-
-            total_tiebreaker = sum(
-                p.tiebreaker_points or 0 for p in all_completed_picks
-            )
+            # Get all-time stats (season_id=None means all seasons)
+            stats = user.get_season_stats(season_id=None, group_id=None)
+            
+            if stats["total_picks"] == 0:
+                continue  # Skip users with no picks
 
             # Calculate all-time longest streak
             longest_streak = user.calculate_alltime_longest_streak()
@@ -915,15 +872,15 @@ def leaderboard():
                 {
                     "user_id": user.id,
                     "user": user,
-                    "total_score": total_score,  # Wins + (0.5 × ties)
-                    "wins": all_wins,
-                    "ties": all_ties,
-                    "losses": all_losses,
-                    "missed_games": all_missed_games,
-                    "completed_picks": len(all_completed_picks),
-                    "total_picks": len(all_picks),
-                    "tiebreaker_points": total_tiebreaker,
-                    "accuracy": accuracy,
+                    "total_score": stats["total_score"],  # Wins + (0.5 × ties)
+                    "wins": stats["wins"],
+                    "ties": stats["ties"],
+                    "losses": stats["losses"],
+                    "missed_games": stats["missed_games"],
+                    "completed_picks": stats["completed_picks"],
+                    "total_picks": stats["total_picks"],
+                    "tiebreaker_points": stats["tiebreaker_points"],
+                    "accuracy": stats["accuracy"],
                     "longest_streak": longest_streak,
                 }
             )

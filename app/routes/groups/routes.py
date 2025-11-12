@@ -638,18 +638,30 @@ def admin_picks(group_id):
         )
 
         target_user = User.query.get(user_id)
-        game = Game.query.get(game_id)
-        team = Team.query.get(team_id)
+        game = Game.query.options(
+            db.joinedload(Game.home_team),
+            db.joinedload(Game.away_team)
+        ).get(game_id)
 
         is_ajax = request.headers.get("X-Requested-With") == "XMLHttpRequest"
 
-        if not all([target_user, game, team]):
+        if not all([target_user, game]):
             error_msg = "Invalid selection. Please try again."
             if not is_ajax:
                 flash(error_msg, "error")
             logger.warning(
-                f"Invalid selection: target_user={target_user}, game={game}, team={team}"
+                f"Invalid selection: target_user={target_user}, game={game}, team_id={team_id}"
             )
+            if is_ajax:
+                return jsonify({"success": False, "error": error_msg})
+            return redirect(url_for("groups.admin_picks", group_id=group_id))
+        
+        # Validate team exists in game (use preloaded relationships)
+        if team_id not in [game.home_team_id, game.away_team_id]:
+            error_msg = "Team is not playing in this game."
+            if not is_ajax:
+                flash(error_msg, "error")
+            logger.warning(f"Team {team_id} not in game {game_id}")
             if is_ajax:
                 return jsonify({"success": False, "error": error_msg})
             return redirect(url_for("groups.admin_picks", group_id=group_id))

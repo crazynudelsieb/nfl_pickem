@@ -152,12 +152,12 @@ def broadcast_game_final(game):
             "game_final", game_data, room=f"game_{game.id}", namespace="/scores"
         )
 
-        # Update affected user picks
+        # Notify users of their pick results
+        # NOTE: Picks are already scored by scheduler's Pick.recalculate_for_game()
+        # We just need to broadcast the results to connected clients
         affected_picks = Pick.query.filter_by(game_id=game.id).all()
         for pick in affected_picks:
-            pick.update_result()
-
-            # Notify user of pick result
+            # Notify user of pick result (no update needed, just broadcast)
             socketio.emit(
                 "pick_result",
                 {
@@ -171,10 +171,8 @@ def broadcast_game_final(game):
                 namespace="/scores",
             )
 
-        db.session.commit()
-
         logger.info(
-            f"Broadcasted game final for game {game.id}, updated {len(affected_picks)} picks"
+            f"Broadcasted game final for game {game.id}, notified {len(affected_picks)} picks"
         )
 
     except Exception as e:
