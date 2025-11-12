@@ -161,16 +161,18 @@ class Game(db.Model):
         return winning_team and winning_team.id == team_id
 
     def update_score(self, home_score, away_score, is_final=False):
-        """Update game score"""
+        """
+        Update game score.
+        
+        NOTE: This method NO LONGER automatically updates picks.
+        Use Pick.recalculate_for_game() explicitly after committing game changes.
+        This separation prevents transaction boundary issues.
+        """
         self.home_score = home_score
         self.away_score = away_score
         self.is_final = is_final
-
-        if is_final:
-            # Update all related picks
-            # NOTE: picks is lazy="dynamic", so we need .all() to get actual list
-            for pick in self.picks.all():
-                pick.update_result()
+        
+        # NOTE: Removed automatic pick updates - now handled by DataSync two-phase commit
 
     def get_picks_count(self):
         """Get count of picks for each team"""
