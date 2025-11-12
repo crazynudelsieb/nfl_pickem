@@ -214,7 +214,7 @@
                                      alt="{{ game.away_team.abbreviation }}"
                                      class="team-logo">
                                 <div class="team-info">
-                                    <div class="team-name">{{ game.away_team.name }}</div>
+                                    <div class="team-name">{{ game.away_team.abbreviation }} {{ game.away_team.name }}</div>
                                     {% if not away_available.get('can_pick', True) %}
                                     <div class="team-status">{{ away_available.get('reason', 'Not available') }}</div>
                                     {% endif %}
@@ -257,7 +257,7 @@
                                      alt="{{ game.home_team.abbreviation }}"
                                      class="team-logo">
                                 <div class="team-info">
-                                    <div class="team-name">{{ game.home_team.name }}</div>
+                                    <div class="team-name">{{ game.home_team.abbreviation }} {{ game.home_team.name }}</div>
                                     {% if not home_available.get('can_pick', True) %}
                                     <div class="team-status">{{ home_available.get('reason', 'Not available') }}</div>
                                     {% endif %}
