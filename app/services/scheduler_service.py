@@ -163,7 +163,7 @@ class SchedulerService:
         logger.info("Core scheduled jobs added")
 
     def _sync_live_games(self):
-        """High-frequency sync for live games only"""
+        """High-frequency sync for live games only with two-phase commit"""
         with self.app.app_context():
             try:
                 # Only run during game days and times
@@ -182,21 +182,49 @@ class SchedulerService:
                 if not live_games:
                     return  # Silent - no need to log when no games are live
 
-                # Update live games
+                # PHASE 1: Update game scores
                 updates = 0
+                games_finalized = []
+
                 for game in live_games:
+                    was_final_before = game.is_final
                     if self.data_sync._update_game_score(game):
                         updates += 1
 
+                        # Track if game just became final
+                        if game.is_final and not was_final_before:
+                            games_finalized.append(game.id)
+
                 if updates > 0:
-                    commit_refresh_and_invalidate_picks()
+                    # Commit game updates
+                    db.session.commit()
                     invalidate_model_cache("Game")
+                    logger.info(f"Phase 1: Updated {updates} live games")
+
+                    # PHASE 2: Recalculate picks for finalized games
+                    if games_finalized:
+                        from app.models import Pick
+
+                        total_picks_updated = 0
+                        for game_id in games_finalized:
+                            picks_updated, week = Pick.recalculate_for_game(game_id, commit=True)
+                            total_picks_updated += picks_updated
+
+                            if picks_updated > 0:
+                                logger.info(
+                                    f"Game {game_id} (week {week}) finalized: "
+                                    f"Updated {picks_updated} picks"
+                                )
+
+                        logger.info(
+                            f"Phase 2: Recalculated {total_picks_updated} picks "
+                            f"across {len(games_finalized)} finalized games"
+                        )
+
                     self._update_stats(True, updates)
 
                     # Trigger real-time updates
                     self._emit_score_updates(live_games)
-
-                    logger.info(f"Updated {updates} live games")
 
             except Exception as e:
                 db.session.rollback()
@@ -205,7 +233,7 @@ class SchedulerService:
                 logger.error(f"Error in live games sync: {e}", exc_info=True)
 
     def _sync_game_status(self):
-        """Medium-frequency sync for game status changes"""
+        """Medium-frequency sync for game status changes with two-phase commit"""
         with self.app.app_context():
             try:
 
@@ -222,6 +250,7 @@ class SchedulerService:
                     Game.game_time <= datetime.now(timezone.utc) + timedelta(hours=6),
                 ).all()
 
+                # PHASE 1: Update game scores
                 updates = 0
                 newly_final_games = []
 
@@ -232,21 +261,41 @@ class SchedulerService:
 
                         # Track newly completed games
                         if not old_status and game.is_final:
-                            newly_final_games.append(game)
+                            newly_final_games.append(game.id)
 
                 if updates > 0:
-                    commit_refresh_and_invalidate_picks()
+                    # Commit game updates
+                    db.session.commit()
                     invalidate_model_cache("Game")
+                    logger.info(f"Phase 1: Updated {updates} games")
+
+                    # PHASE 2: Recalculate picks for newly finalized games
+                    if newly_final_games:
+                        from app.models import Pick
+
+                        total_picks_updated = 0
+                        for game_id in newly_final_games:
+                            picks_updated, week = Pick.recalculate_for_game(game_id, commit=True)
+                            total_picks_updated += picks_updated
+
+                            if picks_updated > 0:
+                                logger.info(
+                                    f"Game {game_id} (week {week}) finalized: "
+                                    f"Updated {picks_updated} picks"
+                                )
+
+                        logger.info(
+                            f"Phase 2: Recalculated {total_picks_updated} picks "
+                            f"across {len(newly_final_games)} finalized games"
+                        )
+
+                        # Check if Super Bowl just completed
+                        self._check_season_completion()
+
                     self._update_stats(True, updates)
 
                     # Emit real-time updates for updated games
-                    # Note: Pick scoring is now handled in data_sync._update_game_score()
-                    # via Game.update_score(), so we don't need to call _process_completed_game()
                     self._emit_score_updates(recent_games)
-
-                    # Check if Super Bowl just completed
-                    if newly_final_games:
-                        self._check_season_completion()
 
                     logger.info(
                         f"Updated {updates} games, {len(newly_final_games)} newly completed"
@@ -272,11 +321,13 @@ class SchedulerService:
                 current_season.update_current_week()
                 db.session.commit()
 
-                # Full score update
+                # Full score update with two-phase commit
+                # Phase 1: Updates game scores
+                # Phase 2: Recalculates picks for finalized games
                 success, message = self.data_sync.update_live_scores()
 
                 if success:
-                    # Picks auto-update via Pick.update_result() when games finalize
+                    # Picks already updated by two-phase commit in update_live_scores()
                     db.session.expire_all()
                     invalidate_model_cache("Game")
                     invalidate_model_cache("Pick")
