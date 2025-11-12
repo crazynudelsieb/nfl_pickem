@@ -141,18 +141,34 @@ def profile():
     all_wins = sum(1 for p in all_completed_picks if p.is_correct)
     all_losses = sum(1 for p in all_completed_picks if not p.is_correct)
 
-    # Count missed games across all seasons
-    # Note: Game.status is calculated in Python, so we check all games
-    # This count is used for overall stats tracking
-
-    # Get unique weeks with completed games that user missed
+    # Count missed WEEKS across all seasons
+    # User makes one pick per week, so we count weeks where they didn't pick
     picked_game_ids = {p.game_id for p in all_picks}
-    # NOTE: Must use is_final column, not status property (status is @property, can't filter)
-    completed_game_ids = {
-        g.id for g in Game.query.filter(Game.is_final == True).all()
-    }
-    missed_game_ids = completed_game_ids - picked_game_ids
-    all_missed_games = len(missed_game_ids)
+    
+    # Get all weeks that have completed games (across all seasons)
+    completed_games = Game.query.filter(Game.is_final == True).all()
+    completed_weeks_by_season = {}
+    for g in completed_games:
+        if g.season_id not in completed_weeks_by_season:
+            completed_weeks_by_season[g.season_id] = set()
+        completed_weeks_by_season[g.season_id].add(g.week)
+    
+    # Count total weeks with completed games across all seasons
+    all_completed_weeks = set()
+    for season_id, weeks in completed_weeks_by_season.items():
+        # Add weeks as (season_id, week) tuples to make them unique
+        for week in weeks:
+            all_completed_weeks.add((season_id, week))
+    
+    # Get user's picked weeks by season
+    user_picked_weeks = set()
+    for p in all_picks:
+        if p.game:
+            user_picked_weeks.add((p.game.season_id, p.game.week))
+    
+    # Missed weeks = completed weeks where user didn't pick
+    missed_weeks = all_completed_weeks - user_picked_weeks
+    all_missed_games = len(missed_weeks)
 
     # Calculate all-time accuracy (includes missed games as losses)
     all_time_accuracy_denominator = len(all_completed_picks) + all_missed_games
