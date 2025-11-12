@@ -382,7 +382,10 @@ def _process_single_pick(
     )
 
     # Get the game and validate it's pickable (or admin override)
-    game = Game.query.get(game_id)
+    game = Game.query.options(
+        db.joinedload(Game.home_team),
+        db.joinedload(Game.away_team)
+    ).get(game_id)
     if not game:
         return False, "Game not found"
 
@@ -412,6 +415,9 @@ def _process_single_pick(
         Pick.season_id == current_season.id,
         Game.week == game.week,
         Pick.game_id != game_id,  # Different game
+    ).options(
+        db.joinedload(Pick.game).joinedload(Game.home_team),
+        db.joinedload(Pick.game).joinedload(Game.away_team)
     )
     if group_id is not None:
         existing_week_pick_query = existing_week_pick_query.filter(
@@ -859,11 +865,53 @@ def leaderboard():
         all_users = User.query.filter_by(is_active=True).all()
 
         for user in all_users:
-            # Get all-time stats (season_id=None means all seasons)
-            stats = user.get_season_stats(season_id=None, group_id=None)
-            
-            if stats["total_picks"] == 0:
-                continue  # Skip users with no picks
+            # Get all picks for this user
+            all_picks = Pick.query.filter_by(user_id=user.id).all()
+            if not all_picks:
+                continue
+
+            # Separate completed picks into wins, losses, and ties
+            # A pick is "completed" if: is_correct is True/False OR (is_correct is None AND game is final = tie)
+            all_completed_picks = []
+            all_wins = 0
+            all_ties = 0
+            all_losses = 0
+
+            for p in all_picks:
+                if p.is_correct is True:
+                    all_wins += 1
+                    all_completed_picks.append(p)
+                elif p.is_correct is False:
+                    all_losses += 1
+                    all_completed_picks.append(p)
+                elif p.is_correct is None and p.game and p.game.is_final:
+                    # This is a tie - game is final but is_correct is None
+                    all_ties += 1
+                    all_completed_picks.append(p)
+
+            # Count missed games
+            picked_game_ids = {p.game_id for p in all_picks}
+            # NOTE: Must use is_final column, not status property (status is @property, can't filter)
+            completed_game_ids = {
+                g.id for g in Game.query.filter(Game.is_final == True).all()
+            }
+            missed_game_ids = completed_game_ids - picked_game_ids
+            all_missed_games = len(missed_game_ids)
+
+            # Calculate total_score: wins + (0.5 × ties)
+            total_score = all_wins + (0.5 * all_ties)
+
+            # Calculate accuracy (includes missed games as losses)
+            accuracy_denominator = len(all_completed_picks) + all_missed_games
+            accuracy = (
+                (total_score / accuracy_denominator * 100)
+                if accuracy_denominator > 0
+                else 0
+            )
+
+            total_tiebreaker = sum(
+                p.tiebreaker_points or 0 for p in all_completed_picks
+            )
 
             # Calculate all-time longest streak
             longest_streak = user.calculate_alltime_longest_streak()
@@ -872,15 +920,15 @@ def leaderboard():
                 {
                     "user_id": user.id,
                     "user": user,
-                    "total_score": stats["total_score"],  # Wins + (0.5 × ties)
-                    "wins": stats["wins"],
-                    "ties": stats["ties"],
-                    "losses": stats["losses"],
-                    "missed_games": stats["missed_games"],
-                    "completed_picks": stats["completed_picks"],
-                    "total_picks": stats["total_picks"],
-                    "tiebreaker_points": stats["tiebreaker_points"],
-                    "accuracy": stats["accuracy"],
+                    "total_score": total_score,  # Wins + (0.5 × ties)
+                    "wins": all_wins,
+                    "ties": all_ties,
+                    "losses": all_losses,
+                    "missed_games": all_missed_games,
+                    "completed_picks": len(all_completed_picks),
+                    "total_picks": len(all_picks),
+                    "tiebreaker_points": total_tiebreaker,
+                    "accuracy": accuracy,
                     "longest_streak": longest_streak,
                 }
             )

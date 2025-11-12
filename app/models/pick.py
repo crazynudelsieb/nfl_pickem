@@ -148,11 +148,14 @@ class Pick(db.Model):
         )
         
         if not can_pick:
-            # Make error messages more specific with team abbreviation
+            # Make error messages more specific with team abbreviation if available
             if "already used" in reason.lower():
-                return False, f"Team {self.selected_team.abbreviation} already used this season"
+                # Load team abbreviation if needed
+                team_abbr = self.selected_team.abbreviation if self.selected_team else f"Team {self.selected_team_id}"
+                return False, f"{team_abbr} already used this season"
             elif "losing team" in reason.lower():
-                return False, f"Cannot use {self.selected_team.abbreviation} - they lost last game week. Must have a game week between using losing teams."
+                team_abbr = self.selected_team.abbreviation if self.selected_team else f"Team {self.selected_team_id}"
+                return False, f"Cannot use {team_abbr} - they lost last game week. Must have a game week between using losing teams."
             else:
                 return False, reason
         
