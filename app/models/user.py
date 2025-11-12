@@ -261,8 +261,9 @@ class User(UserMixin, db.Model):
         picks = Pick.query.filter_by(**pick_filter).all()
 
         # Get all completed games in this season
+        # NOTE: Must use is_final column, not status property (status is @property, can't filter)
         completed_games = Game.query.filter(
-            Game.season_id == season_id, Game.status == "completed"
+            Game.season_id == season_id, Game.is_final == True
         ).all()
 
         # Separate into regular season and playoff games
