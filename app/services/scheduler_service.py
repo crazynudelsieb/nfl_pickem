@@ -174,9 +174,14 @@ class SchedulerService:
                 if not current_season:
                     return
 
-                # Get only live games
+                # Get only live games (game has started but not finished)
+                # NOTE: Can't use Game.status == "in_progress" (status is @property)
+                # Must query by game_time and is_final columns
+                now_utc = datetime.now(timezone.utc)
                 live_games = Game.query.filter(
-                    Game.season_id == current_season.id, Game.status == "in_progress"
+                    Game.season_id == current_season.id,
+                    Game.is_final == False,
+                    Game.game_time <= now_utc
                 ).all()
 
                 if not live_games:
