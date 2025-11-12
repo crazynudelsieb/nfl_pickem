@@ -1,6 +1,9 @@
 from datetime import datetime, timezone
+import logging
 
 from app import db
+
+logger = logging.getLogger(__name__)
 
 
 class Pick(db.Model):
@@ -249,6 +252,67 @@ class Pick(db.Model):
             self.points_earned = 0.0
             # Tiebreaker: subtract margin of loss
             self.tiebreaker_points = float(-margin)
+
+    @classmethod
+    def recalculate_for_game(cls, game_id, commit=True):
+        """
+        Recalculate all picks for a specific game.
+        
+        This is the SAFE way to update picks after a game is finalized.
+        Separates score updates from pick calculations to avoid transaction boundary issues.
+        
+        Args:
+            game_id: ID of the game to recalculate picks for
+            commit: Whether to commit after recalculation (default: True)
+            
+        Returns:
+            tuple: (updated_count, game_week) or (0, None) if game not found
+        """
+        from app.utils.cache_utils import invalidate_model_cache
+        
+        game = db.session.get(Game, game_id)
+        if not game:
+            logger.warning(f"Game {game_id} not found for pick recalculation")
+            return 0, None
+            
+        if not game.is_final:
+            logger.info(f"Game {game_id} not final yet, skipping pick recalculation")
+            return 0, game.week
+        
+        # Get all picks for this game
+        picks = cls.query.filter_by(game_id=game_id).all()
+        
+        if not picks:
+            logger.debug(f"No picks found for game {game_id}")
+            return 0, game.week
+        
+        updated = 0
+        for pick in picks:
+            old_correct = pick.is_correct
+            old_points = pick.points_earned
+            
+            # Recalculate pick result
+            pick.update_result()
+            
+            # Track if anything changed
+            if old_correct != pick.is_correct or old_points != pick.points_earned:
+                updated += 1
+                logger.debug(
+                    f"Pick {pick.id} updated: is_correct {old_correct} -> {pick.is_correct}, "
+                    f"points {old_points} -> {pick.points_earned}"
+                )
+        
+        if commit:
+            db.session.commit()
+            invalidate_model_cache('Pick')
+            invalidate_model_cache('Game')
+            db.session.expire_all()
+            
+        logger.info(
+            f"Recalculated {updated}/{len(picks)} picks for game {game_id} (week {game.week})"
+        )
+        
+        return updated, game.week
 
     def get_user_season_picks(self):
         """Get all picks by this user for this season"""
