@@ -886,8 +886,9 @@ def leaderboard():
 
             # Count missed games
             picked_game_ids = {p.game_id for p in all_picks}
+            # NOTE: Must use is_final column, not status property (status is @property, can't filter)
             completed_game_ids = {
-                g.id for g in Game.query.filter(Game.status == "completed").all()
+                g.id for g in Game.query.filter(Game.is_final == True).all()
             }
             missed_game_ids = completed_game_ids - picked_game_ids
             all_missed_games = len(missed_game_ids)
