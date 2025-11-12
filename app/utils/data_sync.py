@@ -369,7 +369,15 @@ class DataSync:
             return []
 
     def update_live_scores(self):
-        """Update scores for ongoing games"""
+        """
+        Update scores for ongoing games with two-phase commit.
+        
+        Phase 1: Update game scores and commit
+        Phase 2: Recalculate picks for finalized games
+        
+        This separation prevents transaction boundary issues where pick updates
+        might not be committed properly.
+        """
         try:
             current_season = Season.get_current_season()
             if not current_season:
@@ -382,17 +390,49 @@ class DataSync:
                 .all()
             )
 
-            updates = 0
+            # PHASE 1: Update game scores
+            games_updated = 0
+            games_finalized = []  # Track which games became final
+            
             for game in ongoing_games:
+                was_final_before = game.is_final
+                
                 if self._update_game_score(game):
-                    updates += 1
+                    games_updated += 1
+                    
+                    # Track if game just became final
+                    if game.is_final and not was_final_before:
+                        games_finalized.append(game.id)
 
+            # Commit game score updates
             db.session.commit()
-            return True, f"Updated {updates} games"
+            logger.info(f"Phase 1 complete: Updated {games_updated} game scores")
+
+            # PHASE 2: Recalculate picks for finalized games
+            if games_finalized:
+                from app.models import Pick
+                
+                total_picks_updated = 0
+                for game_id in games_finalized:
+                    picks_updated, week = Pick.recalculate_for_game(game_id, commit=True)
+                    total_picks_updated += picks_updated
+                    
+                    if picks_updated > 0:
+                        logger.info(
+                            f"Game {game_id} (week {week}) finalized: "
+                            f"Updated {picks_updated} picks"
+                        )
+                
+                logger.info(
+                    f"Phase 2 complete: Recalculated {total_picks_updated} picks "
+                    f"across {len(games_finalized)} finalized games"
+                )
+
+            return True, f"Updated {games_updated} games, recalculated picks for {len(games_finalized)} finalized games"
 
         except Exception as e:
             db.session.rollback()
-            logger.error(f"Error updating live scores: {str(e)}")
+            logger.error(f"Error updating live scores: {str(e)}", exc_info=True)
             return False, str(e)
 
     def _update_game_score(self, game):
