@@ -889,14 +889,34 @@ def leaderboard():
                     all_ties += 1
                     all_completed_picks.append(p)
 
-            # Count missed games
-            picked_game_ids = {p.game_id for p in all_picks}
-            # NOTE: Must use is_final column, not status property (status is @property, can't filter)
-            completed_game_ids = {
-                g.id for g in Game.query.filter(Game.is_final == True).all()
-            }
-            missed_game_ids = completed_game_ids - picked_game_ids
-            all_missed_games = len(missed_game_ids)
+            # Count missed WEEKS (not games)
+            # User makes one pick per week, so we count weeks where they didn't pick
+            picked_weeks = {p.game.week for p in all_picks if p.game}
+            
+            # Get all weeks that have completed games (across all seasons)
+            completed_games = Game.query.filter(Game.is_final == True).all()
+            completed_weeks_by_season = {}
+            for g in completed_games:
+                if g.season_id not in completed_weeks_by_season:
+                    completed_weeks_by_season[g.season_id] = set()
+                completed_weeks_by_season[g.season_id].add(g.week)
+            
+            # Count total weeks with completed games across all seasons
+            all_completed_weeks = set()
+            for season_id, weeks in completed_weeks_by_season.items():
+                # Add weeks as (season_id, week) tuples to make them unique
+                for week in weeks:
+                    all_completed_weeks.add((season_id, week))
+            
+            # Get user's picked weeks by season
+            user_picked_weeks = set()
+            for p in all_picks:
+                if p.game:
+                    user_picked_weeks.add((p.game.season_id, p.game.week))
+            
+            # Missed weeks = completed weeks where user didn't pick
+            missed_weeks = all_completed_weeks - user_picked_weeks
+            all_missed_games = len(missed_weeks)
 
             # Calculate total_score: wins + (0.5 × ties)
             total_score = all_wins + (0.5 * all_ties)
