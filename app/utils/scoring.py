@@ -27,7 +27,8 @@ def calculate_pick_score(pick):
         return 0.5
     
     # Win: award full point
-    if pick.selected_team_id == pick.game.winning_team_id:
+    winning_team = pick.game.winning_team
+    if winning_team and pick.selected_team_id == winning_team.id:
         return 1.0
     
     # Loss: no points

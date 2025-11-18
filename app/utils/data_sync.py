@@ -408,10 +408,29 @@ class DataSync:
             db.session.commit()
             logger.info(f"Phase 1 complete: Updated {games_updated} game scores")
 
+            # SAFETY NET: Find already-final games with uncalculated picks
+            # This catches games that slipped through (errors, timeouts, etc.)
+            from app.models import Pick
+
+            final_games_needing_calc = db.session.query(Game.id).join(
+                Pick, Game.id == Pick.game_id
+            ).filter(
+                Game.season_id == current_season.id,
+                Game.is_final == True,
+                Pick.is_correct == None  # Picks not calculated yet
+            ).distinct().all()
+
+            # Add them to finalization list for recalculation
+            for (game_id,) in final_games_needing_calc:
+                if game_id not in games_finalized:
+                    games_finalized.append(game_id)
+                    logger.warning(
+                        f"Found final game {game_id} with uncalculated picks - "
+                        f"adding to recalculation (self-healing)"
+                    )
+
             # PHASE 2: Recalculate picks for finalized games
             if games_finalized:
-                from app.models import Pick
-                
                 total_picks_updated = 0
                 for game_id in games_finalized:
                     picks_updated, week = Pick.recalculate_for_game(game_id, commit=True)
