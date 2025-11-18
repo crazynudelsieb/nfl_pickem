@@ -214,19 +214,20 @@ class Pick(db.Model):
     def recalculate_for_game(cls, game_id, commit=True):
         """
         Recalculate all picks for a specific game.
-        
+
         This is the SAFE way to update picks after a game is finalized.
         Separates score updates from pick calculations to avoid transaction boundary issues.
-        
+
         Args:
             game_id: ID of the game to recalculate picks for
             commit: Whether to commit after recalculation (default: True)
-            
+
         Returns:
             tuple: (updated_count, game_week) or (0, None) if game not found
         """
+        from app.models.game import Game
         from app.utils.cache_utils import invalidate_model_cache
-        
+
         game = db.session.get(Game, game_id)
         if not game:
             logger.warning(f"Game {game_id} not found for pick recalculation")
