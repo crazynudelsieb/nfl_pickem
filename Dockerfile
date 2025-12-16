@@ -1,6 +1,6 @@
 # Multi-stage build for optimized image size
 # Stage 1: Builder stage
-FROM python:3.14.0-slim AS builder
+FROM python:3.14.2-slim AS builder
 
 # Set working directory
 WORKDIR /app
@@ -26,7 +26,7 @@ ENV PATH="/opt/venv/bin:$PATH"
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Stage 2: Runtime stage
-FROM python:3.14.0-slim
+FROM python:3.14.2-slim
 
 # Set working directory
 WORKDIR /app
