@@ -156,16 +156,24 @@ def _calculate_team_availability(
                 and prev_week_pick
                 and not season.is_playoff_week(current_week)
             ):
-                opponent_id = (
+                # Get this week's opponent (the team you'd play AGAINST)
+                this_week_opponent_id = (
                     game.home_team.id if team.id == game.away_team.id else game.away_team.id
                 )
+                
+                # Get last week's opponent (the team you played AGAINST last week)
                 prev_game = prev_week_pick.game
+                last_week_opponent_id = (
+                    prev_game.home_team_id
+                    if prev_week_pick.selected_team_id == prev_game.away_team_id
+                    else prev_game.away_team_id
+                )
 
-                if opponent_id in [prev_game.home_team_id, prev_game.away_team_id]:
-                    # Use preloaded team objects instead of querying
-                    opponent_team = game.home_team if opponent_id == game.home_team_id else game.away_team
+                # Block if trying to pick against the same opponent twice in a row
+                if this_week_opponent_id == last_week_opponent_id:
+                    opponent_team = game.home_team if this_week_opponent_id == game.home_team_id else game.away_team
                     can_pick = False
-                    reason = f"{opponent_team.abbreviation} was involved in your week {current_week - 1} pick"
+                    reason = f"Cannot pick against {opponent_team.abbreviation} twice in a row (played them week {current_week - 1})"
 
             available_teams[team.id] = {"can_pick": can_pick, "reason": reason}
 

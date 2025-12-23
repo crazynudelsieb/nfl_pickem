@@ -54,8 +54,9 @@ Flask-based Progressive Web App for NFL pick'em leagues with real-time score upd
 These rules are enforced in `Pick.is_valid_pick()` and `User.can_pick_team()`:
 
 1. **One pick per week**: Users pick one game per week; can switch before current pick's game starts
-2. **One team per season**: Teams can't be reused during regular season (weeks 1-18), but reusable in playoffs
+2. **One team per season**: Teams can't be reused as winners during regular season (weeks 1-18), but reusable in playoffs
 3. **No consecutive losses**: If team loses in week N, can't pick same team in week N+1 (must skip a week)
+4. **No consecutive opponents**: Can't pick against the same opponent team twice in a row during regular season
 
 **Scoring System (v1.0.13+)**:
 - **Win**: 1 point (`Pick.points_earned = 1.0`)
