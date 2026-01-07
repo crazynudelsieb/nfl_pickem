@@ -102,8 +102,67 @@ class Pick(db.Model):
     def _validate_week_rules(self):
         """Validate week-level rules"""
         from .game import Game
+        from .season import Season
 
-        # RULE 1: One pick per game week - can switch as long as current pick hasn't started
+        # NEW: Check playoff eligibility
+        season = Season.query.get(self.season_id)
+        if season and season.is_playoff_week(self.game.week):
+            # Playoff weeks: only top 4 can pick
+            is_eligible, message = self.user.is_playoff_eligible_from_snapshot(
+                self.season_id,
+                self.group_id
+            )
+
+            if not is_eligible:
+                return False, message
+
+            # NEW: Super Bowl restriction (week 22)
+            superbowl_week = season.regular_season_weeks + season.playoff_weeks
+            if self.game.week == superbowl_week:
+                # Check Super Bowl eligibility (top 2 from playoffs)
+                is_sb_eligible, sb_message = self.user.is_superbowl_eligible_from_snapshot(
+                    self.season_id,
+                    self.group_id
+                )
+
+                if not is_sb_eligible:
+                    return False, sb_message
+
+                # Check opposing team constraint
+                # Find other Super Bowl pick from top 2 users
+                from .regular_season_snapshot import RegularSeasonSnapshot
+
+                effective_group_id = None if self.user.picks_are_global else self.group_id
+                superbowl_eligible_users = RegularSeasonSnapshot.get_superbowl_eligible_users(
+                    self.season_id,
+                    effective_group_id
+                )
+
+                # Find other user's pick (if any)
+                other_user_id = next((uid for uid in superbowl_eligible_users if uid != self.user_id), None)
+
+                if other_user_id:
+                    other_sb_pick_query = Pick.query.join(Game).filter(
+                        Pick.user_id == other_user_id,
+                        Pick.season_id == self.season_id,
+                        Game.week == superbowl_week,
+                        Pick.id != self.id  # Exclude this pick
+                    )
+
+                    # Filter by group context
+                    if self.group_id is not None:
+                        other_sb_pick_query = other_sb_pick_query.filter(Pick.group_id == self.group_id)
+                    else:
+                        other_sb_pick_query = other_sb_pick_query.filter(Pick.group_id.is_(None))
+
+                    other_sb_pick = other_sb_pick_query.first()
+
+                    if other_sb_pick and other_sb_pick.selected_team_id == self.selected_team_id:
+                        from .user import User
+                        other_user = User.query.get(other_user_id)
+                        return False, f"Both top 2 must pick opposing teams. {other_user.username} already picked this team."
+
+        # EXISTING: One pick per game week validation
         # Build filter that respects group context
         week_filter = [
             Pick.user_id == self.user_id,

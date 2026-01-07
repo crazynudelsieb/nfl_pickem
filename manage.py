@@ -468,6 +468,133 @@ def update_tie_games(season):
 
 
 @cli.command()
+@click.argument("season_id", type=int)
+@click.option("--force", is_flag=True, help="Force snapshot creation even if already exists")
+@with_appcontext
+def create_snapshot(season_id, force):
+    """Create regular season snapshot for a season"""
+    from app.models.regular_season_snapshot import RegularSeasonSnapshot
+
+    season = Season.query.get(season_id)
+    if not season:
+        click.echo(f"❌ Season {season_id} not found")
+        return
+
+    # Check if snapshot already exists
+    existing = RegularSeasonSnapshot.query.filter_by(season_id=season_id).first()
+    if existing and not force:
+        click.echo(f"⚠️  Snapshot already exists for season {season_id}")
+        click.echo(f"   Use --force to recreate")
+        return
+
+    if force and existing:
+        # Delete existing snapshots
+        click.echo(f"🗑️  Deleting existing snapshots...")
+        RegularSeasonSnapshot.query.filter_by(season_id=season_id).delete()
+        db.session.commit()
+
+    click.echo(f"📸 Creating regular season snapshot for season {season.year}...")
+
+    result = season.create_regular_season_snapshot()
+
+    if isinstance(result, tuple):
+        # Error occurred
+        success, message = result
+        click.echo(f"❌ {message}")
+        return
+
+    # Success
+    global_count = len(result["global"])
+    group_count = sum(len(s) for s in result["groups"].values())
+
+    click.echo(f"✅ Created {global_count} global snapshots")
+    click.echo(f"✅ Created {group_count} group snapshots")
+
+    # Display top 4
+    top4_snapshots = RegularSeasonSnapshot.query.filter_by(
+        season_id=season_id,
+        is_playoff_eligible=True,
+        group_id=None
+    ).order_by(RegularSeasonSnapshot.final_rank).limit(4).all()
+
+    if top4_snapshots:
+        click.echo(f"\n🏆 Top 4 (Playoff Eligible):")
+        for snap in top4_snapshots:
+            click.echo(f"   {snap.final_rank}. {snap.user.username} - {snap.total_wins} wins, {snap.total_score} pts")
+
+
+@cli.command()
+@click.argument("season_id", type=int)
+@with_appcontext
+def show_playoff_eligible(season_id):
+    """Display top 4 playoff-eligible users for a season"""
+    from app.models.regular_season_snapshot import RegularSeasonSnapshot
+
+    season = Season.query.get(season_id)
+    if not season:
+        click.echo(f"❌ Season {season_id} not found")
+        return
+
+    # Check if snapshot exists
+    snapshots = RegularSeasonSnapshot.query.filter_by(
+        season_id=season_id,
+        is_playoff_eligible=True,
+        group_id=None
+    ).order_by(RegularSeasonSnapshot.final_rank).all()
+
+    if not snapshots:
+        click.echo(f"⚠️  No playoff snapshots found for season {season.year}")
+        click.echo(f"   Run: python manage.py create-snapshot {season_id}")
+        return
+
+    click.echo(f"\n🏈 Playoff Eligible Users - Season {season.year}\n")
+    click.echo(f"{'Rank':<6} {'Username':<20} {'Wins':<6} {'Score':<8} {'Tiebreaker':<12}")
+    click.echo("-" * 60)
+
+    for snap in snapshots:
+        click.echo(
+            f"{snap.final_rank:<6} {snap.user.username:<20} {snap.total_wins:<6} "
+            f"{snap.total_score:<8.1f} {snap.tiebreaker_points:<12.1f}"
+        )
+
+
+@cli.command()
+@click.argument("season_id", type=int)
+@with_appcontext
+def update_superbowl_eligibility(season_id):
+    """Update Super Bowl eligibility (top 2 from playoffs) for a season"""
+    from app.models.regular_season_snapshot import RegularSeasonSnapshot
+
+    season = Season.query.get(season_id)
+    if not season:
+        click.echo(f"❌ Season {season_id} not found")
+        return
+
+    click.echo(f"🏆 Updating Super Bowl eligibility for season {season.year}...")
+
+    # Update global
+    RegularSeasonSnapshot.update_superbowl_eligibility(season_id, group_id=None)
+
+    # Update for each group
+    from app.models import Group
+    active_groups = Group.query.filter_by(is_active=True).all()
+    for group in active_groups:
+        RegularSeasonSnapshot.update_superbowl_eligibility(season_id, group_id=group.id)
+
+    # Show results
+    sb_eligible = RegularSeasonSnapshot.query.filter_by(
+        season_id=season_id,
+        is_superbowl_eligible=True,
+        group_id=None
+    ).all()
+
+    click.echo(f"✅ Updated Super Bowl eligibility")
+    click.echo(f"\n🏈 Super Bowl Eligible Users:")
+    for snap in sb_eligible:
+        click.echo(f"   • {snap.user.username} (Regular season rank: #{snap.final_rank})")
+
+
+@cli.command()
 @with_appcontext
 def status():
     """Show application status"""
