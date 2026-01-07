@@ -5623,11 +5623,17 @@ body {
         width: 100%;
         overflow-x: auto;
         -webkit-overflow-scrolling: touch;
+        display: block;
     }
-    
+
     .overflow-x-auto table {
-        width: 100%;
-        min-width: 100%;
+        width: auto; /* Allow table to be wider than container */
+        min-width: 100%; /* Minimum 100%, but can grow wider */
+    }
+
+    /* Leaderboard tables with many columns need more space */
+    .overflow-x-auto .leaderboard-table {
+        min-width: 600px; /* Ensure proper display of playoff columns */
     }
     
     table th,
@@ -6496,24 +6502,39 @@ body {
         -webkit-overflow-scrolling: touch !important;
     }
 
-    /* Ensure tables don't cause horizontal scroll */
+    /* Ensure tables don't cause horizontal scroll - but allow scrolling for wide playoff tables */
     .leaderboard-card table {
-        min-width: 100% !important;
-        max-width: 100% !important;
-        table-layout: fixed !important;
+        min-width: 600px; /* Allow horizontal scroll for playoff tables */
+        width: 100%;
+        table-layout: auto; /* Allow flexible column widths */
     }
 
     .leaderboard-card {
-        overflow: hidden !important;
-        max-width: 100% !important;
+        overflow: visible; /* Allow overflow-x-auto div to handle scrolling */
+        max-width: 100%;
+    }
+
+    .leaderboard-card .overflow-x-auto {
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch !important;
+        width: 100%;
+        display: block;
     }
 
     /* Fix dashboard leaderboard table cells */
     .leaderboard-card table th,
     .leaderboard-card table td {
-        overflow: hidden !important;
-        text-overflow: ellipsis !important;
-        padding: 0.5rem 0.25rem !important;
+        overflow: visible; /* Allow content to display properly */
+        white-space: nowrap; /* Keep content on one line */
+        padding: 0.5rem 0.4rem;
+        font-size: 0.75rem; /* Slightly smaller font on mobile */
+    }
+
+    /* Make player column flexible */
+    .leaderboard-card table th:nth-child(2),
+    .leaderboard-card table td:nth-child(2) {
+        white-space: normal; /* Allow player names to wrap if needed */
+        min-width: 120px;
     }
 
     /* Specific column widths for dashboard leaderboard */
