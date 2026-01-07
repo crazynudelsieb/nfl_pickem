@@ -135,9 +135,18 @@
                                 <tr style="background: rgba(107, 114, 128, 0.1);">
                                     <th style="padding: 0.75rem; text-align: left; font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; width: 3rem;">Rank</th>
                                     <th style="padding: 0.75rem; text-align: left; font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em;">Player</th>
+                                    {% if is_playoff_mode %}
+                                    <th style="padding: 0.75rem; text-align: center; font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; background: var(--card-bg); border-left: 2px solid var(--border-color);">RS Rank</th>
+                                    <th style="padding: 0.75rem; text-align: center; font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em;">RS Wins</th>
+                                    <th style="padding: 0.75rem; text-align: center; font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; border-right: 2px solid var(--border-color);">RS Score</th>
+                                    <th style="padding: 0.75rem; text-align: center; font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; background: var(--accent-blue-light);">PO Wins</th>
+                                    <th style="padding: 0.75rem; text-align: center; font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; background: var(--accent-blue-light); border-right: 2px solid var(--border-color);">PO Score</th>
+                                    <th style="padding: 0.75rem; text-align: center; font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em;">Total</th>
+                                    {% else %}
                                     <th style="padding: 0.75rem; text-align: center; font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em;">Wins</th>
                                     <th style="padding: 0.75rem; text-align: center; font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em;">Total</th>
                                     <th style="padding: 0.75rem; text-align: center; font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em;">Accuracy</th>
+                                    {% endif %}
                                     <th style="padding: 0.75rem; text-align: center; font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em;">Tiebreaker</th>
                                     <th style="padding: 0.75rem; text-align: center; font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em;">Streak</th>
                                 </tr>
@@ -172,10 +181,40 @@
                                                     <span style="color: var(--accent-blue); font-size: 0.875rem; font-weight: normal;">(You)</span>
                                                     {% endif %}
                                                 </div>
-                                                <div style="font-size: 0.75rem; color: var(--text-secondary);">@{{ entry['user'].username }}</div>
+                                                <div style="font-size: 0.75rem; color: var(--text-secondary);">
+                                                    @{{ entry['user'].username }}
+                                                    {% if is_playoff_mode and entry['is_playoff_eligible'] %}
+                                                    <span style="color: var(--accent-green); font-weight: 700; margin-left: 0.25rem;">✓ Playoff Eligible</span>
+                                                    {% endif %}
+                                                </div>
                                             </div>
                                         </div>
                                     </td>
+                                    {% if is_playoff_mode %}
+                                    <!-- Playoff Mode: Show dual scores -->
+                                    <td style="padding: 0.75rem; text-align: center; background: var(--card-bg); border-left: 2px solid var(--border-color);">
+                                        <span style="font-weight: 600; color: var(--text-secondary);">#{{ entry['regular_rank'] or '-' }}</span>
+                                    </td>
+                                    <td style="padding: 0.75rem; text-align: center;">
+                                        <span style="color: var(--text-secondary);">{{ entry['regular_wins'] }}</span>
+                                    </td>
+                                    <td style="padding: 0.75rem; text-align: center; border-right: 2px solid var(--border-color);">
+                                        <span style="color: var(--text-secondary);">{{ entry['regular_score'] }}</span>
+                                    </td>
+                                    <td style="padding: 0.75rem; text-align: center; background: var(--accent-blue-light);">
+                                        <span style="color: var(--accent-blue); font-weight: 700;">
+                                            {{ entry['playoff_wins'] }}
+                                            {% if not entry['is_playoff_eligible'] %}🔒{% endif %}
+                                        </span>
+                                    </td>
+                                    <td style="padding: 0.75rem; text-align: center; background: var(--accent-blue-light); border-right: 2px solid var(--border-color);">
+                                        <span style="color: var(--accent-blue); font-weight: 700;">{{ entry['playoff_score'] }}</span>
+                                    </td>
+                                    <td style="padding: 0.75rem; text-align: center;">
+                                        <span style="color: var(--accent-green); font-weight: 700;">{{ entry['total_score'] }}</span>
+                                    </td>
+                                    {% else %}
+                                    <!-- Regular Season Mode: Show standard columns -->
                                     <td style="padding: 0.75rem; text-align: center;">
                                         <span style="color: var(--accent-green); font-weight: 700;">{{ entry['total_score'] }}</span>
                                     </td>
@@ -188,6 +227,7 @@
                                             {{ "%.1f"|format(accuracy) }}%
                                         </span>
                                     </td>
+                                    {% endif %}
                                     <td style="padding: 0.75rem; text-align: center;">
                                         <span style="font-weight: 600; {% if entry['tiebreaker_points'] >= 0 %}color: var(--accent-green);{% else %}color: var(--accent-red);{% endif %}">
                                             {{ entry['tiebreaker_points'] or 0 }}
