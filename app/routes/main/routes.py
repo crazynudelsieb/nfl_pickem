@@ -757,10 +757,62 @@ def dashboard():
 
     # Get leaderboard for selected group
     leaderboard = []
+    is_playoff_mode = False
     if selected_group and current_season:
-        leaderboard = User.get_season_leaderboard(
-            current_season.id, regular_season_only=False, group_id=selected_group.id
-        )
+        # Check if we're in playoffs
+        is_playoff_mode = current_season.is_playoff_week(current_season.current_week)
+
+        if is_playoff_mode:
+            # During playoffs: show dual scores for ALL users (not just top 4)
+            from app.models.regular_season_snapshot import RegularSeasonSnapshot
+
+            # Get all active members of this group
+            member_ids = [m.user_id for m in selected_group.get_active_members()]
+            all_users = User.query.filter(User.id.in_(member_ids)).all()
+            leaderboard = []
+
+            for user in all_users:
+                stats = user.get_season_stats(current_season.id, group_id=selected_group.id)
+                if not stats:
+                    continue
+
+                # Check if user is playoff eligible
+                snapshot = RegularSeasonSnapshot.query.filter_by(
+                    season_id=current_season.id,
+                    user_id=user.id,
+                    group_id=selected_group.id
+                ).first()
+
+                leaderboard.append({
+                    "user_id": user.id,
+                    "user": user,
+                    "total_score": stats["total"]["total_score"],
+                    "wins": stats["total"]["wins"],
+                    "ties": stats["total"]["ties"],
+                    "losses": stats["total"]["losses"],
+                    "missed_games": stats["total"]["missed_games"],
+                    "completed_picks": stats["total"]["completed_picks"],
+                    "tiebreaker_points": stats["total"]["tiebreaker_points"],
+                    "accuracy": stats["total"]["accuracy"],
+                    "longest_streak": stats["total"]["longest_streak"],
+                    # Playoff-specific data
+                    "is_playoff_eligible": snapshot.is_playoff_eligible if snapshot else False,
+                    "regular_wins": stats["regular_season"]["wins"],
+                    "regular_score": stats["regular_season"]["total_score"],
+                    "playoff_wins": stats["playoffs"]["wins"],
+                    "playoff_score": stats["playoffs"]["total_score"],
+                    "regular_rank": snapshot.final_rank if snapshot else None,
+                })
+
+            # Sort by total_score (descending), then by tiebreaker points (descending)
+            leaderboard.sort(
+                key=lambda x: (x["total_score"], x["tiebreaker_points"]), reverse=True
+            )
+        else:
+            # Regular season: use existing leaderboard
+            leaderboard = User.get_season_leaderboard(
+                current_season.id, regular_season_only=False, group_id=selected_group.id
+            )
 
     # Get user's season stats
     user_stats = None
@@ -805,6 +857,7 @@ def dashboard():
         current_picks=current_picks,
         upcoming_games=upcoming_games,
         recent_picks=recent_picks,
+        is_playoff_mode=is_playoff_mode,
     )
 
 
