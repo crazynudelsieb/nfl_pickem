@@ -343,6 +343,16 @@ def current_picks():
         current_season.id, group_id=effective_group_id
     )
 
+    # NEW: Enhanced playoff eligibility check for current week
+    is_playoff_eligible = True
+    playoff_eligibility_message = ""
+
+    if current_season and current_season.is_playoff_week(current_week):
+        is_playoff_eligible, playoff_eligibility_message = selected_user.is_playoff_eligible_from_snapshot(
+            current_season.id,
+            effective_group_id
+        )
+
     # Get admin-only data
     all_weeks = current_season.get_weeks() if admin_override else []
 
@@ -364,6 +374,8 @@ def current_picks():
         available_teams=available_teams,
         playoff_eligible=playoff_eligible,
         playoff_status=playoff_status,
+        is_playoff_eligible=is_playoff_eligible,
+        playoff_eligibility_message=playoff_eligibility_message,
         admin_override=admin_override,
         selected_user=selected_user,
         all_users=all_users,
@@ -400,6 +412,28 @@ def _process_single_pick(
     # Validate game belongs to current season
     if game.season_id != current_season.id:
         return False, "Game does not belong to current season"
+
+    # NEW: Check playoff eligibility for non-admins
+    season = Season.query.get(current_season.id)
+    if not is_admin and season and season.is_playoff_week(game.week):
+        is_eligible, eligibility_message = target_user.is_playoff_eligible_from_snapshot(
+            current_season.id,
+            group_id
+        )
+
+        if not is_eligible:
+            return False, eligibility_message
+
+        # Super Bowl check (week 22)
+        superbowl_week = season.regular_season_weeks + season.playoff_weeks
+        if game.week == superbowl_week:
+            is_sb_eligible, sb_message = target_user.is_superbowl_eligible_from_snapshot(
+                current_season.id,
+                group_id
+            )
+
+            if not is_sb_eligible:
+                return False, sb_message
 
     # Validate team exists in this game (using preloaded relationships)
     if team_id not in [game.home_team_id, game.away_team_id]:
@@ -983,6 +1017,89 @@ def leaderboard():
         season=selected_season,
         current_week=selected_season.current_week if selected_season else None,
         has_live_games=False,
+    )
+
+
+@bp.route("/playoff-leaderboard")
+@login_required
+def playoff_leaderboard():
+    """Playoff-specific leaderboard showing only top 4 with playoff stats"""
+    current_season = Season.get_current_season()
+
+    if not current_season:
+        flash("No active season found.", "error")
+        return redirect(url_for("main.index"))
+
+    # Check if we're in playoffs
+    if current_season.current_week <= current_season.regular_season_weeks:
+        flash("Playoffs have not started yet.", "info")
+        return redirect(url_for("main.leaderboard"))
+
+    # Get current group
+    current_group, user_groups = _get_user_group_context(
+        current_user, request.args.get("group")
+    )
+
+    # Get playoff leaderboard
+    playoff_leaderboard_data = User.get_playoff_leaderboard(
+        current_season.id,
+        group_id=current_group.id if current_group else None
+    )
+
+    # Get regular season snapshot for reference
+    from app.models.regular_season_snapshot import RegularSeasonSnapshot
+
+    query = RegularSeasonSnapshot.query.filter_by(
+        season_id=current_season.id,
+        is_playoff_eligible=True
+    )
+
+    if current_group:
+        query = query.filter_by(group_id=current_group.id)
+    else:
+        query = query.filter(RegularSeasonSnapshot.group_id.is_(None))
+
+    snapshots = query.order_by(RegularSeasonSnapshot.final_rank).all()
+
+    return render_template(
+        "main/playoff_leaderboard.html",
+        current_season=current_season,
+        playoff_leaderboard=playoff_leaderboard_data,
+        regular_season_snapshots=snapshots,
+        current_group=current_group,
+        user_groups=user_groups
+    )
+
+
+@bp.route("/regular-season-standings/<int:season_id>")
+@login_required
+def regular_season_standings(season_id):
+    """View final regular season standings from snapshot"""
+    from app.models.regular_season_snapshot import RegularSeasonSnapshot
+
+    season = Season.query.get_or_404(season_id)
+
+    # Get current group
+    current_group, user_groups = _get_user_group_context(
+        current_user, request.args.get("group")
+    )
+
+    # Get snapshots
+    query = RegularSeasonSnapshot.query.filter_by(season_id=season_id)
+
+    if current_group:
+        query = query.filter_by(group_id=current_group.id)
+    else:
+        query = query.filter(RegularSeasonSnapshot.group_id.is_(None))
+
+    snapshots = query.order_by(RegularSeasonSnapshot.final_rank).all()
+
+    return render_template(
+        "main/regular_season_standings.html",
+        season=season,
+        snapshots=snapshots,
+        current_group=current_group,
+        user_groups=user_groups
     )
 
 

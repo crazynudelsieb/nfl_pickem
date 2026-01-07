@@ -1,6 +1,9 @@
 from datetime import datetime, timezone
+import logging
 
 from app import db
+
+logger = logging.getLogger(__name__)
 
 
 class Season(db.Model):
@@ -126,6 +129,55 @@ class Season(db.Model):
             # Check if season is complete
             if self.current_week > max_week:
                 self.finalize_season()
+
+    def create_regular_season_snapshot(self):
+        """Create regular season snapshot at end of week 18
+
+        Returns:
+            dict: {"global": [snapshots], "groups": {group_id: [snapshots]}} or tuple (None, error_message)
+        """
+        from .game import Game
+        from .group import Group
+        from .regular_season_snapshot import RegularSeasonSnapshot
+
+        # Verify we're at end of regular season
+        if self.current_week != self.regular_season_weeks:
+            return None, f"Not end of regular season. Current week: {self.current_week}, Regular season weeks: {self.regular_season_weeks}"
+
+        # Check if all week 18 games are final
+        week_18_games = Game.query.filter_by(
+            season_id=self.id,
+            week=self.regular_season_weeks
+        ).all()
+
+        if not week_18_games:
+            return None, "No games found for final week of regular season"
+
+        incomplete_games = [g for g in week_18_games if not g.is_final]
+        if incomplete_games:
+            return None, f"{len(incomplete_games)} games in week {self.regular_season_weeks} are not yet final"
+
+        logger.info(f"Creating regular season snapshot for season {self.id}")
+
+        # Create global snapshot
+        global_snapshots = RegularSeasonSnapshot.create_snapshot(self.id, group_id=None)
+
+        # Create snapshots for each active group
+        active_groups = Group.query.filter_by(is_active=True).all()
+        group_snapshots = {}
+
+        for group in active_groups:
+            group_snapshots[group.id] = RegularSeasonSnapshot.create_snapshot(
+                self.id,
+                group_id=group.id
+            )
+
+        logger.info(f"Created {len(global_snapshots)} global snapshots and {sum(len(s) for s in group_snapshots.values())} group snapshots")
+
+        return {
+            "global": global_snapshots,
+            "groups": group_snapshots
+        }
 
     def finalize_season(self):
         """Mark season as complete and award winners"""

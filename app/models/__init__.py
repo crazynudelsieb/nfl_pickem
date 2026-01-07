@@ -6,6 +6,7 @@ from .group import Group
 from .group_member import GroupMember
 from .invite import Invite
 from .pick import Pick
+from .regular_season_snapshot import RegularSeasonSnapshot
 from .season import Season
 from .season_winner import SeasonWinner
 from .team import Team
@@ -22,4 +23,5 @@ __all__ = [
     "Invite",
     "AdminAction",
     "SeasonWinner",
+    "RegularSeasonSnapshot",
 ]
