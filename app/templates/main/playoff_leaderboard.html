@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+
+{% block title %}Playoff Leaderboard - NFL Pick'em{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="leaderboard-card">
+        <div class="leaderboard-header">
+            <div class="leaderboard-title-container">
+                <h2 class="leaderboard-title">
+                    <span class="leaderboard-main-title">🏈 Playoff Leaderboard</span>
+                    <span class="leaderboard-subtitle">{{ current_season.year }} Season - Top 4</span>
+                </h2>
+                <p style="color: var(--text-secondary); margin: 0.5rem 0 0 0; font-size: 0.875rem;">
+                    Only the top 4 from regular season can compete in playoffs. Rankings determined by playoff wins, then season-long tiebreaker points.
+                </p>
+            </div>
+        </div>
+
+        <div style="border-top: 1px solid var(--border-color);"></div>
+
+        {% if playoff_leaderboard %}
+        <div class="overflow-x-auto">
+            <table class="leaderboard-table">
+                <thead>
+                    <tr>
+                        <th>Playoff Rank</th>
+                        <th>Player</th>
+                        <th style="background: var(--card-bg); border-left: 2px solid var(--border-color);">RS Rank</th>
+                        <th style="border-right: 2px solid var(--border-color);">RS Score</th>
+                        <th style="background: var(--accent-blue-light);">PO Wins</th>
+                        <th style="background: var(--accent-blue-light);">PO Score</th>
+                        <th style="background: var(--accent-blue-light); border-right: 2px solid var(--border-color);">PO Accuracy</th>
+                        <th>Total Score</th>
+                        <th>Tiebreaker</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for entry in playoff_leaderboard %}
+                    <tr {% if entry.user_id == current_user.id %}class="current-user"{% endif %}>
+                        <td>
+                            {% if loop.index == 1 %}
+                            <div style="font-size: 1.5rem;">🏆</div>
+                            {% elif loop.index == 2 %}
+                            <div style="font-size: 1.5rem;">🥈</div>
+                            {% elif loop.index == 3 %}
+                            <div style="font-size: 1.5rem;">🥉</div>
+                            {% else %}
+                            <div style="font-weight: 600; color: var(--text-secondary);">{{ loop.index }}</div>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="player-info">
+                                <div class="player-avatar">
+                                    {% if entry.user.avatar_url %}
+                                    <img src="{{ entry.user.avatar_url }}" alt="{{ entry.user.username }}">
+                                    {% else %}
+                                    {{ entry.user.username[0] }}
+                                    {% endif %}
+                                </div>
+                                <div class="player-details">
+                                    <h4>{{ entry.user.full_name or entry.user.username }}</h4>
+                                    <p>@{{ entry.user.username }}</p>
+                                </div>
+                            </div>
+                        </td>
+                        <!-- Regular Season Stats -->
+                        <td style="background: var(--card-bg); border-left: 2px solid var(--border-color);">
+                            {% for snapshot in regular_season_snapshots %}
+                                {% if snapshot.user_id == entry.user_id %}
+                                <span style="font-weight: 600; color: var(--text-secondary);">#{{ snapshot.final_rank }}</span>
+                                {% endif %}
+                            {% endfor %}
+                        </td>
+                        <td style="border-right: 2px solid var(--border-color);">
+                            <span class="stat-value" style="color: var(--text-secondary);">{{ entry.regular_score }}</span>
+                        </td>
+                        <!-- Playoff Stats -->
+                        <td style="background: var(--accent-blue-light);">
+                            <span class="stat-value" style="color: var(--accent-blue); font-weight: 700;">{{ entry.playoff_wins }}</span>
+                        </td>
+                        <td style="background: var(--accent-blue-light);">
+                            <span class="stat-value" style="color: var(--accent-blue); font-weight: 700;">{{ entry.playoff_score }}</span>
+                        </td>
+                        <td style="background: var(--accent-blue-light); border-right: 2px solid var(--border-color);">
+                            <span class="stat-accuracy
+                                {% if entry.playoff_accuracy >= 70 %}high
+                                {% elif entry.playoff_accuracy >= 50 %}medium
+                                {% else %}low{% endif %}">
+                                {{ "%.1f"|format(entry.playoff_accuracy) }}%
+                            </span>
+                        </td>
+                        <!-- Overall Stats -->
+                        <td>
+                            <span class="stat-value" style="color: var(--accent-green); font-weight: 700;">{{ entry.total_score }}</span>
+                        </td>
+                        <td>
+                            <span class="stat-tiebreaker
+                                {% if entry.total_tiebreaker >= 0 %}positive
+                                {% else %}negative{% endif %}">
+                                {{ entry.total_tiebreaker }}
+                            </span>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div style="border-top: 1px solid var(--border-color); padding: 1.5rem; background: var(--info-bg); margin-top: 1rem;">
+            <h4 style="margin: 0 0 0.5rem 0; font-size: 0.875rem; color: var(--info-color); font-weight: 600;">ℹ️ How Playoff Scoring Works</h4>
+            <ul style="margin: 0; padding-left: 1.5rem; font-size: 0.875rem; color: var(--text-secondary); list-style-type: disc;">
+                <li><strong>Playoff Wins</strong> start at 0 for all eligible users (separate from regular season)</li>
+                <li><strong>Total Score</strong> continues accumulating (Regular Season + Playoffs combined)</li>
+                <li><strong>Ranking</strong> during playoffs is based on: (1) Playoff Wins, (2) Total Tiebreaker Points (season-long)</li>
+                <li><strong>Super Bowl</strong>: Only the top 2 from this playoff leaderboard can pick, and they must pick opposing teams</li>
+            </ul>
+        </div>
+
+        {% else %}
+        <div class="empty-state">
+            <div class="empty-icon">🏈</div>
+            <h2 class="empty-title">No Playoff Data</h2>
+            <p class="empty-message">
+                Playoff leaderboard will be available once playoffs begin and picks are made.
+            </p>
+        </div>
+        {% endif %}
+    </div>
+
+    <div style="margin-top: 1.5rem; text-align: center;">
+        <a href="{{ url_for('main.leaderboard', filter='season', season_id=current_season.id) }}" class="btn btn-secondary">
+            ← Back to Full Leaderboard
+        </a>
+        <a href="{{ url_for('main.regular_season_standings', season_id=current_season.id) }}" class="btn btn-secondary" style="margin-left: 1rem;">
+            View Regular Season Standings
+        </a>
+    </div>
+</div>
+{% endblock %}
