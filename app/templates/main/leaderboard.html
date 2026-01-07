@@ -70,10 +70,19 @@
                     <tr>
                         <th>Rank</th>
                         <th>Player</th>
+                        {% if is_playoff_mode %}
+                        <th style="background: var(--card-bg); border-left: 2px solid var(--border-color);">RS Rank</th>
+                        <th>RS Wins</th>
+                        <th style="border-right: 2px solid var(--border-color);">RS Score</th>
+                        <th style="background: var(--accent-blue-light);">PO Wins</th>
+                        <th style="background: var(--accent-blue-light); border-right: 2px solid var(--border-color);">PO Score</th>
+                        <th>Total</th>
+                        {% else %}
                         <th>Wins</th>
                         <th>Losses</th>
                         <th>Missed</th>
                         <th>Accuracy</th>
+                        {% endif %}
                         <th>Tiebreaker</th>
                         <th>Longest Streak</th>
                     </tr>
@@ -103,10 +112,41 @@
                                 </div>
                                 <div class="player-details">
                                     <h4>{{ entry.user.full_name or entry.user.username }}</h4>
-                                    <p>@{{ entry.user.username }}</p>
+                                    <p>@{{ entry.user.username }}
+                                        {% if is_playoff_mode and entry.is_playoff_eligible %}
+                                        <span style="color: var(--accent-green); font-weight: 700;">✓ Playoff Eligible</span>
+                                        {% endif %}
+                                    </p>
                                 </div>
                             </div>
                         </td>
+                        {% if is_playoff_mode %}
+                        <!-- Playoff Mode: Show dual scores -->
+                        <td style="background: var(--card-bg); border-left: 2px solid var(--border-color);">
+                            <span style="font-weight: 600; color: var(--text-secondary);">#{{ entry.regular_rank or '-' }}</span>
+                        </td>
+                        <td>
+                            <span class="stat-value" style="color: var(--text-secondary);">{{ entry.regular_wins }}</span>
+                        </td>
+                        <td style="border-right: 2px solid var(--border-color);">
+                            <span class="stat-value" style="color: var(--text-secondary);">{{ entry.regular_score }}</span>
+                        </td>
+                        <td style="background: var(--accent-blue-light);">
+                            <span class="stat-value" style="color: var(--accent-blue); font-weight: 700;">
+                                {{ entry.playoff_wins }}
+                                {% if not entry.is_playoff_eligible %}🔒{% endif %}
+                            </span>
+                        </td>
+                        <td style="background: var(--accent-blue-light); border-right: 2px solid var(--border-color);">
+                            <span class="stat-value" style="color: var(--accent-blue); font-weight: 700;">
+                                {{ entry.playoff_score }}
+                            </span>
+                        </td>
+                        <td>
+                            <span class="stat-value" style="color: var(--accent-green); font-weight: 700;">{{ entry.total_score }}</span>
+                        </td>
+                        {% else %}
+                        <!-- Regular Season Mode: Show standard columns -->
                         <td>
                             <span class="stat-value" style="color: var(--accent-green); font-weight: 700;">{{ entry.total_score }}</span>
                         </td>
@@ -131,8 +171,9 @@
                                 {{ "%.1f"|format(accuracy) }}%
                             </span>
                         </td>
+                        {% endif %}
                         <td>
-                            <span class="stat-tiebreaker 
+                            <span class="stat-tiebreaker
                                 {% if entry.tiebreaker_points >= 0 %}positive
                                 {% else %}negative{% endif %}">
                                 {{ entry.tiebreaker_points or 0 }}

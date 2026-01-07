@@ -160,6 +160,28 @@ class SchedulerService:
             misfire_grace_time=3600,
         )
 
+        # Playoff snapshot creation (Daily at 3 AM UTC during week 18 completion)
+        self.scheduler.add_job(
+            func=self._check_regular_season_complete,
+            trigger=CronTrigger(hour=3, minute=0),
+            id="check_regular_season_complete",
+            name="Check Regular Season Complete & Create Snapshot",
+            max_instances=1,
+            coalesce=True,
+            misfire_grace_time=3600,
+        )
+
+        # Super Bowl eligibility update (Daily at 3:30 AM UTC during playoff weeks)
+        self.scheduler.add_job(
+            func=self._update_superbowl_eligibility,
+            trigger=CronTrigger(hour=3, minute=30),
+            id="update_superbowl_eligibility",
+            name="Update Super Bowl Eligibility (Top 2)",
+            max_instances=1,
+            coalesce=True,
+            misfire_grace_time=3600,
+        )
+
         logger.info("Core scheduled jobs added")
 
     def _sync_live_games(self):
@@ -568,6 +590,121 @@ class SchedulerService:
             return True, f"Job {job_id} resumed"
         except Exception as e:
             return False, f"Failed to resume job: {e}"
+
+    def _check_regular_season_complete(self):
+        """Check if regular season is complete and create snapshot if needed"""
+        with self.app.app_context():
+            try:
+                current_season = Season.get_current_season()
+                if not current_season:
+                    return
+
+                # Check if we just entered playoffs (week 19)
+                if current_season.current_week != current_season.regular_season_weeks + 1:
+                    return  # Not the right time to create snapshot
+
+                # Check if snapshot already exists
+                from app.models.regular_season_snapshot import RegularSeasonSnapshot
+
+                existing_snapshot = RegularSeasonSnapshot.query.filter_by(
+                    season_id=current_season.id
+                ).first()
+
+                if existing_snapshot:
+                    logger.debug(f"Regular season snapshot already exists for season {current_season.id}")
+                    return
+
+                # Check if all week 18 games are final
+                from app.models.game import Game
+
+                week_18_games = Game.query.filter_by(
+                    season_id=current_season.id,
+                    week=current_season.regular_season_weeks
+                ).all()
+
+                if not week_18_games:
+                    logger.warning(f"No games found for week {current_season.regular_season_weeks}")
+                    return
+
+                incomplete_games = [g for g in week_18_games if not g.is_final]
+                if incomplete_games:
+                    logger.debug(f"{len(incomplete_games)} games in week {current_season.regular_season_weeks} are not yet final")
+                    return
+
+                # All conditions met - create snapshot
+                logger.info(f"Creating regular season snapshot for season {current_season.id}...")
+
+                # Create global snapshot
+                global_snapshots = RegularSeasonSnapshot.create_snapshot(current_season.id, group_id=None)
+
+                # Create snapshots for each active group
+                from app.models.group import Group
+
+                active_groups = Group.query.filter_by(is_active=True).all()
+                group_count = 0
+
+                for group in active_groups:
+                    RegularSeasonSnapshot.create_snapshot(current_season.id, group_id=group.id)
+                    group_count += 1
+
+                db.session.commit()
+
+                logger.info(
+                    f"Successfully created regular season snapshot: "
+                    f"{len(global_snapshots)} global snapshots, {group_count} groups"
+                )
+
+            except Exception as e:
+                db.session.rollback()
+                logger.error(f"Error creating regular season snapshot: {e}", exc_info=True)
+
+    def _update_superbowl_eligibility(self):
+        """Update Super Bowl eligibility for top 2 from playoffs"""
+        with self.app.app_context():
+            try:
+                current_season = Season.get_current_season()
+                if not current_season:
+                    return
+
+                # Only run during Super Bowl week
+                superbowl_week = current_season.regular_season_weeks + current_season.playoff_weeks
+
+                if current_season.current_week != superbowl_week:
+                    return  # Not Super Bowl week yet
+
+                logger.info(f"Updating Super Bowl eligibility for season {current_season.id}...")
+
+                from app.models.regular_season_snapshot import RegularSeasonSnapshot
+
+                # Update global Super Bowl eligibility
+                updated_global = RegularSeasonSnapshot.update_superbowl_eligibility(
+                    current_season.id,
+                    group_id=None
+                )
+
+                # Update group Super Bowl eligibility
+                from app.models.group import Group
+
+                active_groups = Group.query.filter_by(is_active=True).all()
+                updated_groups = 0
+
+                for group in active_groups:
+                    RegularSeasonSnapshot.update_superbowl_eligibility(
+                        current_season.id,
+                        group_id=group.id
+                    )
+                    updated_groups += 1
+
+                db.session.commit()
+
+                logger.info(
+                    f"Updated Super Bowl eligibility: "
+                    f"{len(updated_global)} global users, {updated_groups} groups"
+                )
+
+            except Exception as e:
+                db.session.rollback()
+                logger.error(f"Error updating Super Bowl eligibility: {e}", exc_info=True)
 
 
 # Global scheduler instance
