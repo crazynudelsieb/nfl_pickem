@@ -495,13 +495,34 @@ class User(UserMixin, db.Model):
             season_id: Season ID
             group_id: Optional group ID to filter picks by
         """
+        from .regular_season_snapshot import RegularSeasonSnapshot
         from .season import Season
 
         season = Season.query.get(season_id)
-        if not season or season.current_week <= season.regular_season_weeks:
+        if not season:
+            return False, "Invalid season"
+
+        # If we're in regular season, always return False
+        if season.current_week <= season.regular_season_weeks:
             return False, "Regular season not complete"
 
-        # Get leaderboard for regular season only
+        # CHANGED: Use snapshot if available (more reliable than recalculating)
+        effective_group_id = None if self.picks_are_global else group_id
+        snapshot = RegularSeasonSnapshot.query.filter_by(
+            season_id=season_id,
+            user_id=self.id,
+            group_id=effective_group_id
+        ).first()
+
+        if snapshot:
+            if snapshot.is_playoff_eligible:
+                return True, f"Qualified: Rank #{snapshot.final_rank}"
+            else:
+                # Get top 4 names for message
+                top4_names = RegularSeasonSnapshot.get_top4_names(season_id, effective_group_id)
+                return False, f"Did not qualify. Top 4: {', '.join(top4_names)}"
+
+        # Fallback: dynamic calculation (original logic) if snapshot doesn't exist
         leaderboard = self.get_season_leaderboard(
             season_id, regular_season_only=True, group_id=group_id
         )
@@ -516,7 +537,12 @@ class User(UserMixin, db.Model):
         if user_position is None:
             return False, "User not found in leaderboard"
 
-        return user_position <= 4, f"Position: {user_position}"
+        if user_position <= 4:
+            return True, f"Qualified: Position {user_position}"
+        else:
+            # Get top 4 names for better message
+            top4_names = [leaderboard[i]["user"].username for i in range(min(4, len(leaderboard)))]
+            return False, f"Did not qualify. Top 4: {', '.join(top4_names)}"
 
     def is_superbowl_eligible(self, season_id, group_id=None):
         """Check if user is in top 2 for Super Bowl eligibility (of playoff participants)
@@ -550,6 +576,123 @@ class User(UserMixin, db.Model):
 
         # Must be in top 4 to make playoffs, and top 2 of those for Super Bowl
         return user_position <= 2, f"Position: {user_position}"
+
+    def is_playoff_eligible_from_snapshot(self, season_id, group_id=None):
+        """Check playoff eligibility from snapshot (more reliable than recalculating)
+
+        This is the preferred method to check eligibility during playoffs.
+        Falls back to is_playoff_eligible() if snapshot doesn't exist.
+
+        Args:
+            season_id: Season ID
+            group_id: Optional group ID to filter picks by
+
+        Returns:
+            tuple: (boolean, message_string)
+        """
+        # Delegate to is_playoff_eligible which now checks snapshots first
+        return self.is_playoff_eligible(season_id, group_id)
+
+    def is_superbowl_eligible_from_snapshot(self, season_id, group_id=None):
+        """Check Super Bowl eligibility from snapshot
+
+        Args:
+            season_id: Season ID
+            group_id: Optional group ID to filter picks by
+
+        Returns:
+            tuple: (boolean, message_string)
+        """
+        from .regular_season_snapshot import RegularSeasonSnapshot
+
+        effective_group_id = None if self.picks_are_global else group_id
+        snapshot = RegularSeasonSnapshot.query.filter_by(
+            season_id=season_id,
+            user_id=self.id,
+            group_id=effective_group_id
+        ).first()
+
+        if snapshot:
+            if snapshot.is_superbowl_eligible:
+                return True, "Super Bowl eligible"
+            else:
+                return False, "Only top 2 from playoffs can pick in Super Bowl"
+
+        return False, "Snapshot not found"
+
+    def get_playoff_stats(self, season_id, group_id=None):
+        """Get ONLY playoff stats (weeks 19-22) - separate from regular season stats
+
+        Args:
+            season_id: Season ID
+            group_id: Optional group ID to filter picks by
+
+        Returns:
+            dict: {"wins": int, "losses": int, "ties": int, "total_score": float,
+                   "tiebreaker_points": float, "accuracy": float, ...}
+        """
+        stats = self.get_season_stats(season_id, group_id)
+        return stats["playoffs"] if stats else None
+
+    @staticmethod
+    def get_playoff_leaderboard(season_id, group_id=None):
+        """Get playoff-only leaderboard (weeks 19-22)
+
+        Ranks by: (1) playoff wins, (2) total tiebreaker points (season-long)
+        Only includes top 4 from regular season.
+
+        Args:
+            season_id: Season ID
+            group_id: Optional group ID to filter picks by
+
+        Returns:
+            list: Leaderboard entries with playoff + regular season stats
+        """
+        from .regular_season_snapshot import RegularSeasonSnapshot
+
+        # Get playoff-eligible users from snapshots
+        eligible_user_ids = RegularSeasonSnapshot.get_playoff_eligible_users(season_id, group_id)
+
+        if not eligible_user_ids:
+            return []
+
+        leaderboard = []
+        for user_id in eligible_user_ids:
+            user = User.query.get(user_id)
+            if not user:
+                continue
+
+            stats = user.get_season_stats(season_id, group_id=group_id)
+
+            if not stats:
+                continue
+
+            playoff_stats = stats["playoffs"]
+            regular_stats = stats["regular_season"]
+
+            # Key: Use playoff wins for ranking, but TOTAL tiebreaker for tiebreaking
+            leaderboard.append({
+                "user_id": user.id,
+                "user": user,
+                "playoff_wins": playoff_stats["wins"],
+                "playoff_losses": playoff_stats["losses"],
+                "playoff_ties": playoff_stats["ties"],
+                "playoff_score": playoff_stats["total_score"],
+                "total_tiebreaker": stats["total"]["tiebreaker_points"],  # Season-long
+                "playoff_accuracy": playoff_stats["accuracy"],
+                # Include regular season for display
+                "regular_wins": regular_stats["wins"],
+                "regular_score": regular_stats["total_score"],
+                "total_score": stats["total"]["total_score"],  # Overall
+            })
+
+        # Sort: (1) playoff wins DESC, (2) total tiebreaker DESC
+        leaderboard.sort(
+            key=lambda x: (x["playoff_wins"], x["total_tiebreaker"]),
+            reverse=True
+        )
+
+        return leaderboard
 
     def get_used_teams_this_season(self, season_id, group_id=None):
         """Get list of teams already used by this user in regular season
