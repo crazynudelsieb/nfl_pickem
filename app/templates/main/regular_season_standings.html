@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+
+{% block title %}Regular Season Standings - NFL Pick'em{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="leaderboard-card">
+        <div class="leaderboard-header">
+            <div class="leaderboard-title-container">
+                <h2 class="leaderboard-title">
+                    <span class="leaderboard-main-title">📊 Regular Season Final Standings</span>
+                    <span class="leaderboard-subtitle">{{ season.year }} Season - Weeks 1-18</span>
+                </h2>
+                <p style="color: var(--text-secondary); margin: 0.5rem 0 0 0; font-size: 0.875rem;">
+                    Final standings from the end of the regular season. Top 4 advanced to playoffs.
+                </p>
+            </div>
+        </div>
+
+        <div style="border-top: 1px solid var(--border-color);"></div>
+
+        {% if snapshots %}
+        <div class="overflow-x-auto">
+            <table class="leaderboard-table">
+                <thead>
+                    <tr>
+                        <th>Final Rank</th>
+                        <th>Player</th>
+                        <th>Wins</th>
+                        <th>Losses</th>
+                        <th>Ties</th>
+                        <th>Total Score</th>
+                        <th>Accuracy</th>
+                        <th>Tiebreaker</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for snapshot in snapshots %}
+                    <tr {% if snapshot.user_id == current_user.id %}class="current-user"{% endif %}>
+                        <td>
+                            {% if snapshot.final_rank == 1 %}
+                            <div style="font-size: 1.5rem;">🏆</div>
+                            {% elif snapshot.final_rank == 2 %}
+                            <div style="font-size: 1.5rem;">🥈</div>
+                            {% elif snapshot.final_rank == 3 %}
+                            <div style="font-size: 1.5rem;">🥉</div>
+                            {% elif snapshot.final_rank == 4 %}
+                            <div style="font-size: 1.5rem;">🎖️</div>
+                            {% else %}
+                            <div style="font-weight: 600; color: var(--text-secondary);">{{ snapshot.final_rank }}</div>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="player-info">
+                                <div class="player-avatar">
+                                    {% if snapshot.user.avatar_url %}
+                                    <img src="{{ snapshot.user.avatar_url }}" alt="{{ snapshot.user.username }}">
+                                    {% else %}
+                                    {{ snapshot.user.username[0] }}
+                                    {% endif %}
+                                </div>
+                                <div class="player-details">
+                                    <h4>{{ snapshot.user.full_name or snapshot.user.username }}</h4>
+                                    <p>@{{ snapshot.user.username }}</p>
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            <span class="stat-value" style="color: var(--accent-green); font-weight: 700;">{{ snapshot.total_wins }}</span>
+                        </td>
+                        <td>
+                            <span class="stat-value" style="color: var(--accent-red); font-weight: 700;">{{ snapshot.total_losses }}</span>
+                        </td>
+                        <td>
+                            <span class="stat-value" style="color: var(--warning-color); font-weight: 700;">{{ snapshot.total_ties }}</span>
+                        </td>
+                        <td>
+                            <span class="stat-value" style="color: var(--text-primary); font-weight: 700;">{{ snapshot.total_score }}</span>
+                        </td>
+                        <td>
+                            <span class="stat-accuracy
+                                {% if snapshot.accuracy >= 70 %}high
+                                {% elif snapshot.accuracy >= 50 %}medium
+                                {% else %}low{% endif %}">
+                                {{ "%.1f"|format(snapshot.accuracy) }}%
+                            </span>
+                        </td>
+                        <td>
+                            <span class="stat-tiebreaker
+                                {% if snapshot.tiebreaker_points >= 0 %}positive
+                                {% else %}negative{% endif %}">
+                                {{ snapshot.tiebreaker_points }}
+                            </span>
+                        </td>
+                        <td>
+                            {% if snapshot.is_playoff_eligible %}
+                            <span style="display: inline-block; padding: 0.25rem 0.75rem; background: var(--accent-green); color: white; border-radius: 12px; font-size: 0.75rem; font-weight: 700;">
+                                ✓ PLAYOFF ELIGIBLE
+                            </span>
+                            {% elif snapshot.is_superbowl_eligible %}
+                            <span style="display: inline-block; padding: 0.25rem 0.75rem; background: var(--accent-blue); color: white; border-radius: 12px; font-size: 0.75rem; font-weight: 700;">
+                                ⭐ SUPER BOWL
+                            </span>
+                            {% else %}
+                            <span style="display: inline-block; padding: 0.25rem 0.75rem; background: var(--text-secondary); color: white; border-radius: 12px; font-size: 0.75rem; font-weight: 700;">
+                                ELIMINATED
+                            </span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div style="border-top: 1px solid var(--border-color); padding: 1.5rem; background: var(--card-bg); margin-top: 1rem;">
+            <h4 style="margin: 0 0 0.5rem 0; font-size: 0.875rem; color: var(--text-primary); font-weight: 600;">📸 Snapshot Details</h4>
+            <p style="margin: 0; font-size: 0.875rem; color: var(--text-secondary);">
+                <strong>Captured:</strong> {{ snapshots[0].snapshot_date.strftime('%B %d, %Y at %I:%M %p') if snapshots else 'N/A' }}<br>
+                <strong>Basis:</strong> Final standings after Week 18 completion<br>
+                <strong>Playoff Cutoff:</strong> Top 4 users advanced to playoff competition
+            </p>
+        </div>
+
+        {% else %}
+        <div class="empty-state">
+            <div class="empty-icon">📊</div>
+            <h2 class="empty-title">No Snapshot Data</h2>
+            <p class="empty-message">
+                Regular season standings snapshot has not been created yet for this season.
+            </p>
+        </div>
+        {% endif %}
+    </div>
+
+    <div style="margin-top: 1.5rem; text-align: center;">
+        {% if season.is_playoff_week(season.current_week) %}
+        <a href="{{ url_for('main.playoff_leaderboard') }}" class="btn btn-primary">
+            View Playoff Leaderboard
+        </a>
+        {% endif %}
+        <a href="{{ url_for('main.leaderboard', filter='season', season_id=season.id) }}" class="btn btn-secondary" style="margin-left: 1rem;">
+            ← Back to Leaderboard
+        </a>
+    </div>
+</div>
+{% endblock %}
