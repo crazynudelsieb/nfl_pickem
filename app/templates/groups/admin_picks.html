@@ -377,8 +377,7 @@
 
 .team-option.team-used {
     opacity: 0.4;
-    cursor: not-allowed !important;
-    pointer-events: none;
+    cursor: not-allowed;
     background: repeating-linear-gradient(
         45deg,
         var(--bg-secondary),
@@ -386,6 +385,17 @@
         var(--bg-tertiary) 10px,
         var(--bg-tertiary) 20px
     );
+}
+
+/* Allow clicking on used teams when admin override is active */
+body.admin-override-active .team-option.team-used {
+    cursor: pointer;
+    opacity: 0.7;
+}
+
+body.admin-override-active .team-option.team-used:hover {
+    opacity: 1;
+    border-color: var(--accent) !important;
 }
 
 .team-option.team-used:hover {
@@ -471,6 +481,20 @@ document.addEventListener('DOMContentLoaded', function() {
     let currentWeek = null;
     let allWeeks = {{ weeks_with_games | tojson }};
     let userPicksData = {};
+
+    // Toggle body class when admin override checkbox changes
+    adminOverride.addEventListener('change', function() {
+        if (this.checked) {
+            document.body.classList.add('admin-override-active');
+        } else {
+            document.body.classList.remove('admin-override-active');
+        }
+    });
+
+    // Initialize body class if checkbox is already checked
+    if (adminOverride.checked) {
+        document.body.classList.add('admin-override-active');
+    }
 
     // Initialize - load admin user on page load
     function initialize() {
