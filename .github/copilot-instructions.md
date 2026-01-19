@@ -276,8 +276,10 @@ SELECT * FROM games WHERE week=N ORDER BY game_time;
 - **CRITICAL FIX**: Playoff weeks now allow team reuse per game rules
 - Fixed `admin_picks_user_data()` to only return regular season teams as "USED"
 - Fixed admin override to properly handle existing picks (delete and recreate)
+- **CRITICAL CSS FIX**: Removed `pointer-events: none` from used teams when admin override is active
 - Admin override now truly bypasses ALL validation including playoff eligibility
 - Teams used in playoffs won't show "USED" badge in subsequent playoff weeks
+- Used teams are now clickable when admin override checkbox is checked
 - **Breaking Change Fixed**: Admin interface now works correctly for playoff picks
 
 ### cleanup-unused-scoring-code Branch - Code Simplification
