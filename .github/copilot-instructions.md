@@ -272,6 +272,14 @@ SELECT * FROM games WHERE week=N ORDER BY game_time;
 - Fixed modal tie display to show yellow "TIE" text
 - Enhanced real-time pick updates with accurate tie status
 
+### v1.0.17 - Playoff Team Reuse & Admin Override Fix (2026-01-19)
+- **CRITICAL FIX**: Playoff weeks now allow team reuse per game rules
+- Fixed `admin_picks_user_data()` to only return regular season teams as "USED"
+- Fixed admin override to properly handle existing picks (delete and recreate)
+- Admin override now truly bypasses ALL validation including playoff eligibility
+- Teams used in playoffs won't show "USED" badge in subsequent playoff weeks
+- **Breaking Change Fixed**: Admin interface now works correctly for playoff picks
+
 ### cleanup-unused-scoring-code Branch - Code Simplification
 - Removed ~240 lines of unused `ScoringEngine` methods
 - Established `User` model as single source of truth for stats/leaderboards
