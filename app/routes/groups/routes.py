@@ -718,6 +718,9 @@ def admin_picks(group_id):
                 return jsonify({"success": False, "error": error_msg})
             return redirect(url_for("groups.admin_picks", group_id=group_id))
 
+        # Get the team object for logging/display
+        team = game.home_team if team_id == game.home_team_id else game.away_team
+
         # Check if user already has a pick for this week
         existing_pick = (
             Pick.query.join(Game)
