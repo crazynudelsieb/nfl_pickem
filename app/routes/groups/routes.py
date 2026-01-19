@@ -960,7 +960,10 @@ def admin_picks_user_data(group_id, user_id):
             "game": f"{game.away_team.abbreviation} @ {game.home_team.abbreviation}",  # For display in table
             "is_correct": pick.is_correct,
         }
-        used_team_ids.add(pick.selected_team_id)
+        # Only add to used_team_ids if it's a regular season pick (weeks 1-18)
+        # Playoffs (weeks 19+) allow team reuse
+        if game.week <= current_season.regular_season_weeks:
+            used_team_ids.add(pick.selected_team_id)
 
     return jsonify(
         {"picks_by_week": picks_by_week, "used_team_ids": list(used_team_ids)}
