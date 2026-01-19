@@ -686,7 +686,7 @@ def admin_picks(group_id):
         admin_override = form.admin_override.data
 
         logger.info(
-            f"Admin pick submission: user_id={user_id}, week={week}, game_id={game_id}, team_id={team_id}, override={admin_override}"
+            f"Admin pick submission: user_id={user_id}, week={week}, game_id={game_id}, team_id={team_id}, override={admin_override}, form_data={dict(request.form)}"
         )
 
         target_user = User.query.get(user_id)
