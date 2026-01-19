@@ -788,6 +788,22 @@ def admin_picks(group_id):
                 # Set group_id based on user's picks_are_global setting
                 pick_group_id = None if target_user.picks_are_global else group_id
 
+                # Check if user already has a pick for this week (handle switching)
+                existing_week_pick = (
+                    Pick.query.join(Game)
+                    .filter(
+                        Pick.user_id == user_id,
+                        Pick.season_id == current_season.id,
+                        Game.week == week,
+                    )
+                    .first()
+                )
+
+                if existing_week_pick:
+                    # Delete existing pick to allow switching
+                    db.session.delete(existing_week_pick)
+                    db.session.flush()
+
                 pick = Pick(
                     user_id=user_id,
                     game_id=game_id,
