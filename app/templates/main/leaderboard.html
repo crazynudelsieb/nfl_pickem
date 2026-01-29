@@ -116,6 +116,9 @@
                                         {% if is_playoff_mode and entry.is_playoff_eligible %}
                                         <span style="color: var(--accent-green); font-weight: 700;">✓ Playoff Eligible</span>
                                         {% endif %}
+                                        {% if entry.get('is_superbowl_eligible', False) %}
+                                        <span style="color: #ffd700; font-weight: 700; margin-left: 0.25rem;">⭐ Super Bowl</span>
+                                        {% endif %}
                                     </p>
                                 </div>
                             </div>
