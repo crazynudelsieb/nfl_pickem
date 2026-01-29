@@ -3349,6 +3349,98 @@ small {
     letter-spacing: 0.025em;
 }
 
+/* Mobile Leaderboard Optimizations */
+@media (max-width: 768px) {
+    .overflow-x-auto {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        margin: 0 -1rem;
+        padding: 0 1rem;
+    }
+    
+    .leaderboard-table {
+        min-width: 600px; /* Force horizontal scroll instead of squishing */
+    }
+    
+    .leaderboard-table th,
+    .leaderboard-table td {
+        padding: 0.5rem 0.375rem;
+        font-size: 0.75rem;
+        white-space: nowrap;
+    }
+    
+    .leaderboard-table th:first-child,
+    .leaderboard-table td:first-child {
+        position: sticky;
+        left: 0;
+        background: var(--card-bg);
+        z-index: 10;
+        padding-left: 0.75rem;
+    }
+    
+    .leaderboard-table thead th:first-child {
+        background: var(--bg-tertiary);
+    }
+    
+    .leaderboard-table tbody tr:hover td:first-child {
+        background: var(--hover-bg);
+    }
+    
+    .leaderboard-table tbody tr.current-user td:first-child {
+        background: rgba(59, 130, 246, 0.1);
+    }
+    
+    .player-info {
+        gap: 0.5rem;
+    }
+    
+    .player-avatar {
+        width: 2rem;
+        height: 2rem;
+        font-size: 0.75rem;
+    }
+    
+    .player-details h4 {
+        font-size: 0.75rem;
+    }
+    
+    .player-details p {
+        font-size: 0.625rem;
+    }
+    
+    /* Abbreviate column headers on mobile */
+    .leaderboard-table th {
+        font-size: 0.625rem;
+        letter-spacing: 0.02em;
+    }
+}
+
+@media (max-width: 480px) {
+    .leaderboard-table {
+        min-width: 500px;
+    }
+    
+    .leaderboard-table th,
+    .leaderboard-table td {
+        padding: 0.375rem 0.25rem;
+        font-size: 0.6875rem;
+    }
+    
+    .player-avatar {
+        width: 1.75rem;
+        height: 1.75rem;
+        font-size: 0.625rem;
+    }
+    
+    .player-details h4 {
+        font-size: 0.6875rem;
+    }
+    
+    .player-details p {
+        font-size: 0.5625rem;
+    }
+}
+
 .badge-streak.wins {
     background: rgba(16, 185, 129, 0.2);
     color: var(--accent-green);
