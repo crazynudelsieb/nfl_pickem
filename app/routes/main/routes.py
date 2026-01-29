@@ -797,6 +797,7 @@ def dashboard():
                     "longest_streak": stats["total"]["longest_streak"],
                     # Playoff-specific data
                     "is_playoff_eligible": snapshot.is_playoff_eligible if snapshot else False,
+                    "is_superbowl_eligible": snapshot.is_superbowl_eligible if snapshot else False,
                     "regular_wins": stats["regular_season"]["wins"],
                     "regular_score": stats["regular_season"]["total_score"],
                     "playoff_wins": stats["playoffs"]["wins"],
@@ -1085,6 +1086,7 @@ def leaderboard():
                     "longest_streak": stats["total"]["longest_streak"],
                     # Playoff-specific data
                     "is_playoff_eligible": snapshot.is_playoff_eligible if snapshot else False,
+                    "is_superbowl_eligible": snapshot.is_superbowl_eligible if snapshot else False,
                     "regular_wins": stats["regular_season"]["wins"],
                     "regular_score": stats["regular_season"]["total_score"],
                     "playoff_wins": stats["playoffs"]["wins"],
@@ -1142,10 +1144,18 @@ def playoff_leaderboard():
         current_season.id,
         group_id=current_group.id if current_group else None
     )
+    
+    # Add Super Bowl eligibility flags from snapshots
+    from app.models.regular_season_snapshot import RegularSeasonSnapshot
+    for entry in playoff_leaderboard_data:
+        snapshot = RegularSeasonSnapshot.query.filter_by(
+            season_id=current_season.id,
+            user_id=entry["user_id"],
+            group_id=current_group.id if current_group else None
+        ).first()
+        entry["is_superbowl_eligible"] = snapshot.is_superbowl_eligible if snapshot else False
 
     # Get regular season snapshot for reference
-    from app.models.regular_season_snapshot import RegularSeasonSnapshot
-
     query = RegularSeasonSnapshot.query.filter_by(
         season_id=current_season.id,
         is_playoff_eligible=True

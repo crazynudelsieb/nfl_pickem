@@ -312,6 +312,20 @@ class Season(db.Model):
         # If we're here, we might be past all games, return the last week with games
         if all_games:
             last_week = max(game.week for game in all_games)
+            
+            # Special handling for Super Bowl week (22)
+            # If all week 21 (last playoff week) games are final, advance to Super Bowl week
+            superbowl_week = self.regular_season_weeks + self.playoff_weeks
+            if last_week == superbowl_week - 1:  # Week 21
+                week_21_games = Game.query.filter_by(
+                    season_id=self.id,
+                    week=last_week
+                ).all()
+                
+                if week_21_games and all(g.is_final for g in week_21_games):
+                    logger.info(f"All week {last_week} games complete, advancing to Super Bowl week {superbowl_week}")
+                    return superbowl_week
+            
             return last_week
 
         return 1

@@ -666,11 +666,31 @@ class SchedulerService:
                 if not current_season:
                     return
 
-                # Only run during Super Bowl week
+                # Run when entering Super Bowl week (after playoff rounds complete)
+                # Week 21 is last playoff round before Super Bowl (week 22)
                 superbowl_week = current_season.regular_season_weeks + current_season.playoff_weeks
+                last_playoff_week = superbowl_week - 1  # Week 21
 
-                if current_season.current_week != superbowl_week:
-                    return  # Not Super Bowl week yet
+                # Only run once we're at or past the last playoff week
+                if current_season.current_week < last_playoff_week:
+                    return  # Playoffs not complete yet
+
+                # Check if week 21 games are all final
+                from app.models.game import Game
+                week_21_games = Game.query.filter_by(
+                    season_id=current_season.id,
+                    week=last_playoff_week
+                ).all()
+
+                if not week_21_games:
+                    logger.debug(f"No games found for week {last_playoff_week}")
+                    return
+
+                # Wait until all week 21 games are final
+                incomplete_games = [g for g in week_21_games if not g.is_final]
+                if incomplete_games:
+                    logger.debug(f"{len(incomplete_games)} games in week {last_playoff_week} not yet final")
+                    return
 
                 logger.info(f"Updating Super Bowl eligibility for season {current_season.id}...")
 
