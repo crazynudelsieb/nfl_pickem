@@ -110,6 +110,7 @@ def index():
                     "longest_streak": stats["total"]["longest_streak"],
                     # Playoff-specific data
                     "is_playoff_eligible": snapshot.is_playoff_eligible if snapshot else False,
+                    "is_superbowl_eligible": snapshot.is_superbowl_eligible if snapshot else False,
                     "regular_wins": stats["regular_season"]["wins"],
                     "regular_score": stats["regular_season"]["total_score"],
                     "playoff_wins": stats["playoffs"]["wins"],
@@ -117,9 +118,9 @@ def index():
                     "regular_rank": snapshot.final_rank if snapshot else None,
                 })
 
-            # Sort by total_score (descending), then by tiebreaker points (descending)
+            # CRITICAL: During playoffs, sort by playoff wins (not total score)
             leaderboard.sort(
-                key=lambda x: (x["total_score"], x["tiebreaker_points"]), reverse=True
+                key=lambda x: (x["playoff_wins"], x["tiebreaker_points"]), reverse=True
             )
         else:
             # Regular season: use existing leaderboard
