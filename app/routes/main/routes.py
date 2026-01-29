@@ -1049,6 +1049,11 @@ def leaderboard():
                     "longest_streak": longest_streak,
                 }
             )
+        
+        # Sort all-time stats by total score (wins + 0.5*ties), then by tiebreaker
+        leaderboard_data.sort(
+            key=lambda x: (x["total_score"], x["tiebreaker_points"]), reverse=True
+        )
 
     elif filter_type == "season" and selected_season:
         # Check if we're in playoffs
