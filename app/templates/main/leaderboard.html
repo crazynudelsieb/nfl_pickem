@@ -77,6 +77,12 @@
                         <th style="background: var(--accent-blue-light);">PO Wins</th>
                         <th style="background: var(--accent-blue-light); border-right: 2px solid var(--border-color);">PO Score</th>
                         <th>Total</th>
+                        {% elif filter_type == 'all-time' %}
+                        <th>🏆 Titles</th>
+                        <th>Wins</th>
+                        <th>Losses</th>
+                        <th>Missed</th>
+                        <th>Accuracy</th>
                         {% else %}
                         <th>Wins</th>
                         <th>Losses</th>
@@ -147,6 +153,39 @@
                         </td>
                         <td>
                             <span class="stat-value" style="color: var(--accent-green); font-weight: 700;">{{ entry.total_score }}</span>
+                        </td>
+                        {% elif filter_type == 'all-time' %}
+                        <!-- All-Time Mode: Show titles first, then regular columns -->
+                        <td>
+                            {% if entry.season_championships > 0 %}
+                            <span style="font-size: 1.25rem; color: #ffd700; font-weight: 700;">{{ entry.season_championships }}🏆</span>
+                            {% else %}
+                            <span style="color: var(--text-muted);">-</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="stat-value" style="color: var(--accent-green); font-weight: 700;">{{ entry.total_score }}</span>
+                        </td>
+                        <td>
+                            <span class="stat-value" style="color: var(--accent-red); font-weight: 700;">{{ entry.losses if entry.losses is defined else (entry.completed_picks - entry.wins - entry.ties) }}</span>
+                        </td>
+                        <td>
+                            <span class="stat-value" style="color: var(--warning-color); font-weight: 700;">{{ entry.missed_games if entry.missed_games is defined else 0 }}</span>
+                        </td>
+                        <td>
+                            {% if entry.accuracy is defined %}
+                                {% set accuracy = entry.accuracy %}
+                            {% elif (entry.completed_picks + (entry.missed_games if entry.missed_games is defined else 0)) > 0 %}
+                                {% set accuracy = (entry.wins if entry.wins is defined else entry.total_score) / (entry.completed_picks + (entry.missed_games if entry.missed_games is defined else 0)) * 100 %}
+                            {% else %}
+                                {% set accuracy = 0 %}
+                            {% endif %}
+                            <span class="stat-accuracy
+                                {% if accuracy >= 70 %}high
+                                {% elif accuracy >= 50 %}medium
+                                {% else %}low{% endif %}">
+                                {{ "%.1f"|format(accuracy) }}%
+                            </span>
                         </td>
                         {% else %}
                         <!-- Regular Season Mode: Show standard columns -->

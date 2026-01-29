@@ -967,6 +967,14 @@ def leaderboard():
             if not all_picks:
                 continue
 
+            # Count season championships (global champion awards only)
+            from app.models.season_winner import SeasonWinner
+            season_championships = SeasonWinner.query.filter_by(
+                user_id=user.id,
+                group_id=None,  # Global wins only
+                award_type='champion'
+            ).count()
+
             # Separate completed picks into wins, losses, and ties
             # A pick is "completed" if: is_correct is True/False OR (is_correct is None AND game is final = tie)
             all_completed_picks = []
@@ -1047,6 +1055,7 @@ def leaderboard():
                     "tiebreaker_points": total_tiebreaker,
                     "accuracy": accuracy,
                     "longest_streak": longest_streak,
+                    "season_championships": season_championships,  # Season wins count
                 }
             )
         
