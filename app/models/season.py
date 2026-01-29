@@ -315,6 +315,8 @@ class Season(db.Model):
             
             # Special handling for Super Bowl week (22)
             # If all week 21 (last playoff week) games are final, advance to Super Bowl week
+            from .game import Game  # Local import to avoid circular dependency
+            
             superbowl_week = self.regular_season_weeks + self.playoff_weeks
             if last_week == superbowl_week - 1:  # Week 21
                 week_21_games = Game.query.filter_by(
