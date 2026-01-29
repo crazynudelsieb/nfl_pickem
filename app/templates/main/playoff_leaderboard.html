@@ -60,7 +60,11 @@
                                 </div>
                                 <div class="player-details">
                                     <h4>{{ entry.user.full_name or entry.user.username }}</h4>
-                                    <p>@{{ entry.user.username }}</p>
+                                    <p>@{{ entry.user.username }}
+                                        {% if entry.get('is_superbowl_eligible', False) %}
+                                        <span style="color: #ffd700; font-weight: 700; margin-left: 0.25rem;">⭐ Super Bowl Eligible</span>
+                                        {% endif %}
+                                    </p>
                                 </div>
                             </div>
                         </td>
