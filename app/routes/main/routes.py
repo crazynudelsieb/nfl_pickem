@@ -805,9 +805,10 @@ def dashboard():
                     "regular_rank": snapshot.final_rank if snapshot else None,
                 })
 
-            # Sort by total_score (descending), then by tiebreaker points (descending)
+            # CRITICAL: During playoffs, sort by playoff wins (not total score)
+            # Then by season-long tiebreaker points for ties
             leaderboard.sort(
-                key=lambda x: (x["total_score"], x["tiebreaker_points"]), reverse=True
+                key=lambda x: (x["playoff_wins"], x["tiebreaker_points"]), reverse=True
             )
         else:
             # Regular season: use existing leaderboard
@@ -1093,6 +1094,12 @@ def leaderboard():
                     "playoff_score": stats["playoffs"]["total_score"],
                     "regular_rank": snapshot.final_rank if snapshot else None,
                 })
+            
+            # CRITICAL: During playoffs, sort by playoff wins (not total score)
+            # Then by season-long tiebreaker points for ties
+            leaderboard_data.sort(
+                key=lambda x: (x["playoff_wins"], x["tiebreaker_points"]), reverse=True
+            )
         else:
             # Regular season: use existing leaderboard
             leaderboard_data = User.get_season_leaderboard(
@@ -1100,11 +1107,7 @@ def leaderboard():
                 regular_season_only=False,
                 group_id=None,  # None = all groups
             )
-
-    # Sort by total_score (descending), then by tiebreaker points (descending)
-    leaderboard_data.sort(
-        key=lambda x: (x["total_score"], x["tiebreaker_points"]), reverse=True
-    )
+            # Regular season sorts by total_score in get_season_leaderboard()
 
     return render_template(
         "main/leaderboard.html",
