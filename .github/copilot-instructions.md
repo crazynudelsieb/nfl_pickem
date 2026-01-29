@@ -2,7 +2,7 @@
 
 ## AI Development Environment
 
-**Compatible with**: GitHub Copilot, Claude Code (C:\Users\q913966\.claude), Claude API  
+**Compatible with**: GitHub Copilot, Claude Code, Claude API  
 **Primary IDE**: Visual Studio Code with Copilot/Claude Code extensions  
 **Version Control**: Git with feature branch workflow  
 **OS**: Windows with PowerShell (pwsh.exe)
