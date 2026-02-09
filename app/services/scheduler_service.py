@@ -188,10 +188,6 @@ class SchedulerService:
         """High-frequency sync for live games only with two-phase commit"""
         with self.app.app_context():
             try:
-                # Only run during game days and times
-                if not self._is_game_time():
-                    return
-
                 current_season = Season.get_current_season()
                 if not current_season:
                     return
