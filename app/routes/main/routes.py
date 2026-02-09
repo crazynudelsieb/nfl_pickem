@@ -1285,7 +1285,8 @@ def season_winners(season_id):
 @login_required
 def hall_of_fame():
     """Display all-time hall of fame"""
-    from app.models import SeasonWinner
+    from app.models import SeasonWinner, Pick
+    from collections import Counter
 
     # Get user's awards
     user_awards = SeasonWinner.get_user_awards(current_user.id)
@@ -1298,22 +1299,39 @@ def hall_of_fame():
     )
 
     # Count championships by user
-    from collections import Counter
-
     championship_counts = Counter(c.user_id for c in all_champions)
 
-    # Get top champions
+    # Get all users who have at least one championship
+    champion_user_ids = list(championship_counts.keys())
+    
+    # Build top champions list with all-time stats for proper sorting
     top_champions = []
-    for user_id, count in championship_counts.most_common(10):
+    for user_id in champion_user_ids:
         user = User.query.get(user_id)
         if user:
+            # Calculate all-time wins and tiebreaker points
+            all_picks = Pick.query.filter_by(user_id=user_id).all()
+            all_completed_picks = [p for p in all_picks if p.is_correct is not None]
+            total_wins = sum(1 for p in all_completed_picks if p.is_correct)
+            total_tiebreaker = sum(p.tiebreaker_points or 0 for p in all_completed_picks)
+            
             top_champions.append(
                 {
                     "user": user,
-                    "championships": count,
+                    "championships": championship_counts[user_id],
+                    "total_wins": total_wins,
+                    "tiebreaker_points": total_tiebreaker,
                     "awards": SeasonWinner.get_user_awards(user_id),
                 }
             )
+
+    # Sort by: Titles (desc) > Total Wins (desc) > Tiebreaker Points (desc)
+    top_champions.sort(
+        key=lambda x: (-x["championships"], -x["total_wins"], -x["tiebreaker_points"])
+    )
+    
+    # Limit to top 10
+    top_champions = top_champions[:10]
 
     return render_template(
         "main/hall_of_fame.html", user_awards=user_awards, top_champions=top_champions

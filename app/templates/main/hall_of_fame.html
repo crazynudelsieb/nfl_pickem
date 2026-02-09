@@ -52,14 +52,17 @@
     {% if top_champions %}
     <div class="champions-list">
         <h2>🌟 All-Time Champions</h2>
+        <p class="ranking-explanation">Ranked by: Titles → Total Wins → Tiebreaker Points</p>
         <div class="champions-table">
             <table>
                 <thead>
                     <tr>
                         <th>Rank</th>
                         <th>Champion</th>
-                        <th>Championships</th>
-                        <th>Total Awards</th>
+                        <th>Titles</th>
+                        <th>Total Wins</th>
+                        <th>Tiebreaker</th>
+                        <th>Awards</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -81,8 +84,14 @@
                         <td class="championships-cell">
                             {{ champion.championships }} 🏆
                         </td>
+                        <td class="wins-cell">
+                            {{ champion.total_wins }}
+                        </td>
+                        <td class="tiebreaker-cell {% if champion.tiebreaker_points >= 0 %}positive{% else %}negative{% endif %}">
+                            {% if champion.tiebreaker_points > 0 %}+{% endif %}{{ champion.tiebreaker_points }}
+                        </td>
                         <td class="awards-cell">
-                            {{ champion.awards|length }} Awards
+                            {{ champion.awards|length }}
                         </td>
                     </tr>
                     {% endfor %}
@@ -253,6 +262,31 @@
     color: var(--accent-gold, #FFD700);
 }
 
+.wins-cell {
+    font-weight: 600;
+    color: var(--accent-green);
+}
+
+.tiebreaker-cell {
+    font-weight: 600;
+}
+
+.tiebreaker-cell.positive {
+    color: var(--accent-green);
+}
+
+.tiebreaker-cell.negative {
+    color: var(--accent-red);
+}
+
+.ranking-explanation {
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    margin-bottom: 20px;
+    font-style: italic;
+}
+
 @media (max-width: 768px) {
     .trophy-grid {
         grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
@@ -263,7 +297,7 @@
     }
     
     .champions-table table {
-        min-width: 500px;
+        min-width: 650px;
     }
 }
 </style>
