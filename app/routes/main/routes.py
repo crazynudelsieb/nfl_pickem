@@ -1071,6 +1071,11 @@ def leaderboard():
         if is_playoff_mode:
             # During playoffs: show dual scores for ALL users (not just top 4)
             # This allows everyone to see the overall standings with separate playoff tracking
+            
+            # Ensure we have fresh data from the database
+            db.session.commit()
+            db.session.expire_all()
+            
             all_users = User.query.filter_by(is_active=True).all()
             leaderboard_data = []
 
