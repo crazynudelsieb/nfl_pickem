@@ -136,6 +136,70 @@ def list_seasons():
         click.echo(f"  {s.year}: {status} - {complete}")
 
 
+@season.command()
+@click.argument("year", type=int)
+@click.option("--force", is_flag=True, help="Force finalization even if already complete")
+@with_appcontext
+def finalize(year, force):
+    """Finalize a season and award winners (after Super Bowl)"""
+    try:
+        season = Season.query.filter_by(year=year).first()
+        if not season:
+            click.echo(f"❌ Season {year} not found!")
+            return
+
+        if season.is_complete and not force:
+            click.echo(f"Season {year} is already complete. Use --force to re-award winners.")
+            return
+
+        # Check if Super Bowl is complete
+        super_bowl_week = season.regular_season_weeks + season.playoff_weeks
+        super_bowl_game = Game.query.filter_by(
+            season_id=season.id, week=super_bowl_week
+        ).first()
+
+        if not super_bowl_game:
+            click.echo(f"❌ No Super Bowl game found for season {year}")
+            return
+
+        if not super_bowl_game.is_final:
+            click.echo(f"❌ Super Bowl game is not final yet. Score: {super_bowl_game.away_score}-{super_bowl_game.home_score}")
+            return
+
+        click.echo(f"Super Bowl: {super_bowl_game.away_team.name} vs {super_bowl_game.home_team.name}")
+        click.echo(f"Final Score: {super_bowl_game.away_score}-{super_bowl_game.home_score}")
+
+        # If forcing, delete existing winners first
+        if force and season.is_complete:
+            from app.models import SeasonWinner
+            deleted = SeasonWinner.query.filter_by(season_id=season.id).delete()
+            click.echo(f"Deleted {deleted} existing winner records")
+            season.is_complete = False
+            db.session.commit()
+
+        # Finalize the season
+        result = season.finalize_season()
+
+        if result:
+            click.echo(f"✅ Season {year} finalized!")
+            click.echo(f"   Global winners: {len(result.get('global_winners', []))}")
+            for winner in result.get('global_winners', []):
+                user = User.query.get(winner.user_id)
+                click.echo(f"     #{winner.rank} {winner.award_type}: {user.username}")
+            click.echo(f"   Group winners: {len(result.get('group_winners', {}))}")
+        else:
+            click.echo(f"Season {year} was already complete")
+
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        click.echo(f"❌ Database error: {str(e)}")
+        logging.error(f"Season finalization failed - SQL error: {e}", exc_info=True)
+    except Exception as e:
+        db.session.rollback()
+        click.echo(f"❌ Unexpected error: {str(e)}")
+        logging.error(f"Season finalization failed - unexpected error: {e}", exc_info=True)
+
+
 # Data Sync Commands
 @cli.group()
 def sync():

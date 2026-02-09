@@ -131,8 +131,9 @@ class SeasonWinner(db.Model):
                     ).first()
 
                     if not existing:
-                        # Get full season stats
+                        # Get full season stats (returns nested dict with total/regular/playoffs)
                         stats = User.query.get(user_id).get_season_stats(season_id)
+                        total_stats = stats["total"] if stats else {}
                         
                         winner = SeasonWinner(
                             season_id=season_id,
@@ -140,10 +141,10 @@ class SeasonWinner(db.Model):
                             group_id=None,
                             award_type=award_type,
                             rank=rank,
-                            total_wins=stats["wins"],
-                            total_points=int(stats["total_score"]),
-                            tiebreaker_points=int(stats["tiebreaker"]),
-                            accuracy=stats.get("accuracy", 0.0),
+                            total_wins=total_stats.get("wins", 0),
+                            total_points=int(total_stats.get("total_score", 0)),
+                            tiebreaker_points=int(total_stats.get("tiebreaker_points", 0)),
+                            accuracy=total_stats.get("accuracy", 0.0),
                         )
                         db.session.add(winner)
                         results["global_winners"].append(winner)
