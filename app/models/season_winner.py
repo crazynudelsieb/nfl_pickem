@@ -59,30 +59,109 @@ class SeasonWinner(db.Model):
 
     @staticmethod
     def award_season_winners(season_id):
-        """Award winners for a completed season"""
-        from app.models import Group, User
+        """Award winners for a completed season
+        
+        For seasons with Super Bowl:
+        - Rank 1 (Champion): Winner of Super Bowl (among top 2 eligible)
+        - Rank 2 (Runner-up): Loser of Super Bowl (among top 2 eligible)
+        - Rank 3 (Third place): Best of remaining users
+        
+        For seasons without Super Bowl:
+        - Use full season leaderboard
+        """
+        from app.models import Group, User, Game, Pick
+        from app.models.regular_season_snapshot import RegularSeasonSnapshot
 
         results = {"global_winners": [], "group_winners": {}}
 
-        # Award global winners
-        global_leaderboard = User.get_season_leaderboard(
-            season_id, regular_season_only=False, group_id=None
+        # Check if Super Bowl exists and is complete
+        from app.models.season import Season
+        season = Season.query.get(season_id)
+        super_bowl_week = season.regular_season_weeks + season.playoff_weeks
+        super_bowl_game = Game.query.filter_by(
+            season_id=season_id, week=super_bowl_week
+        ).first()
+
+        # Determine if we should use Super Bowl results
+        use_super_bowl = (
+            super_bowl_game 
+            and super_bowl_game.is_final
+            and RegularSeasonSnapshot.query.filter_by(
+                season_id=season_id,
+                group_id=None,
+                is_superbowl_eligible=True
+            ).count() > 0
         )
 
-        if global_leaderboard:
-            # Top 3 places
-            awards = [("champion", 1), ("runner_up", 2), ("third_place", 3)]
+        if use_super_bowl:
+            # Super Bowl-based ranking
+            # Get Super Bowl eligible users (top 2)
+            sb_eligible = RegularSeasonSnapshot.query.filter_by(
+                season_id=season_id,
+                group_id=None,
+                is_superbowl_eligible=True
+            ).order_by(RegularSeasonSnapshot.final_rank).all()
 
+            # Get their Super Bowl picks
+            sb_picks = Pick.query.filter_by(game_id=super_bowl_game.id).all()
+            pick_map = {p.user_id: p for p in sb_picks}
+
+            # Rank by Super Bowl result
+            sb_ranked = []
+            for eligible in sb_eligible:
+                pick = pick_map.get(eligible.user_id)
+                if pick:
+                    # Winner first, loser second
+                    sb_ranked.append((eligible.user_id, pick.is_correct, eligible))
+
+            # Sort: True (winner) first, then False (loser)
+            sb_ranked.sort(key=lambda x: (not x[1] if x[1] is not None else True, x[2].final_rank))
+
+            # Award top 2 (Super Bowl participants)
+            awards = [("champion", 1), ("runner_up", 2)]
             for i, (award_type, rank) in enumerate(awards):
-                if i < len(global_leaderboard):
-                    entry = global_leaderboard[i]
+                if i < len(sb_ranked):
+                    user_id, won_sb, snapshot = sb_ranked[i]
+                    
+                    existing = SeasonWinner.query.filter_by(
+                        season_id=season_id,
+                        user_id=user_id,
+                        group_id=None,
+                        award_type=award_type,
+                    ).first()
 
-                    # Check if already awarded
+                    if not existing:
+                        # Get full season stats
+                        stats = User.query.get(user_id).get_season_stats(season_id)
+                        
+                        winner = SeasonWinner(
+                            season_id=season_id,
+                            user_id=user_id,
+                            group_id=None,
+                            award_type=award_type,
+                            rank=rank,
+                            total_wins=stats["wins"],
+                            total_points=int(stats["total_score"]),
+                            tiebreaker_points=int(stats["tiebreaker"]),
+                            accuracy=stats.get("accuracy", 0.0),
+                        )
+                        db.session.add(winner)
+                        results["global_winners"].append(winner)
+
+            # Award third place from regular season leaderboard (excluding SB participants)
+            sb_user_ids = {r[0] for r in sb_ranked}
+            global_leaderboard = User.get_season_leaderboard(
+                season_id, regular_season_only=True, group_id=None
+            )
+            
+            # Find best user not in Super Bowl
+            for entry in global_leaderboard:
+                if entry["user_id"] not in sb_user_ids:
                     existing = SeasonWinner.query.filter_by(
                         season_id=season_id,
                         user_id=entry["user_id"],
                         group_id=None,
-                        award_type=award_type,
+                        award_type="third_place",
                     ).first()
 
                     if not existing:
@@ -90,15 +169,53 @@ class SeasonWinner(db.Model):
                             season_id=season_id,
                             user_id=entry["user_id"],
                             group_id=None,
-                            award_type=award_type,
-                            rank=rank,
+                            award_type="third_place",
+                            rank=3,
                             total_wins=entry["wins"],
-                            total_points=entry["wins"],  # Points = wins for now
-                            tiebreaker_points=entry.get("tiebreaker_points", 0),
+                            total_points=int(entry.get("total_score", entry["wins"])),
+                            tiebreaker_points=int(entry.get("tiebreaker_points", 0)),
                             accuracy=entry.get("accuracy", 0.0),
                         )
                         db.session.add(winner)
                         results["global_winners"].append(winner)
+                    break
+
+        else:
+            # No Super Bowl or not complete - use full season leaderboard
+            global_leaderboard = User.get_season_leaderboard(
+                season_id, regular_season_only=False, group_id=None
+            )
+
+            if global_leaderboard:
+                # Top 3 places
+                awards = [("champion", 1), ("runner_up", 2), ("third_place", 3)]
+
+                for i, (award_type, rank) in enumerate(awards):
+                    if i < len(global_leaderboard):
+                        entry = global_leaderboard[i]
+
+                        # Check if already awarded
+                        existing = SeasonWinner.query.filter_by(
+                            season_id=season_id,
+                            user_id=entry["user_id"],
+                            group_id=None,
+                            award_type=award_type,
+                        ).first()
+
+                        if not existing:
+                            winner = SeasonWinner(
+                                season_id=season_id,
+                                user_id=entry["user_id"],
+                                group_id=None,
+                                award_type=award_type,
+                                rank=rank,
+                                total_wins=entry["wins"],
+                                total_points=int(entry.get("total_score", entry["wins"])),
+                                tiebreaker_points=int(entry.get("tiebreaker_points", 0)),
+                                accuracy=entry.get("accuracy", 0.0),
+                            )
+                            db.session.add(winner)
+                            results["global_winners"].append(winner)
 
         # Award group winners
         groups = Group.query.filter_by(is_active=True).all()
