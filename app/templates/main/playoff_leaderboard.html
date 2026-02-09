@@ -26,8 +26,7 @@
                     <tr>
                         <th>Playoff Rank</th>
                         <th>Player</th>
-                        <th style="background: var(--card-bg); border-left: 2px solid var(--border-color);">RS Rank</th>
-                        <th style="border-right: 2px solid var(--border-color);">RS Score</th>
+                        <th style="background: var(--card-bg); border-left: 2px solid var(--border-color); border-right: 2px solid var(--border-color);">RS Score</th>
                         <th style="background: var(--accent-blue-light);">PO Wins</th>
                         <th style="background: var(--accent-blue-light);">PO Score</th>
                         <th style="background: var(--accent-blue-light); border-right: 2px solid var(--border-color);">PO Accuracy</th>
@@ -69,14 +68,7 @@
                             </div>
                         </td>
                         <!-- Regular Season Stats -->
-                        <td style="background: var(--card-bg); border-left: 2px solid var(--border-color);">
-                            {% for snapshot in regular_season_snapshots %}
-                                {% if snapshot.user_id == entry.user_id %}
-                                <span style="font-weight: 600; color: var(--text-secondary);">#{{ snapshot.final_rank }}</span>
-                                {% endif %}
-                            {% endfor %}
-                        </td>
-                        <td style="border-right: 2px solid var(--border-color);">
+                        <td style="background: var(--card-bg); border-left: 2px solid var(--border-color); border-right: 2px solid var(--border-color);">
                             <span class="stat-value" style="color: var(--text-secondary);">{{ entry.regular_score }}</span>
                         </td>
                         <!-- Playoff Stats -->

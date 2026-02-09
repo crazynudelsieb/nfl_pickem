@@ -136,8 +136,7 @@
                                     <th style="padding: 0.75rem; text-align: left; font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; width: 3rem;">Rank</th>
                                     <th style="padding: 0.75rem; text-align: left; font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em;">Player</th>
                                     {% if is_playoff_mode %}
-                                    <th style="padding: 0.75rem; text-align: center; font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; background: var(--card-bg); border-left: 2px solid var(--border-color);">RS Rank</th>
-                                    <th style="padding: 0.75rem; text-align: center; font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em;">RS Wins</th>
+                                    <th style="padding: 0.75rem; text-align: center; font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; background: var(--card-bg); border-left: 2px solid var(--border-color);">RS Wins</th>
                                     <th style="padding: 0.75rem; text-align: center; font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; border-right: 2px solid var(--border-color);">RS Score</th>
                                     <th style="padding: 0.75rem; text-align: center; font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; background: var(--accent-blue-light);">PO Wins</th>
                                     <th style="padding: 0.75rem; text-align: center; font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; background: var(--accent-blue-light); border-right: 2px solid var(--border-color);">PO Score</th>
@@ -196,9 +195,6 @@
                                     {% if is_playoff_mode %}
                                     <!-- Playoff Mode: Show dual scores -->
                                     <td style="padding: 0.75rem; text-align: center; background: var(--card-bg); border-left: 2px solid var(--border-color);">
-                                        <span style="font-weight: 600; color: var(--text-secondary);">#{{ entry['regular_rank'] or '-' }}</span>
-                                    </td>
-                                    <td style="padding: 0.75rem; text-align: center;">
                                         <span style="color: var(--text-secondary);">{{ entry['regular_wins'] }}</span>
                                     </td>
                                     <td style="padding: 0.75rem; text-align: center; border-right: 2px solid var(--border-color);">

@@ -79,6 +79,10 @@ def index():
             # During playoffs: show dual scores for ALL users (not just top 4)
             from app.models.regular_season_snapshot import RegularSeasonSnapshot
 
+            # Ensure we have fresh data from the database
+            db.session.commit()
+            db.session.expire_all()
+
             # Get all active members of this group
             member_ids = [m.user_id for m in selected_group.get_active_members()]
             all_users = User.query.filter(User.id.in_(member_ids)).all()
