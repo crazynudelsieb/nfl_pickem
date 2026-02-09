@@ -71,8 +71,7 @@
                         <th>Rank</th>
                         <th>Player</th>
                         {% if is_playoff_mode %}
-                        <th style="background: var(--card-bg); border-left: 2px solid var(--border-color);">RS Rank</th>
-                        <th>RS Wins</th>
+                        <th style="background: var(--card-bg); border-left: 2px solid var(--border-color);">RS Wins</th>
                         <th style="border-right: 2px solid var(--border-color);">RS Score</th>
                         <th style="background: var(--accent-blue-light);">PO Wins</th>
                         <th style="background: var(--accent-blue-light); border-right: 2px solid var(--border-color);">PO Score</th>
@@ -132,9 +131,6 @@
                         {% if is_playoff_mode %}
                         <!-- Playoff Mode: Show dual scores -->
                         <td style="background: var(--card-bg); border-left: 2px solid var(--border-color);">
-                            <span style="font-weight: 600; color: var(--text-secondary);">#{{ entry.regular_rank or '-' }}</span>
-                        </td>
-                        <td>
                             <span class="stat-value" style="color: var(--text-secondary);">{{ entry.regular_wins }}</span>
                         </td>
                         <td style="border-right: 2px solid var(--border-color);">
