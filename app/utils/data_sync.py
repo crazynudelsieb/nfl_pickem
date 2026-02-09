@@ -277,11 +277,26 @@ class DataSync:
             team_lookup = {team.espn_id: team for team in teams if team.espn_id}
 
             url = f"{self.api_base_url}/scoreboard"
+            
+            # ESPN API playoff week mapping:
+            # Playoff Week 1: Wild Card (6 games)
+            # Playoff Week 2: Divisional (4 games)
+            # Playoff Week 3: Conference Championships (2 games)
+            # Playoff Week 4: Pro Bowl (skip)
+            # Playoff Week 5: Super Bowl
+            if week <= 18:
+                seasontype = 2  # Regular season
+                espn_week = week
+            elif week == 22:
+                seasontype = 3  # Playoffs
+                espn_week = 5  # Super Bowl is playoff week 5
+            else:
+                seasontype = 3  # Playoffs
+                espn_week = week - 18  # Weeks 19-21 map to playoff weeks 1-3
+            
             params = {
-                "seasontype": (
-                    2 if week <= 18 else 3
-                ),  # 2 = regular season, 3 = playoffs
-                "week": week if week <= 18 else week - 18,
+                "seasontype": seasontype,
+                "week": espn_week,
             }
 
             response = self._make_api_request(url, params=params)
