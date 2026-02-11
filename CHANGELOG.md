@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.31] - 2026-02-11
+
+### Fixed
+- **CRITICAL: Leaderboard Consistency** - Fixed Super Bowl picks not being counted in group/dashboard leaderboards
+- **Root Cause**: Pick submissions via AJAX were missing the group parameter, causing picks for users with per-group picks (`picks_are_global=false`) to be saved with `group_id=NULL` instead of the correct group ID
+- **Impact**: Super Bowl (week 22) picks were not showing in group leaderboards, dashboard views, or player picks modals, but appeared correctly in global leaderboard
+- **Fix**: Added group slug to AJAX form submissions in `current_picks.html`
+- **Data Migration**: Fixed 2 existing Super Bowl picks in production database that had NULL group_id
+
 ## [Unreleased] - 2025-10-09
 
 ### Fixed
