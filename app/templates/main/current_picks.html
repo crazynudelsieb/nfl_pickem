@@ -169,6 +169,10 @@
                 </div>
             <form method="POST" action="{{ url_for('main.submit_picks') }}" id="picks-form">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <!-- Include group slug to ensure picks are associated with the correct group -->
+                {% if current_group %}
+                <input type="hidden" name="group" value="{{ current_group.slug }}">
+                {% endif %}
                 <!-- Include user selection in form if admin -->
                 {% if current_user.is_admin and selected_user.id != current_user.id %}
                 <input type="hidden" name="selected_user_id" value="{{ selected_user.id }}">
@@ -760,6 +764,10 @@ function savePick(gameId, teamId, csrfToken, selectedUserId, week) {
     if (week) {
         formData.append('week', week);
     }
+    // CRITICAL: Include group slug to ensure picks are associated with the correct group
+    {% if current_group %}
+    formData.append('group', '{{ current_group.slug }}');
+    {% endif %}
     
     console.log('Sending pick data:', {
         game_id: gameId,
