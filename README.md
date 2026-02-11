@@ -103,7 +103,7 @@ app/
 - **`app/models/user.py`**: User stats & leaderboard methods (`get_season_stats()`, `get_season_leaderboard()`)
 - **`app/models/pick.py`**: Pick validation & scoring (`is_valid_pick()`, `update_result()`)
 - **`app/models/game.py`**: Game state & tie detection (`is_tie`, `is_final`, `winning_team`)
-- **`app/utils/scoring.py`**: Individual pick scoring (`ScoringEngine.calculate_pick_score()`)
+- **`app/utils/scoring.py`**: Individual pick scoring (`calculate_pick_score()`)
 - **`app/services/scheduler_service.py`**: Background data sync (ESPN API integration)
 - **`config.py`**: Environment-specific configuration classes
 - **`.github/copilot-instructions.md`**: AI agent instructions for development
