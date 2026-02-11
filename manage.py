@@ -659,9 +659,9 @@ def update_superbowl_eligibility(season_id):
 
 
 @cli.command()
-@click.argument("season_id", type=int)
+@click.argument("year", type=int)
 @with_appcontext
-def fix_superbowl(season_id):
+def fix_superbowl(year):
     """Fix Super Bowl data: create snapshots if missing and update eligibility.
 
     Run this after deploying the retroactive snapshot fix to ensure all
@@ -671,17 +671,17 @@ def fix_superbowl(season_id):
     """
     from app.models.regular_season_snapshot import RegularSeasonSnapshot
 
-    season = Season.query.get(season_id)
+    season = Season.query.filter_by(year=year).first()
     if not season:
-        click.echo(f"❌ Season {season_id} not found")
+        click.echo(f"❌ Season {year} not found")
         return
 
-    click.echo(f"🏈 Fixing Super Bowl data for season {season.year}...")
+    click.echo(f"🏈 Fixing Super Bowl data for season {season.year} (id={season.id})...")
     click.echo(f"   Current week: {season.current_week}")
     click.echo()
 
     # Step 1: Check/create regular season snapshots
-    existing = RegularSeasonSnapshot.query.filter_by(season_id=season_id).first()
+    existing = RegularSeasonSnapshot.query.filter_by(season_id=season.id).first()
     if existing:
         click.echo(f"✅ Regular season snapshots already exist")
     else:
@@ -703,19 +703,19 @@ def fix_superbowl(season_id):
     click.echo(f"🏆 Updating Super Bowl eligibility...")
 
     # Global
-    RegularSeasonSnapshot.update_superbowl_eligibility(season_id, group_id=None)
+    RegularSeasonSnapshot.update_superbowl_eligibility(season.id, group_id=None)
 
     # Per group
     active_groups = Group.query.filter_by(is_active=True).all()
     for group in active_groups:
-        RegularSeasonSnapshot.update_superbowl_eligibility(season_id, group_id=group.id)
+        RegularSeasonSnapshot.update_superbowl_eligibility(season.id, group_id=group.id)
 
     click.echo(f"   Updated for global + {len(active_groups)} groups")
     click.echo()
 
     # Step 3: Show results
     top4 = RegularSeasonSnapshot.query.filter_by(
-        season_id=season_id,
+        season_id=season.id,
         is_playoff_eligible=True,
         group_id=None
     ).order_by(RegularSeasonSnapshot.final_rank).all()
@@ -730,7 +730,7 @@ def fix_superbowl(season_id):
             )
 
     sb_eligible = RegularSeasonSnapshot.query.filter_by(
-        season_id=season_id,
+        season_id=season.id,
         is_superbowl_eligible=True,
         group_id=None
     ).all()
