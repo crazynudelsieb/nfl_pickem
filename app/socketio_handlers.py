@@ -74,8 +74,14 @@ def on_subscribe_game(data):
         game_id = data.get("game_id")
 
         if client_id in connected_users and game_id:
-            connected_users[client_id]["subscriptions"].add(f"game_{game_id}")
-            join_room(f"game_{game_id}")
+            room_name = f"game_{game_id}"
+            
+            # Skip if already subscribed (avoid duplicate joins/emits)
+            if room_name in connected_users[client_id]["subscriptions"]:
+                return
+                
+            connected_users[client_id]["subscriptions"].add(room_name)
+            join_room(room_name)
 
             # Send current game state
             game = Game.query.get(game_id)

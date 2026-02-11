@@ -540,10 +540,14 @@
                 // Subscribe to user picks updates
                 scoresSocket.emit('subscribe_user_picks', {});
                 
-                // Subscribe to game updates for games on the page
+                // Subscribe to game updates for games on the page (dedupe)
+                const subscribedGames = new Set();
                 document.querySelectorAll('[data-game-id]').forEach(element => {
-                    const gameId = element.getAttribute('data-game-id');
-                    scoresSocket.emit('subscribe_game', {game_id: parseInt(gameId)});
+                    const gameId = parseInt(element.getAttribute('data-game-id'));
+                    if (!subscribedGames.has(gameId)) {
+                        subscribedGames.add(gameId);
+                        scoresSocket.emit('subscribe_game', {game_id: gameId});
+                    }
                 });
             }
             
