@@ -20,7 +20,6 @@ from app.utils.cache_utils import (
     invalidate_model_cache,
 )
 from app.utils.data_sync import DataSync
-from app.utils.scoring import ScoringEngine
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +31,6 @@ class SchedulerService:
         self.scheduler = None
         self.app = app
         self.data_sync = None
-        self.scoring_calc = None
         self.is_running = False
         self.sync_stats = {
             "last_sync": None,
@@ -54,7 +52,6 @@ class SchedulerService:
         # Initialize services
         with app.app_context():
             self.data_sync = DataSync()
-            self.scoring_calc = ScoringEngine()
 
         # Register shutdown
         atexit.register(self.shutdown)

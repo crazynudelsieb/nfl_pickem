@@ -234,10 +234,9 @@ class Pick(db.Model):
             # Tie game: award 0.5 points, but no tiebreaker (no score differential)
             self.is_correct = None  # Neither correct nor incorrect
 
-            # Calculate points using ScoringEngine (handles playoff multipliers for ties)
-            from app.utils.scoring import ScoringEngine
-            scoring = ScoringEngine()
-            self.points_earned = scoring.calculate_pick_score(self)
+            # Calculate points using scoring function
+            from app.utils.scoring import calculate_pick_score
+            self.points_earned = calculate_pick_score(self)
 
             # No tiebreaker points for ties (no point differential)
             self.tiebreaker_points = 0
@@ -251,16 +250,14 @@ class Pick(db.Model):
             # Should not reach here if is_tie check above works
             self.is_correct = False
 
-        # Calculate points using ScoringEngine to apply playoff multipliers
-        from app.utils.scoring import ScoringEngine
-
-        scoring = ScoringEngine()
+        # Calculate points
+        from app.utils.scoring import calculate_pick_score
 
         margin = self.game.margin_of_victory or 0
 
         if self.is_correct:
-            # Use scoring engine to calculate points (handles playoff multipliers)
-            self.points_earned = scoring.calculate_pick_score(self)
+            # Calculate points for correct pick
+            self.points_earned = calculate_pick_score(self)
             # Tiebreaker: add margin of victory
             self.tiebreaker_points = float(margin)
         else:

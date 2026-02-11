@@ -1,0 +1,107 @@
+[1mdiff --git a/README.md b/README.md[m
+[1mindex 4329265..23e2396 100644[m
+[1m--- a/README.md[m
+[1m+++ b/README.md[m
+[36m@@ -103,7 +103,7 @@[m [mapp/[m
+ - **`app/models/user.py`**: User stats & leaderboard methods (`get_season_stats()`, `get_season_leaderboard()`)[m
+ - **`app/models/pick.py`**: Pick validation & scoring (`is_valid_pick()`, `update_result()`)[m
+ - **`app/models/game.py`**: Game state & tie detection (`is_tie`, `is_final`, `winning_team`)[m
+[31m-- **`app/utils/scoring.py`**: Individual pick scoring (`ScoringEngine.calculate_pick_score()`)[m
+[32m+[m[32m- **`app/utils/scoring.py`**: Individual pick scoring (`calculate_pick_score()`)[m
+ - **`app/services/scheduler_service.py`**: Background data sync (ESPN API integration)[m
+ - **`config.py`**: Environment-specific configuration classes[m
+ - **`.github/copilot-instructions.md`**: AI agent instructions for development[m
+[1mdiff --git a/app/models/pick.py b/app/models/pick.py[m
+[1mindex 112b7cc..c493925 100644[m
+[1m--- a/app/models/pick.py[m
+[1m+++ b/app/models/pick.py[m
+[36m@@ -234,10 +234,9 @@[m [mclass Pick(db.Model):[m
+             # Tie game: award 0.5 points, but no tiebreaker (no score differential)[m
+             self.is_correct = None  # Neither correct nor incorrect[m
+ [m
+[31m-            # Calculate points using ScoringEngine (handles playoff multipliers for ties)[m
+[31m-            from app.utils.scoring import ScoringEngine[m
+[31m-            scoring = ScoringEngine()[m
+[31m-            self.points_earned = scoring.calculate_pick_score(self)[m
+[32m+[m[32m            # Calculate points using scoring function[m
+[32m+[m[32m            from app.utils.scoring import calculate_pick_score[m
+[32m+[m[32m            self.points_earned = calculate_pick_score(self)[m
+ [m
+             # No tiebreaker points for ties (no point differential)[m
+             self.tiebreaker_points = 0[m
+[36m@@ -251,16 +250,14 @@[m [mclass Pick(db.Model):[m
+             # Should not reach here if is_tie check above works[m
+             self.is_correct = False[m
+ [m
+[31m-        # Calculate points using ScoringEngine to apply playoff multipliers[m
+[31m-        from app.utils.scoring import ScoringEngine[m
+[31m-[m
+[31m-        scoring = ScoringEngine()[m
+[32m+[m[32m        # Calculate points[m
+[32m+[m[32m        from app.utils.scoring import calculate_pick_score[m
+ [m
+         margin = self.game.margin_of_victory or 0[m
+ [m
+         if self.is_correct:[m
+[31m-            # Use scoring engine to calculate points (handles playoff multipliers)[m
+[31m-            self.points_earned = scoring.calculate_pick_score(self)[m
+[32m+[m[32m            # Calculate points for correct pick[m
+[32m+[m[32m            self.points_earned = calculate_pick_score(self)[m
+             # Tiebreaker: add margin of victory[m
+             self.tiebreaker_points = float(margin)[m
+         else:[m
+[1mdiff --git a/app/services/scheduler_service.py b/app/services/scheduler_service.py[m
+[1mindex fa35c08..2f8c383 100644[m
+[1m--- a/app/services/scheduler_service.py[m
+[1m+++ b/app/services/scheduler_service.py[m
+[36m@@ -20,7 +20,6 @@[m [mfrom app.utils.cache_utils import ([m
+     invalidate_model_cache,[m
+ )[m
+ from app.utils.data_sync import DataSync[m
+[31m-from app.utils.scoring import ScoringEngine[m
+ [m
+ logger = logging.getLogger(__name__)[m
+ [m
+[36m@@ -32,7 +31,6 @@[m [mclass SchedulerService:[m
+         self.scheduler = None[m
+         self.app = app[m
+         self.data_sync = None[m
+[31m-        self.scoring_calc = None[m
+         self.is_running = False[m
+         self.sync_stats = {[m
+             "last_sync": None,[m
+[36m@@ -54,7 +52,6 @@[m [mclass SchedulerService:[m
+         # Initialize services[m
+         with app.app_context():[m
+             self.data_sync = DataSync()[m
+[31m-            self.scoring_calc = ScoringEngine()[m
+ [m
+         # Register shutdown[m
+         atexit.register(self.shutdown)[m
+[1mdiff --git a/app/utils/__init__.py b/app/utils/__init__.py[m
+[1mindex 3236cc6..7a4b681 100644[m
+[1m--- a/app/utils/__init__.py[m
+[1m+++ b/app/utils/__init__.py[m
+[36m@@ -1,3 +1,3 @@[m
+ from app.utils.data_sync import DataSync  # noqa: F401[m
+ from app.utils.email_service import EmailService  # noqa: F401[m
+[31m-from app.utils.scoring import ScoringEngine, calculate_pick_score  # noqa: F401[m
+[32m+[m[32mfrom app.utils.scoring import calculate_pick_score  # noqa: F401[m
+[1mdiff --git a/app/utils/scoring.py b/app/utils/scoring.py[m
+[1mindex 30f071c..9f2d340 100644[m
+[1m--- a/app/utils/scoring.py[m
+[1m+++ b/app/utils/scoring.py[m
+[36m@@ -34,13 +34,3 @@[m [mdef calculate_pick_score(pick):[m
+     # Loss: no points[m
+     return 0.0[m
+ [m
+[31m-[m
+[31m-# Legacy class wrapper for backward compatibility[m
+[31m-# TODO: Remove after updating all callers to use calculate_pick_score() directly[m
+[31m-class ScoringEngine:[m
+[31m-    """Legacy wrapper - use calculate_pick_score() function instead"""[m
+[31m-    [m
+[31m-    def calculate_pick_score(self, pick):[m
+[31m-        """Legacy method - calls calculate_pick_score() function"""[m
+[31m-        return calculate_pick_score(pick)[m
+[31m-[m
