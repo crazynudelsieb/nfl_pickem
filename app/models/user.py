@@ -282,10 +282,13 @@ class User(UserMixin, db.Model):
 
         # Filter playoff weeks based on eligibility - users shouldn't be penalized
         # for missing playoff/Super Bowl games they weren't eligible to pick
+        # 
+        # IMPORTANT: Use snapshot-based eligibility checks ONLY to avoid recursion.
+        # is_superbowl_eligible() calls get_season_stats() which would cause infinite loop.
         eligible_playoff_weeks = set()
         if playoff_weeks_with_games:
-            # Check playoff eligibility (top 4 from regular season)
-            is_po_eligible, _ = self.is_playoff_eligible(season_id, group_id)
+            # Check playoff eligibility using snapshot (avoids recursion)
+            is_po_eligible = self._check_playoff_eligible_from_snapshot(season_id, group_id)
             
             if is_po_eligible:
                 # User is playoff eligible - include playoff weeks (19-21)
@@ -294,8 +297,8 @@ class User(UserMixin, db.Model):
                     if week < superbowl_week:
                         eligible_playoff_weeks.add(week)
                     elif week == superbowl_week:
-                        # Check Super Bowl eligibility (top 2 from playoffs)
-                        is_sb_eligible, _ = self.is_superbowl_eligible(season_id, group_id)
+                        # Check Super Bowl eligibility using snapshot (avoids recursion)
+                        is_sb_eligible = self._check_superbowl_eligible_from_snapshot(season_id, group_id)
                         if is_sb_eligible:
                             eligible_playoff_weeks.add(week)
 
@@ -507,6 +510,50 @@ class User(UserMixin, db.Model):
         )
 
         return self._compute_longest_streak_from_picks(picks)
+
+    def _check_playoff_eligible_from_snapshot(self, season_id, group_id=None):
+        """Lightweight check for playoff eligibility using snapshot only.
+        
+        Used internally by get_season_stats to avoid recursion.
+        Returns bool only, no message.
+        """
+        from .regular_season_snapshot import RegularSeasonSnapshot
+        from .season import Season
+
+        season = Season.query.get(season_id)
+        if not season or season.current_week <= season.regular_season_weeks:
+            return False
+
+        effective_group_id = None if self.picks_are_global else group_id
+        snapshot = RegularSeasonSnapshot.query.filter_by(
+            season_id=season_id,
+            user_id=self.id,
+            group_id=effective_group_id
+        ).first()
+
+        return snapshot.is_playoff_eligible if snapshot else False
+
+    def _check_superbowl_eligible_from_snapshot(self, season_id, group_id=None):
+        """Lightweight check for Super Bowl eligibility using snapshot only.
+        
+        Used internally by get_season_stats to avoid recursion.
+        Returns bool only, no message.
+        """
+        from .regular_season_snapshot import RegularSeasonSnapshot
+        from .season import Season
+
+        season = Season.query.get(season_id)
+        if not season or season.current_week <= season.regular_season_weeks + 2:
+            return False
+
+        effective_group_id = None if self.picks_are_global else group_id
+        snapshot = RegularSeasonSnapshot.query.filter_by(
+            season_id=season_id,
+            user_id=self.id,
+            group_id=effective_group_id
+        ).first()
+
+        return snapshot.is_superbowl_eligible if snapshot else False
 
     def is_playoff_eligible(self, season_id, group_id=None):
         """Check if user is in top 4 for playoff eligibility
