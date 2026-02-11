@@ -34,13 +34,3 @@ def calculate_pick_score(pick):
     # Loss: no points
     return 0.0
 
-
-# Legacy class wrapper for backward compatibility
-# TODO: Remove after updating all callers to use calculate_pick_score() directly
-class ScoringEngine:
-    """Legacy wrapper - use calculate_pick_score() function instead"""
-    
-    def calculate_pick_score(self, pick):
-        """Legacy method - calls calculate_pick_score() function"""
-        return calculate_pick_score(pick)
-
