@@ -82,7 +82,7 @@
                         <a href="{{ url_for('groups.index', group=selected_group.slug) if selected_group else url_for('groups.index') }}" style="color: var(--accent-blue); font-size: 0.8rem; text-decoration: none; font-weight: 600;">View Full</a>
                     </div>
                     {% if leaderboard %}
-                    <div class="leaderboard-table" style="background: var(--bg-secondary); border-radius: 8px; overflow: hidden; border: 1px solid var(--border-color);">
+                    <div class="leaderboard-table overflow-x-auto" style="background: var(--bg-secondary); border-radius: 8px; border: 1px solid var(--border-color);">
                         <table style="width: 100%; border-collapse: collapse;">
                             <thead>
                                 <tr style="background: rgba(107, 114, 128, 0.1);">

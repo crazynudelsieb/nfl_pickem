@@ -1059,9 +1059,9 @@ def leaderboard():
                 }
             )
         
-        # Sort all-time stats by total score (wins + 0.5*ties), then by tiebreaker
+        # Sort all-time stats by: Titles (desc) > Total Score (desc) > Tiebreaker Points (desc)
         leaderboard_data.sort(
-            key=lambda x: (x["total_score"], x["tiebreaker_points"]), reverse=True
+            key=lambda x: (x["season_championships"], x["total_score"], x["tiebreaker_points"]), reverse=True
         )
 
     elif filter_type == "season" and selected_season:
