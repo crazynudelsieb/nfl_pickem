@@ -595,9 +595,9 @@ class SchedulerService:
                 if not current_season:
                     return
 
-                # Check if we just entered playoffs (week 19)
-                if current_season.current_week != current_season.regular_season_weeks + 1:
-                    return  # Not the right time to create snapshot
+                # Check if we're in or past playoffs (week >= 19)
+                if current_season.current_week <= current_season.regular_season_weeks:
+                    return  # Still in regular season, not time to create snapshot
 
                 # Check if snapshot already exists
                 from app.models.regular_season_snapshot import RegularSeasonSnapshot
