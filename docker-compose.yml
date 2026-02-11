@@ -39,7 +39,9 @@ services:
   redis:
     image: redis:7-alpine
     container_name: nfl_pickem_redis
-    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru --save 60 1000 --loglevel warning
+    # Cache-only mode: disable persistence (no RDB snapshots, no AOF)
+    # This eliminates vm.overcommit_memory warnings and is appropriate for cache-only use
+    command: redis-server --save "" --appendonly no --maxmemory 256mb --maxmemory-policy allkeys-lru --loglevel warning
     volumes:
       - redis_data:/data
     ports:
