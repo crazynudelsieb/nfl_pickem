@@ -659,6 +659,93 @@ def update_superbowl_eligibility(season_id):
 
 
 @cli.command()
+@click.argument("season_id", type=int)
+@with_appcontext
+def fix_superbowl(season_id):
+    """Fix Super Bowl data: create snapshots if missing and update eligibility.
+
+    Run this after deploying the retroactive snapshot fix to ensure all
+    playoff/Super Bowl eligibility data is correct. Safe to run multiple times.
+
+    IMPORTANT: Back up the database before running this command.
+    """
+    from app.models.regular_season_snapshot import RegularSeasonSnapshot
+
+    season = Season.query.get(season_id)
+    if not season:
+        click.echo(f"❌ Season {season_id} not found")
+        return
+
+    click.echo(f"🏈 Fixing Super Bowl data for season {season.year}...")
+    click.echo(f"   Current week: {season.current_week}")
+    click.echo()
+
+    # Step 1: Check/create regular season snapshots
+    existing = RegularSeasonSnapshot.query.filter_by(season_id=season_id).first()
+    if existing:
+        click.echo(f"✅ Regular season snapshots already exist")
+    else:
+        click.echo(f"📸 Creating regular season snapshots...")
+        result = season.create_regular_season_snapshot()
+
+        if isinstance(result, tuple):
+            _, message = result
+            click.echo(f"❌ Failed to create snapshots: {message}")
+            return
+
+        global_count = len(result["global"])
+        group_count = sum(len(s) for s in result["groups"].values())
+        click.echo(f"   Created {global_count} global + {group_count} group snapshots")
+
+    click.echo()
+
+    # Step 2: Update Super Bowl eligibility
+    click.echo(f"🏆 Updating Super Bowl eligibility...")
+
+    # Global
+    RegularSeasonSnapshot.update_superbowl_eligibility(season_id, group_id=None)
+
+    # Per group
+    active_groups = Group.query.filter_by(is_active=True).all()
+    for group in active_groups:
+        RegularSeasonSnapshot.update_superbowl_eligibility(season_id, group_id=group.id)
+
+    click.echo(f"   Updated for global + {len(active_groups)} groups")
+    click.echo()
+
+    # Step 3: Show results
+    top4 = RegularSeasonSnapshot.query.filter_by(
+        season_id=season_id,
+        is_playoff_eligible=True,
+        group_id=None
+    ).order_by(RegularSeasonSnapshot.final_rank).all()
+
+    if top4:
+        click.echo(f"📋 Playoff Eligible (Top 4):")
+        for snap in top4:
+            sb = "⭐ SB" if snap.is_superbowl_eligible else ""
+            click.echo(
+                f"   {snap.final_rank}. {snap.user.username} - "
+                f"{snap.total_wins} wins, {snap.total_score:.1f} pts {sb}"
+            )
+
+    sb_eligible = RegularSeasonSnapshot.query.filter_by(
+        season_id=season_id,
+        is_superbowl_eligible=True,
+        group_id=None
+    ).all()
+
+    if sb_eligible:
+        click.echo(f"\n🏟️  Super Bowl Eligible:")
+        for snap in sb_eligible:
+            click.echo(f"   • {snap.user.username}")
+    else:
+        click.echo(f"\n⚠️  No Super Bowl eligible users found (playoff games may not be final yet)")
+
+    click.echo(f"\n✅ Done! Super Bowl data has been fixed.")
+
+
+@cli.command()
 @with_appcontext
 def status():
     """Show application status"""

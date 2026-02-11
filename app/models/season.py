@@ -140,9 +140,9 @@ class Season(db.Model):
         from .group import Group
         from .regular_season_snapshot import RegularSeasonSnapshot
 
-        # Verify we're at end of regular season
-        if self.current_week != self.regular_season_weeks:
-            return None, f"Not end of regular season. Current week: {self.current_week}, Regular season weeks: {self.regular_season_weeks}"
+        # Verify regular season is complete (current week at or past end of regular season)
+        if self.current_week < self.regular_season_weeks:
+            return None, f"Regular season not yet complete. Current week: {self.current_week}, Regular season weeks: {self.regular_season_weeks}"
 
         # Check if all week 18 games are final
         week_18_games = Game.query.filter_by(

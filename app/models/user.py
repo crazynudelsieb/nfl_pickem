@@ -596,6 +596,8 @@ class User(UserMixin, db.Model):
     def is_superbowl_eligible_from_snapshot(self, season_id, group_id=None):
         """Check Super Bowl eligibility from snapshot
 
+        Falls back to dynamic calculation if snapshot doesn't exist.
+
         Args:
             season_id: Season ID
             group_id: Optional group ID to filter picks by
@@ -618,7 +620,8 @@ class User(UserMixin, db.Model):
             else:
                 return False, "Only top 2 from playoffs can pick in Super Bowl"
 
-        return False, "Snapshot not found"
+        # Fallback: dynamic calculation if snapshot doesn't exist
+        return self.is_superbowl_eligible(season_id, group_id)
 
     def get_playoff_stats(self, season_id, group_id=None):
         """Get ONLY playoff stats (weeks 19-22) - separate from regular season stats
