@@ -24,14 +24,14 @@
             <table class="leaderboard-table">
                 <thead>
                     <tr>
-                        <th>Final Rank</th>
+                        <th>Rank</th>
                         <th>Player</th>
                         <th>Wins</th>
-                        <th>Losses</th>
-                        <th>Ties</th>
-                        <th>Total Score</th>
-                        <th>Accuracy</th>
-                        <th>Tiebreaker</th>
+                        <th class="mobile-hide">Losses</th>
+                        <th class="mobile-hide">Ties</th>
+                        <th>Score</th>
+                        <th class="mobile-hide">Accuracy</th>
+                        <th>TB</th>
                         <th>Status</th>
                     </tr>
                 </thead>
@@ -69,16 +69,16 @@
                         <td>
                             <span class="stat-value" style="color: var(--accent-green); font-weight: 700;">{{ snapshot.total_wins }}</span>
                         </td>
-                        <td>
+                        <td class="mobile-hide">
                             <span class="stat-value" style="color: var(--accent-red); font-weight: 700;">{{ snapshot.total_losses }}</span>
                         </td>
-                        <td>
+                        <td class="mobile-hide">
                             <span class="stat-value" style="color: var(--warning-color); font-weight: 700;">{{ snapshot.total_ties }}</span>
                         </td>
                         <td>
                             <span class="stat-value" style="color: var(--text-primary); font-weight: 700;">{{ snapshot.total_score }}</span>
                         </td>
-                        <td>
+                        <td class="mobile-hide">
                             <span class="stat-accuracy
                                 {% if snapshot.accuracy >= 70 %}high
                                 {% elif snapshot.accuracy >= 50 %}medium

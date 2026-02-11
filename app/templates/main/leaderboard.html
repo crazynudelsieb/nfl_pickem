@@ -72,24 +72,24 @@
                         <th>Player</th>
                         {% if is_playoff_mode %}
                         <th style="background: var(--card-bg); border-left: 2px solid var(--border-color);">RS Wins</th>
-                        <th style="border-right: 2px solid var(--border-color);">RS Score</th>
+                        <th style="border-right: 2px solid var(--border-color);" class="mobile-hide">RS Score</th>
                         <th style="background: var(--accent-blue-light);">PO Wins</th>
-                        <th style="background: var(--accent-blue-light); border-right: 2px solid var(--border-color);">PO Score</th>
+                        <th style="background: var(--accent-blue-light); border-right: 2px solid var(--border-color);" class="mobile-hide">PO Score</th>
                         <th>Total</th>
                         {% elif filter_type == 'all-time' %}
-                        <th>🏆 Titles</th>
+                        <th>Titles</th>
                         <th>Wins</th>
-                        <th>Losses</th>
-                        <th>Missed</th>
-                        <th>Accuracy</th>
+                        <th class="mobile-hide">Losses</th>
+                        <th class="mobile-hide">Missed</th>
+                        <th class="mobile-hide">Accuracy</th>
                         {% else %}
                         <th>Wins</th>
-                        <th>Losses</th>
-                        <th>Missed</th>
+                        <th class="mobile-hide">Losses</th>
+                        <th class="mobile-hide">Missed</th>
                         <th>Accuracy</th>
                         {% endif %}
                         <th>Tiebreaker</th>
-                        <th>Longest Streak</th>
+                        <th class="mobile-hide">Streak</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -133,7 +133,7 @@
                         <td style="background: var(--card-bg); border-left: 2px solid var(--border-color);">
                             <span class="stat-value" style="color: var(--text-secondary);">{{ entry.regular_wins }}</span>
                         </td>
-                        <td style="border-right: 2px solid var(--border-color);">
+                        <td style="border-right: 2px solid var(--border-color);" class="mobile-hide">
                             <span class="stat-value" style="color: var(--text-secondary);">{{ entry.regular_score }}</span>
                         </td>
                         <td style="background: var(--accent-blue-light);">
@@ -142,7 +142,7 @@
                                 {% if not entry.is_playoff_eligible %}🔒{% endif %}
                             </span>
                         </td>
-                        <td style="background: var(--accent-blue-light); border-right: 2px solid var(--border-color);">
+                        <td style="background: var(--accent-blue-light); border-right: 2px solid var(--border-color);" class="mobile-hide">
                             <span class="stat-value" style="color: var(--accent-blue); font-weight: 700;">
                                 {{ entry.playoff_score }}
                             </span>
@@ -154,7 +154,7 @@
                         <!-- All-Time Mode: Show titles first, then regular columns -->
                         <td>
                             {% if entry.season_championships > 0 %}
-                            <span style="font-size: 1.25rem; color: #ffd700; font-weight: 700;">{{ entry.season_championships }}🏆</span>
+                            <span style="font-size: 1.1rem; color: #ffd700; font-weight: 700;">{{ entry.season_championships }}🏆</span>
                             {% else %}
                             <span style="color: var(--text-muted);">-</span>
                             {% endif %}
@@ -162,13 +162,13 @@
                         <td>
                             <span class="stat-value" style="color: var(--accent-green); font-weight: 700;">{{ entry.total_score }}</span>
                         </td>
-                        <td>
+                        <td class="mobile-hide">
                             <span class="stat-value" style="color: var(--accent-red); font-weight: 700;">{{ entry.losses if entry.losses is defined else (entry.completed_picks - entry.wins - entry.ties) }}</span>
                         </td>
-                        <td>
+                        <td class="mobile-hide">
                             <span class="stat-value" style="color: var(--warning-color); font-weight: 700;">{{ entry.missed_games if entry.missed_games is defined else 0 }}</span>
                         </td>
-                        <td>
+                        <td class="mobile-hide">
                             {% if entry.accuracy is defined %}
                                 {% set accuracy = entry.accuracy %}
                             {% elif (entry.completed_picks + (entry.missed_games if entry.missed_games is defined else 0)) > 0 %}
@@ -188,10 +188,10 @@
                         <td>
                             <span class="stat-value" style="color: var(--accent-green); font-weight: 700;">{{ entry.total_score }}</span>
                         </td>
-                        <td>
+                        <td class="mobile-hide">
                             <span class="stat-value" style="color: var(--accent-red); font-weight: 700;">{{ entry.losses if entry.losses is defined else (entry.completed_picks - entry.wins - entry.ties) }}</span>
                         </td>
-                        <td>
+                        <td class="mobile-hide">
                             <span class="stat-value" style="color: var(--warning-color); font-weight: 700;">{{ entry.missed_games if entry.missed_games is defined else 0 }}</span>
                         </td>
                         <td>
@@ -217,7 +217,7 @@
                                 {{ entry.tiebreaker_points or 0 }}
                             </span>
                         </td>
-                        <td>
+                        <td class="mobile-hide">
                             {% if entry.longest_streak > 0 %}
                             <span class="badge-streak wins">{{ entry.longest_streak }}W</span>
                             {% elif entry.longest_streak < 0 %}

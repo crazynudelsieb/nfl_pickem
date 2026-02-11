@@ -24,14 +24,14 @@
             <table class="leaderboard-table">
                 <thead>
                     <tr>
-                        <th>Playoff Rank</th>
+                        <th>Rank</th>
                         <th>Player</th>
-                        <th style="background: var(--card-bg); border-left: 2px solid var(--border-color); border-right: 2px solid var(--border-color);">RS Score</th>
+                        <th style="background: var(--card-bg); border-left: 2px solid var(--border-color); border-right: 2px solid var(--border-color);">RS</th>
                         <th style="background: var(--accent-blue-light);">PO Wins</th>
-                        <th style="background: var(--accent-blue-light);">PO Score</th>
-                        <th style="background: var(--accent-blue-light); border-right: 2px solid var(--border-color);">PO Accuracy</th>
-                        <th>Total Score</th>
-                        <th>Tiebreaker</th>
+                        <th style="background: var(--accent-blue-light);" class="mobile-hide">PO Score</th>
+                        <th style="background: var(--accent-blue-light); border-right: 2px solid var(--border-color);" class="mobile-hide">PO Acc</th>
+                        <th>Total</th>
+                        <th>TB</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -75,10 +75,10 @@
                         <td style="background: var(--accent-blue-light);">
                             <span class="stat-value" style="color: var(--accent-blue); font-weight: 700;">{{ entry.playoff_wins }}</span>
                         </td>
-                        <td style="background: var(--accent-blue-light);">
+                        <td style="background: var(--accent-blue-light);" class="mobile-hide">
                             <span class="stat-value" style="color: var(--accent-blue); font-weight: 700;">{{ entry.playoff_score }}</span>
                         </td>
-                        <td style="background: var(--accent-blue-light); border-right: 2px solid var(--border-color);">
+                        <td style="background: var(--accent-blue-light); border-right: 2px solid var(--border-color);" class="mobile-hide">
                             <span class="stat-accuracy
                                 {% if entry.playoff_accuracy >= 70 %}high
                                 {% elif entry.playoff_accuracy >= 50 %}medium
