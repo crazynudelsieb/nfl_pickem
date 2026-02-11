@@ -547,10 +547,14 @@ class User(UserMixin, db.Model):
     def is_superbowl_eligible(self, season_id, group_id=None):
         """Check if user is in top 2 for Super Bowl eligibility (of playoff participants)
 
+        Ranks by playoff wins (weeks 19-21), not regular season standings.
+
         Args:
             season_id: Season ID
             group_id: Optional group ID to filter picks by
         """
+        from .game import Game
+        from .pick import Pick
         from .season import Season
 
         season = Season.query.get(season_id)
@@ -559,23 +563,55 @@ class User(UserMixin, db.Model):
         ):  # Need to be past first playoff rounds
             return False, "Playoffs not advanced enough"
 
-        # Get leaderboard for regular season only to find playoff participants
-        leaderboard = self.get_season_leaderboard(
-            season_id, regular_season_only=True, group_id=group_id
+        # Get playoff-eligible users (top 4 from regular season)
+        # First try snapshot-based, then fall back to dynamic
+        eligible_user_ids = []
+        from .regular_season_snapshot import RegularSeasonSnapshot
+        snapshot_eligible = RegularSeasonSnapshot.get_playoff_eligible_users(season_id, group_id)
+        if snapshot_eligible:
+            eligible_user_ids = snapshot_eligible
+        else:
+            # Dynamic fallback: get top 4 from regular season leaderboard
+            leaderboard = self.get_season_leaderboard(
+                season_id, regular_season_only=True, group_id=group_id
+            )
+            eligible_user_ids = [entry["user_id"] for entry in leaderboard[:4]]
+
+        if self.id not in eligible_user_ids:
+            return False, "Not playoff eligible"
+
+        # Rank eligible users by playoff wins (weeks 19-21)
+        playoff_rankings = []
+        for uid in eligible_user_ids:
+            user = User.query.get(uid)
+            if not user:
+                continue
+            stats = user.get_season_stats(season_id, group_id=group_id)
+            if not stats:
+                continue
+            playoff_rankings.append({
+                "user_id": uid,
+                "playoff_wins": stats["playoffs"]["wins"],
+                "total_tiebreaker": stats["total"]["tiebreaker_points"],
+            })
+
+        # Sort by playoff wins DESC, then tiebreaker DESC
+        playoff_rankings.sort(
+            key=lambda x: (x["playoff_wins"], x["total_tiebreaker"]),
+            reverse=True
         )
 
-        # Find user's position
+        # Find this user's position in playoff rankings
         user_position = None
-        for i, entry in enumerate(leaderboard):
+        for i, entry in enumerate(playoff_rankings):
             if entry["user_id"] == self.id:
                 user_position = i + 1
                 break
 
         if user_position is None:
-            return False, "User not found in leaderboard"
+            return False, "User not found in playoff rankings"
 
-        # Must be in top 4 to make playoffs, and top 2 of those for Super Bowl
-        return user_position <= 2, f"Position: {user_position}"
+        return user_position <= 2, f"Playoff position: {user_position}"
 
     def is_playoff_eligible_from_snapshot(self, season_id, group_id=None):
         """Check playoff eligibility from snapshot (more reliable than recalculating)
