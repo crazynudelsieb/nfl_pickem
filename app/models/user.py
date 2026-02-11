@@ -280,13 +280,33 @@ class User(UserMixin, db.Model):
         )
         playoff_weeks_with_games = set(g.week for g in playoff_completed_games)
 
+        # Filter playoff weeks based on eligibility - users shouldn't be penalized
+        # for missing playoff/Super Bowl games they weren't eligible to pick
+        eligible_playoff_weeks = set()
+        if playoff_weeks_with_games:
+            # Check playoff eligibility (top 4 from regular season)
+            is_po_eligible, _ = self.is_playoff_eligible(season_id, group_id)
+            
+            if is_po_eligible:
+                # User is playoff eligible - include playoff weeks (19-21)
+                superbowl_week = season.regular_season_weeks + season.playoff_weeks
+                for week in playoff_weeks_with_games:
+                    if week < superbowl_week:
+                        eligible_playoff_weeks.add(week)
+                    elif week == superbowl_week:
+                        # Check Super Bowl eligibility (top 2 from playoffs)
+                        is_sb_eligible, _ = self.is_superbowl_eligible(season_id, group_id)
+                        if is_sb_eligible:
+                            eligible_playoff_weeks.add(week)
+
         # Separate user picks into regular season and playoff picks
         regular_picks = [p for p in picks if not season.is_playoff_week(p.game.week)]
         playoff_picks = [p for p in picks if season.is_playoff_week(p.game.week)]
 
         # Calculate stats using shared helper
+        # For playoffs, only count eligible weeks as potential missed games
         regular_stats = self._compute_stats_for_picks(regular_picks, regular_season_weeks_with_games)
-        playoff_stats = self._compute_stats_for_picks(playoff_picks, playoff_weeks_with_games)
+        playoff_stats = self._compute_stats_for_picks(playoff_picks, eligible_playoff_weeks)
 
         # Calculate total stats (combine regular and playoffs)
         total_wins = regular_stats["wins"] + playoff_stats["wins"]
