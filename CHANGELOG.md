@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.34] - 2026-02-11
+
+### Fixed
+- **All-Time Statistics Missed Games** - Fixed all-time leaderboard counting playoff/Super Bowl weeks as missed for ineligible users
+- Uses same snapshot-based eligibility checks as season stats to filter eligible weeks
+
 ## [1.2.33] - 2026-02-11
 
 ### Fixed
