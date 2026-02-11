@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.33] - 2026-02-11
+
+### Fixed
+- **CRITICAL: Recursion Error** - Fixed infinite recursion in `get_season_stats()` when checking eligibility
+- Root cause: `is_superbowl_eligible()` calls `get_season_stats()` which called eligibility checks, creating a loop
+- Solution: Created lightweight snapshot-only helper methods (`_check_playoff_eligible_from_snapshot`, `_check_superbowl_eligible_from_snapshot`)
+
 ## [1.2.32] - 2026-02-11
 
 ### Fixed
