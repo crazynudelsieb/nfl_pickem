@@ -991,7 +991,7 @@ def leaderboard():
 
             # Count missed WEEKS (not games)
             # User makes one pick per week, so we count weeks where they didn't pick
-            picked_weeks = {p.game.week for p in all_picks if p.game}
+            # IMPORTANT: Don't count playoff/Super Bowl weeks where user wasn't eligible
             
             # Get all weeks that have completed games (across all seasons)
             completed_games = Game.query.filter(Game.is_final == True).all()
@@ -1001,12 +1001,29 @@ def leaderboard():
                     completed_weeks_by_season[g.season_id] = set()
                 completed_weeks_by_season[g.season_id].add(g.week)
             
-            # Count total weeks with completed games across all seasons
-            all_completed_weeks = set()
-            for season_id, weeks in completed_weeks_by_season.items():
-                # Add weeks as (season_id, week) tuples to make them unique
+            # Filter out playoff/Super Bowl weeks where user wasn't eligible
+            all_eligible_weeks = set()
+            for sid, weeks in completed_weeks_by_season.items():
+                season = Season.query.get(sid)
+                if not season:
+                    continue
                 for week in weeks:
-                    all_completed_weeks.add((season_id, week))
+                    # Regular season weeks are always eligible
+                    if not season.is_playoff_week(week):
+                        all_eligible_weeks.add((sid, week))
+                    else:
+                        # Playoff week - check eligibility using snapshot
+                        is_po_eligible = user._check_playoff_eligible_from_snapshot(sid, None)
+                        if is_po_eligible:
+                            superbowl_week = season.regular_season_weeks + season.playoff_weeks
+                            if week < superbowl_week:
+                                # Playoff week (not Super Bowl) - eligible
+                                all_eligible_weeks.add((sid, week))
+                            elif week == superbowl_week:
+                                # Super Bowl - check Super Bowl eligibility
+                                is_sb_eligible = user._check_superbowl_eligible_from_snapshot(sid, None)
+                                if is_sb_eligible:
+                                    all_eligible_weeks.add((sid, week))
             
             # Get user's picked weeks by season
             user_picked_weeks = set()
@@ -1014,8 +1031,8 @@ def leaderboard():
                 if p.game:
                     user_picked_weeks.add((p.game.season_id, p.game.week))
             
-            # Missed weeks = completed weeks where user didn't pick
-            missed_weeks = all_completed_weeks - user_picked_weeks
+            # Missed weeks = eligible weeks where user didn't pick
+            missed_weeks = all_eligible_weeks - user_picked_weeks
             all_missed_games = len(missed_weeks)
 
             # Calculate total_score: wins + (0.5 × ties)
