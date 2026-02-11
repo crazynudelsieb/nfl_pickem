@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.32] - 2026-02-11
+
+### Fixed
+- **Playoff Missed Games Calculation** - Users who didn't qualify for playoffs/Super Bowl no longer have those weeks counted as "missed games"
+- Playoff eligibility (top 4) is checked before counting playoff weeks as missed
+- Super Bowl eligibility (top 2 playoff performers) is checked before counting Super Bowl week as missed
+- This ensures accuracy percentages are fair to users who weren't eligible to participate
+
 ## [1.2.31] - 2026-02-11
 
 ### Fixed
