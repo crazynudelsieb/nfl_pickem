@@ -77,7 +77,6 @@ def index():
 
         if is_playoff_mode:
             # During playoffs: show dual scores for ALL users (not just top 4)
-            from app.models.regular_season_snapshot import RegularSeasonSnapshot
 
             # Ensure we have fresh data from the database
             db.session.commit()
@@ -93,12 +92,9 @@ def index():
                 if not stats:
                     continue
 
-                # Check if user is playoff eligible
-                snapshot = RegularSeasonSnapshot.query.filter_by(
-                    season_id=current_season.id,
-                    user_id=user.id,
-                    group_id=selected_group.id
-                ).first()
+                # Use eligibility methods (have proper fallback if snapshots missing)
+                is_po_eligible, _ = user.is_playoff_eligible(current_season.id, selected_group.id)
+                is_sb_eligible, _ = user.is_superbowl_eligible_from_snapshot(current_season.id, selected_group.id)
 
                 leaderboard.append({
                     "user_id": user.id,
@@ -112,14 +108,13 @@ def index():
                     "tiebreaker_points": stats["total"]["tiebreaker_points"],
                     "accuracy": stats["total"]["accuracy"],
                     "longest_streak": stats["total"]["longest_streak"],
-                    # Playoff-specific data
-                    "is_playoff_eligible": snapshot.is_playoff_eligible if snapshot else False,
-                    "is_superbowl_eligible": snapshot.is_superbowl_eligible if snapshot else False,
+                    # Playoff-specific data (using methods with fallback)
+                    "is_playoff_eligible": is_po_eligible,
+                    "is_superbowl_eligible": is_sb_eligible,
                     "regular_wins": stats["regular_season"]["wins"],
                     "regular_score": stats["regular_season"]["total_score"],
                     "playoff_wins": stats["playoffs"]["wins"],
                     "playoff_score": stats["playoffs"]["total_score"],
-                    "regular_rank": snapshot.final_rank if snapshot else None,
                 })
 
             # CRITICAL: During playoffs, sort by playoff wins (not total score)
