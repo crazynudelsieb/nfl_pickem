@@ -22,7 +22,6 @@ from app.models import (
     Invite,
     Pick,
     Season,
-    Team,
     User,
 )
 from app.routes.groups import bp
@@ -76,50 +75,13 @@ def index():
         is_playoff_mode = current_season.is_playoff_week(current_season.current_week)
 
         if is_playoff_mode:
-            # During playoffs: show dual scores for ALL users (not just top 4)
+            # During playoffs: dual scores for all group members
+            from app.utils.leaderboard import build_playoff_leaderboard
 
-            # Ensure we have fresh data from the database
-            db.session.commit()
-            db.session.expire_all()
-
-            # Get all active members of this group
             member_ids = [m.user_id for m in selected_group.get_active_members()]
-            all_users = User.query.filter(User.id.in_(member_ids)).all()
-            leaderboard = []
-
-            for user in all_users:
-                stats = user.get_season_stats(current_season.id, group_id=selected_group.id)
-                if not stats:
-                    continue
-
-                # Use eligibility methods (have proper fallback if snapshots missing)
-                is_po_eligible, _ = user.is_playoff_eligible(current_season.id, selected_group.id)
-                is_sb_eligible, _ = user.is_superbowl_eligible_from_snapshot(current_season.id, selected_group.id)
-
-                leaderboard.append({
-                    "user_id": user.id,
-                    "user": user,
-                    "total_score": stats["total"]["total_score"],
-                    "wins": stats["total"]["wins"],
-                    "ties": stats["total"]["ties"],
-                    "losses": stats["total"]["losses"],
-                    "missed_games": stats["total"]["missed_games"],
-                    "completed_picks": stats["total"]["completed_picks"],
-                    "tiebreaker_points": stats["total"]["tiebreaker_points"],
-                    "accuracy": stats["total"]["accuracy"],
-                    "longest_streak": stats["total"]["longest_streak"],
-                    # Playoff-specific data (using methods with fallback)
-                    "is_playoff_eligible": is_po_eligible,
-                    "is_superbowl_eligible": is_sb_eligible,
-                    "regular_wins": stats["regular_season"]["wins"],
-                    "regular_score": stats["regular_season"]["total_score"],
-                    "playoff_wins": stats["playoffs"]["wins"],
-                    "playoff_score": stats["playoffs"]["total_score"],
-                })
-
-            # CRITICAL: During playoffs, sort by playoff wins (not total score)
-            leaderboard.sort(
-                key=lambda x: (x["playoff_wins"], x["tiebreaker_points"]), reverse=True
+            members = User.query.filter(User.id.in_(member_ids)).all()
+            leaderboard = build_playoff_leaderboard(
+                current_season, group_id=selected_group.id, users=members
             )
         else:
             # Regular season: use existing leaderboard
@@ -156,6 +118,10 @@ def create():
             is_public=form.is_public.data,
             max_members=form.max_members.data,
             creator_id=current_user.id,
+            pick_team_once=form.pick_team_once.data,
+            no_repeat_opponent=form.no_repeat_opponent.data,
+            playoff_spots=form.playoff_spots.data,
+            superbowl_spots=form.superbowl_spots.data,
         )
 
         db.session.add(group)
@@ -191,7 +157,7 @@ def create():
 @bp.route("/<int:group_id>")
 @login_required
 def detail(group_id):
-    """Group detail page"""
+    """Group detail - shown on the groups index page"""
     group = Group.query.get_or_404(group_id)
 
     # Check if user is a member
@@ -204,24 +170,7 @@ def detail(group_id):
         flash("This group has been disabled by the owner.", "warning")
         return redirect(url_for("groups.index"))
 
-    # Get group leaderboard
-    current_season = Season.get_current_season()
-    leaderboard = []
-    if current_season:
-        leaderboard = group.get_leaderboard(current_season.id)
-
-    # Get user's membership info
-    membership = GroupMember.query.filter_by(
-        user_id=current_user.id, group_id=group_id, is_active=True
-    ).first()
-
-    return render_template(
-        "groups/detail.html",
-        group=group,
-        leaderboard=leaderboard,
-        current_season=current_season,
-        membership=membership,
-    )
+    return redirect(url_for("groups.index", group=group.slug))
 
 
 @bp.route("/<int:group_id>/edit", methods=["GET", "POST"])
@@ -242,6 +191,10 @@ def edit(group_id):
         group.description = form.description.data
         group.is_public = form.is_public.data
         group.max_members = form.max_members.data
+        group.pick_team_once = form.pick_team_once.data
+        group.no_repeat_opponent = form.no_repeat_opponent.data
+        group.playoff_spots = form.playoff_spots.data
+        group.superbowl_spots = form.superbowl_spots.data
 
         db.session.commit()
         flash("Group updated successfully!", "success")
@@ -721,16 +674,23 @@ def admin_picks(group_id):
         # Get the team object for logging/display
         team = game.home_team if team_id == game.home_team_id else game.away_team
 
-        # Check if user already has a pick for this week
-        existing_pick = (
-            Pick.query.join(Game)
-            .filter(
-                Pick.user_id == user_id,
-                Pick.season_id == current_season.id,
-                Game.week == week,
-            )
-            .first()
-        )
+        # Group context for this pick (global users keep group_id=None)
+        pick_group_id = None if target_user.picks_are_global else group_id
+
+        # Check if user already has a pick for this week IN THIS GROUP CONTEXT -
+        # without the group filter a per-group user's pick in another group
+        # would be silently modified or deleted.
+        week_pick_filter = [
+            Pick.user_id == user_id,
+            Pick.season_id == current_season.id,
+            Game.week == week,
+        ]
+        if pick_group_id is not None:
+            week_pick_filter.append(Pick.group_id == pick_group_id)
+        else:
+            week_pick_filter.append(Pick.group_id.is_(None))
+
+        existing_pick = Pick.query.join(Game).filter(*week_pick_filter).first()
 
         success_msg = None
         error_msg = None
@@ -787,26 +747,9 @@ def admin_picks(group_id):
         else:
             # Create new pick
             if admin_override:
-                # Admin override: create pick directly without validation
-                # Set group_id based on user's picks_are_global setting
-                pick_group_id = None if target_user.picks_are_global else group_id
-
-                # Check if user already has a pick for this week (handle switching)
-                existing_week_pick = (
-                    Pick.query.join(Game)
-                    .filter(
-                        Pick.user_id == user_id,
-                        Pick.season_id == current_season.id,
-                        Game.week == week,
-                    )
-                    .first()
-                )
-
-                if existing_week_pick:
-                    # Delete existing pick to allow switching
-                    db.session.delete(existing_week_pick)
-                    db.session.flush()
-
+                # Admin override: create pick directly without validation.
+                # existing_pick above was already scoped to this group context,
+                # so there is no other pick to remove here.
                 pick = Pick(
                     user_id=user_id,
                     game_id=game_id,
@@ -841,8 +784,10 @@ def admin_picks(group_id):
                     f"Successfully created pick with override: user_id={user_id}, week={week}, team_id={team_id}"
                 )
             else:
-                # Use normal validation
-                pick, message = Pick.create_pick(user_id, game_id, team_id)
+                # Use normal validation (group-aware)
+                pick, message = Pick.create_pick(
+                    user_id, game_id, team_id, group_id=pick_group_id
+                )
                 if pick:
                     # If game is already final, immediately calculate result
                     if game.is_final:
@@ -899,7 +844,12 @@ def admin_picks(group_id):
 
     all_picks = (
         Pick.query.join(Game)
-        .filter(Pick.user_id.in_(member_ids), Pick.season_id == current_season.id)
+        .filter(
+            Pick.user_id.in_(member_ids),
+            Pick.season_id == current_season.id,
+            # This group's picks plus global picks - not other groups' picks
+            db.or_(Pick.group_id == group_id, Pick.group_id.is_(None)),
+        )
         .options(joinedload(Pick.game), joinedload(Pick.selected_team))
         .order_by(Game.week)
         .all()
@@ -950,14 +900,25 @@ def admin_picks_user_data(group_id, user_id):
     if not group.is_user_admin(current_user.id):
         return jsonify({"error": "Permission denied"}), 403
 
+    # Group admins may only inspect picks of this group's members
+    if not group.is_user_member(user_id):
+        return jsonify({"error": "User is not a member of this group"}), 403
+
     current_season = Season.get_current_season()
     if not current_season:
         return jsonify({"error": "No active season"}), 400
 
-    # Get all picks for this user in this season
+    # Get this user's picks for this season, scoped to this group's context
+    target_user = User.query.get_or_404(user_id)
+    pick_filter = [Pick.user_id == user_id, Pick.season_id == current_season.id]
+    if target_user.picks_are_global:
+        pick_filter.append(Pick.group_id.is_(None))
+    else:
+        pick_filter.append(Pick.group_id == group_id)
+
     user_picks = (
         Pick.query.join(Game)
-        .filter(Pick.user_id == user_id, Pick.season_id == current_season.id)
+        .filter(*pick_filter)
         .options(joinedload(Pick.game), joinedload(Pick.selected_team))
         .all()
     )
@@ -1059,6 +1020,16 @@ def admin_delete_pick(group_id, pick_id):
 
     pick = Pick.query.get_or_404(pick_id)
     target_user = User.query.get(pick.user_id)
+
+    # Group admins may only delete picks that belong to this group's context:
+    # the pick's owner must be a member, and the pick must either be scoped to
+    # this group or be a global pick of a global-picks member.
+    if not group.is_user_member(pick.user_id):
+        return jsonify({"error": "Pick does not belong to this group"}), 403
+    if pick.group_id != group_id and not (
+        pick.group_id is None and target_user and target_user.picks_are_global
+    ):
+        return jsonify({"error": "Pick does not belong to this group"}), 403
 
     # Log the deletion before deleting the pick
     AdminAction.log_pick_deletion(current_user, target_user, group, pick)

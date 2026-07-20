@@ -51,65 +51,68 @@ def cached_route(timeout=300, key_prefix="view"):
     return decorator
 
 
-def cached_query(model_name, timeout=300):
-    """
-    Decorator for caching database query results
-
-    Args:
-        model_name: Name of the model for cache key generation
-        timeout: Cache timeout in seconds
-    """
-
-    def decorator(f):
-        @functools.wraps(f)
-        def wrapped(*args, **kwargs):
-            # Generate cache key from function name and arguments
-            args_str = "_".join(str(arg) for arg in args)
-            kwargs_str = "_".join(f"{k}_{v}" for k, v in sorted(kwargs.items()))
-            cache_key = f"query_{model_name}_{f.__name__}_{args_str}_{kwargs_str}"
-
-            # Try to get from cache
-            result = cache.get(cache_key)
-            if result is not None:
-                current_app.logger.debug(f"Query cache hit: {cache_key}")
-                return result
-
-            # Execute query and cache result
-            result = f(*args, **kwargs)
-            cache.set(cache_key, result, timeout=timeout)
-            current_app.logger.debug(f"Query cache set: {cache_key}")
-
-            return result
-
-        return wrapped
-
-    return decorator
+# Which cached-route key prefixes each model's data feeds into. Cached route
+# keys look like "<key_prefix>_<request path>..." (see cached_route). Models
+# with no cached routes (Pick, User) need no invalidation at all.
+MODEL_CACHE_PREFIXES = {
+    "game": ["season_games", "week_games", "current_week_games"],
+    "season": [
+        "seasons",
+        "current_season",
+        "season_games",
+        "week_games",
+        "current_week_games",
+    ],
+    "team": ["season_games", "week_games", "current_week_games"],
+    "pick": [],
+    "user": [],
+}
 
 
-def invalidate_cache_pattern(pattern):
-    """
-    Invalidate cache keys matching a pattern
+def _delete_keys_with_prefix(prefix):
+    """Delete cache keys starting with prefix (Redis) or clear all (SimpleCache)"""
+    backend = getattr(cache, "cache", None)
+    redis_client = getattr(backend, "_write_client", None)
 
-    Args:
-        pattern: Pattern to match cache keys
-    """
-    try:
-        # For simple cache, we need to track keys manually
-        # This is a limitation of SimpleCache - consider Redis for production
-        cache.clear()
-        current_app.logger.info(f"Cache cleared for pattern: {pattern}")
-    except Exception as e:
-        current_app.logger.error(f"Failed to clear cache: {e}")
+    if redis_client is not None:
+        full_prefix = f"{getattr(backend, 'key_prefix', '')}{prefix}"
+        keys = list(redis_client.scan_iter(match=f"{full_prefix}*"))
+        if keys:
+            redis_client.delete(*keys)
+        return len(keys)
+
+    # SimpleCache has no pattern support - fall back to clearing everything
+    cache.clear()
+    return -1
 
 
 def invalidate_model_cache(model_name):
     """
-    Invalidate all cache entries for a specific model
+    Invalidate cached routes that serve a specific model's data.
+
+    Only the affected route caches are deleted; models without cached routes
+    are a no-op (this used to clear the entire cache on every call).
 
     Args:
-        model_name: Name of the model to invalidate
+        model_name: Name of the model to invalidate (case-insensitive)
     """
-    invalidate_cache_pattern(f"*{model_name}*")
+    prefixes = MODEL_CACHE_PREFIXES.get(model_name.lower())
+    if prefixes is None:
+        # Unknown model - be safe and clear everything
+        try:
+            cache.clear()
+            current_app.logger.info(f"Cache cleared for unknown model: {model_name}")
+        except Exception as e:
+            current_app.logger.error(f"Failed to clear cache: {e}")
+        return
+
+    for prefix in prefixes:
+        try:
+            _delete_keys_with_prefix(prefix)
+        except Exception as e:
+            current_app.logger.error(
+                f"Failed to invalidate cache prefix {prefix}: {e}"
+            )
 
 
 def invalidate_pick_related_caches():

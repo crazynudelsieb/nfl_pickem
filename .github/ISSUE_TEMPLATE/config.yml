@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 💬 General Discussion
+    url: https://github.com/crazynudelsieb/nfl_pickem/discussions
+    about: Ask questions, share ideas, or discuss the project with the community
+  - name: 🔒 Security Issue
+    url: https://github.com/crazynudelsieb/nfl_pickem/security/advisories/new
+    about: Please report security vulnerabilities privately (not public issues)

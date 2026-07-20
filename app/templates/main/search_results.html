@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+
+{% block title %}Search - NFL Pick'em{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <h1 class="page-title">Search</h1>
+        {% if query %}
+        <p class="page-subtitle">Results for "{{ query }}"</p>
+        {% endif %}
+    </div>
+
+    <form method="GET" action="{{ url_for('main.search') }}" class="mb-6" style="display: flex; gap: 0.5rem; max-width: 480px;">
+        <input type="search" name="q" value="{{ query }}" placeholder="Search groups and players..."
+               class="form-input" style="flex: 1;" autofocus>
+        <button type="submit" class="btn btn-primary"><i class="fas fa-search"></i> Search</button>
+    </form>
+
+    {% if query %}
+        <!-- Groups -->
+        <div class="leaderboard-card mb-6">
+            <div class="leaderboard-header">
+                <h2 style="margin: 0; font-size: 1.25rem; color: var(--text-primary);">
+                    <i class="fas fa-users"></i> Groups
+                </h2>
+            </div>
+            <div style="padding: 1.5rem;">
+                {% if results.groups %}
+                    <ul style="list-style: none; margin: 0; padding: 0; display: grid; gap: 0.75rem;">
+                        {% for group in results.groups %}
+                        <li style="padding: 0.75rem 1rem; background: var(--bg-tertiary); border-radius: 8px; display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <strong style="color: var(--text-primary);">{{ group.name }}</strong>
+                                {% if group.description %}
+                                <div style="color: var(--text-secondary); font-size: 0.875rem;">{{ group.description }}</div>
+                                {% endif %}
+                            </div>
+                            {% if current_user.is_member_of_group(group.id) %}
+                            <a href="{{ url_for('groups.index', group=group.slug) }}" class="btn btn-secondary">View</a>
+                            {% elif group.is_public %}
+                            <a href="{{ url_for('groups.join', code=group.invite_code) }}" class="btn btn-primary">Join</a>
+                            {% endif %}
+                        </li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <p style="margin: 0; color: var(--text-secondary);">No groups found.</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Players -->
+        <div class="leaderboard-card mb-6">
+            <div class="leaderboard-header">
+                <h2 style="margin: 0; font-size: 1.25rem; color: var(--text-primary);">
+                    <i class="fas fa-user"></i> Players
+                </h2>
+            </div>
+            <div style="padding: 1.5rem;">
+                {% if results.users %}
+                    <ul style="list-style: none; margin: 0; padding: 0; display: grid; gap: 0.75rem;">
+                        {% for user in results.users %}
+                        <li style="padding: 0.75rem 1rem; background: var(--bg-tertiary); border-radius: 8px; display: flex; align-items: center; gap: 0.75rem;">
+                            {% if user.avatar_url %}
+                            <img src="{{ user.avatar_url }}" alt="" style="width: 32px; height: 32px; border-radius: 50%;">
+                            {% endif %}
+                            <div>
+                                <strong style="color: var(--text-primary);">{{ user.full_name }}</strong>
+                                <div style="color: var(--text-secondary); font-size: 0.875rem;">@{{ user.username }}</div>
+                            </div>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <p style="margin: 0; color: var(--text-secondary);">No players found in your groups.</p>
+                {% endif %}
+            </div>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

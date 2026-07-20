@@ -104,11 +104,10 @@ class Pick(db.Model):
         from .game import Game
         from .season import Season
 
-        # NEW: Check playoff eligibility
+        # Check playoff eligibility (top N from regular season, N per group rules)
         season = Season.query.get(self.season_id)
         if season and season.is_playoff_week(self.game.week):
-            # Playoff weeks: only top 4 can pick
-            is_eligible, message = self.user.is_playoff_eligible_from_snapshot(
+            is_eligible, message = self.user.is_playoff_eligible(
                 self.season_id,
                 self.group_id
             )
@@ -116,10 +115,11 @@ class Pick(db.Model):
             if not is_eligible:
                 return False, message
 
-            # NEW: Super Bowl restriction (week 22)
+            # Super Bowl restriction (final week): only the top N playoff
+            # players may pick. Each qualifier picks any team freely - there is
+            # no opposing-teams constraint.
             superbowl_week = season.regular_season_weeks + season.playoff_weeks
             if self.game.week == superbowl_week:
-                # Check Super Bowl eligibility (top 2 from playoffs)
                 is_sb_eligible, sb_message = self.user.is_superbowl_eligible_from_snapshot(
                     self.season_id,
                     self.group_id
@@ -127,40 +127,6 @@ class Pick(db.Model):
 
                 if not is_sb_eligible:
                     return False, sb_message
-
-                # Check opposing team constraint
-                # Find other Super Bowl pick from top 2 users
-                from .regular_season_snapshot import RegularSeasonSnapshot
-
-                effective_group_id = None if self.user.picks_are_global else self.group_id
-                superbowl_eligible_users = RegularSeasonSnapshot.get_superbowl_eligible_users(
-                    self.season_id,
-                    effective_group_id
-                )
-
-                # Find other user's pick (if any)
-                other_user_id = next((uid for uid in superbowl_eligible_users if uid != self.user_id), None)
-
-                if other_user_id:
-                    other_sb_pick_query = Pick.query.join(Game).filter(
-                        Pick.user_id == other_user_id,
-                        Pick.season_id == self.season_id,
-                        Game.week == superbowl_week,
-                        Pick.id != self.id  # Exclude this pick
-                    )
-
-                    # Filter by group context
-                    if self.group_id is not None:
-                        other_sb_pick_query = other_sb_pick_query.filter(Pick.group_id == self.group_id)
-                    else:
-                        other_sb_pick_query = other_sb_pick_query.filter(Pick.group_id.is_(None))
-
-                    other_sb_pick = other_sb_pick_query.first()
-
-                    if other_sb_pick and other_sb_pick.selected_team_id == self.selected_team_id:
-                        from .user import User
-                        other_user = User.query.get(other_user_id)
-                        return False, f"Both top 2 must pick opposing teams. {other_user.username} already picked this team."
 
         # EXISTING: One pick per game week validation
         # Build filter that respects group context
@@ -203,21 +169,18 @@ class Pick(db.Model):
             week=self.game.week,
             season_id=self.season_id,
             group_id=self.group_id,
-            exclude_pick_id=self.id  # Exclude this pick when checking (for updates)
+            exclude_pick_id=self.id,  # Exclude this pick when checking (for updates)
+            game=self.game,
         )
-        
+
         if not can_pick:
             # Make error messages more specific with team abbreviation if available
             if "already used" in reason.lower():
-                # Load team abbreviation if needed
                 team_abbr = self.selected_team.abbreviation if self.selected_team else f"Team {self.selected_team_id}"
                 return False, f"{team_abbr} already used this season"
-            elif "losing team" in reason.lower():
-                team_abbr = self.selected_team.abbreviation if self.selected_team else f"Team {self.selected_team_id}"
-                return False, f"Cannot use {team_abbr} - they lost last game week. Must have a game week between using losing teams."
             else:
                 return False, reason
-        
+
         return True, "Team rules valid"
 
     def update_result(self):
@@ -328,105 +291,35 @@ class Pick(db.Model):
         
         return updated, game.week
 
-    def get_user_season_picks(self):
-        """Get all picks by this user for this season"""
-        from .game import Game
-
-        return (
-            Pick.query.filter_by(user_id=self.user_id, season_id=self.season_id)
-            .join(Game)
-            .order_by(Game.week)
-            .all()
-        )
-
-    def get_used_teams(self):
-        """Get list of teams already used by this user this season"""
-        picks = self.get_user_season_picks()
-        return [pick.selected_team for pick in picks if pick.id != self.id]
-
-    def get_available_teams_for_week(self, week):
-        """Get teams available for selection in a specific week"""
-        from .season import Season
-        from .team import Team
-
-        season = Season.query.get(self.season_id)
-        if not season:
-            return []
-
-        # Get all teams for the season
-        all_teams = Team.get_all_for_season(self.season_id)
-
-        # If playoff week, all teams are available
-        if season.is_playoff_week(week):
-            # Filter to teams that are actually playing this week
-            from .game import Game
-
-            games = Game.query.filter_by(season_id=self.season_id, week=week).all()
-            playing_teams = []
-            for game in games:
-                playing_teams.extend([game.home_team, game.away_team])
-            return playing_teams
-
-        # For regular season, exclude already used teams
-        used_teams = self.get_used_teams()
-        used_team_ids = [team.id for team in used_teams]
-
-        available_teams = [team for team in all_teams if team.id not in used_team_ids]
-
-        # Also check losing team restriction
-        if week > 1:
-            from .game import Game
-
-            previous_week_pick = (
-                Pick.query.join(Game)
-                .filter(
-                    Pick.user_id == self.user_id,
-                    Pick.season_id == self.season_id,
-                    Game.week == week - 1,
-                )
-                .first()
-            )
-
-            if previous_week_pick and previous_week_pick.is_correct is False:
-                available_teams = [
-                    team
-                    for team in available_teams
-                    if team.id != previous_week_pick.selected_team_id
-                ]
-
-        # Filter to teams playing this week
-        from .game import Game
-
-        games = Game.query.filter_by(season_id=self.season_id, week=week).all()
-        playing_team_ids = []
-        for game in games:
-            playing_team_ids.extend([game.home_team_id, game.away_team_id])
-
-        available_teams = [
-            team for team in available_teams if team.id in playing_team_ids
-        ]
-
-        return available_teams
-
     @staticmethod
-    def create_pick(user_id, game_id, selected_team_id):
-        """Create a new pick with validation - handles switching picks automatically"""
+    def create_pick(user_id, game_id, selected_team_id, group_id=None):
+        """Create a new pick with validation - handles switching picks automatically
+
+        Args:
+            user_id: User making the pick
+            game_id: Game being picked
+            selected_team_id: Team being picked
+            group_id: Group context for the pick (None for global picks). Must
+                already reflect the user's picks_are_global setting.
+        """
         from .game import Game
 
         game = Game.query.get(game_id)
         if not game:
             return None, "Game not found"
 
-        # Check if user already has a pick for this week
-        existing_week_pick = (
-            Pick.query.join(Game)
-            .filter(
-                Pick.user_id == user_id,
-                Pick.season_id == game.season_id,
-                Game.week == game.week,
-            )
-            .first()
-        )
+        # Check if user already has a pick for this week in this group context
+        week_filter = [
+            Pick.user_id == user_id,
+            Pick.season_id == game.season_id,
+            Game.week == game.week,
+        ]
+        if group_id is not None:
+            week_filter.append(Pick.group_id == group_id)
+        else:
+            week_filter.append(Pick.group_id.is_(None))
+
+        existing_week_pick = Pick.query.join(Game).filter(*week_filter).first()
 
         if existing_week_pick:
             # If trying to pick the same game, just update the team selection
@@ -453,10 +346,16 @@ class Pick(db.Model):
             game_id=game_id,
             season_id=game.season_id,
             selected_team_id=selected_team_id,
+            group_id=group_id,
         )
 
-        # Manually set the game relationship since it's not loaded yet
+        # Manually set the relationships since the pick isn't flushed yet
+        from .user import User
+
         pick.game = game
+        pick.user = User.query.get(user_id)
+        if not pick.user:
+            return None, "User not found"
 
         # Validate the new pick (but skip the week check since we handled it above)
         is_valid, message = pick._validate_team_rules()

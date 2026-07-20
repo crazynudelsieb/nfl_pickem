@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+
+{% block title %}Privacy - {{ config.APP_NAME }}{% endblock %}
+
+{% block content %}
+<section class="container legal" style="max-width: 900px; margin: 0 auto; padding: 2rem 1rem;">
+    <h1><i class="fas fa-user-shield"></i> Privacy &amp; data transparency</h1>
+    <p class="lead">{{ config.APP_NAME }} is a private pick'em league tracker. It keeps an account
+        for you and records the picks you make so it can score them and build the standings — this
+        page lays out exactly what is kept and what isn't.</p>
+
+    {# --- What the app never does --------------------------------------- #}
+    <h2><i class="fas fa-eye-slash"></i> What {{ config.APP_NAME }} never does</h2>
+    <div class="card"><div class="card-body">
+        <ul class="privacy-list">
+            <li>No advertising, no analytics, and no tracking or profiling scripts.</li>
+            <li>No tracking cookies; your data is never sold or shared for marketing.</li>
+            <li>No real-money wagering, no payment data, and no financial details of any kind.</li>
+        </ul>
+    </div></div>
+
+    {# --- What is stored ------------------------------------------------ #}
+    <h2><i class="fas fa-database"></i> What is stored</h2>
+    <div class="card"><div class="card-body">
+        <p class="text-muted">To provide the service, the app keeps only:</p>
+        <ul class="privacy-list">
+            <li>Your account — username, email address, and a salted hash of your password. The
+                password itself is never stored and cannot be recovered, only reset.</li>
+            <li>Your picks and their results — the team picked each week, points scored, and
+                tiebreaker margins, kept for the season history and all-time standings.</li>
+            <li>Group membership — which leagues you belong to and your role in them.</li>
+            <li>Admin audit entries when a league admin makes or changes a pick on someone's
+                behalf, so such changes stay accountable.</li>
+        </ul>
+    </div></div>
+
+    {# --- Cookies ------------------------------------------------------- #}
+    <h2><i class="fas fa-cookie-bite"></i> Cookies</h2>
+    <div class="card"><div class="card-body">
+        <p>One strictly-necessary, signed session cookie (HttpOnly). It keeps you logged in and
+            protects forms against CSRF. It carries no tracking identifiers, so no consent banner
+            is required.</p>
+    </div></div>
+
+    {# --- Third-party assets -------------------------------------------- #}
+    <h2><i class="fas fa-cloud"></i> Third-party assets and data</h2>
+    <div class="card"><div class="card-body">
+        <p>Interface icons, scripts, and the real-time connection are loaded from public CDNs
+            (cdnjs, unpkg, Socket.IO). Your browser fetches these files directly, so those services
+            may see your IP address as part of delivering them. They receive no other data from
+            {{ config.APP_NAME }}.</p>
+        <p>Schedules, scores, and team logos come from ESPN's public NFL API. That data is fetched
+            by the server on a schedule — never by your browser — so no request of yours is passed
+            on to ESPN, and no personal data ever leaves this instance for them.</p>
+    </div></div>
+
+    {# --- Email --------------------------------------------------------- #}
+    <h2><i class="fas fa-envelope"></i> Email</h2>
+    <div class="card"><div class="card-body">
+        <p>Your email address is used only for account business — password resets and league
+            invitations — sent through the operator's mail server. It is used for nothing else, and
+            there is no newsletter or marketing mail.</p>
+    </div></div>
+
+    {# --- Where the data lives ------------------------------------------ #}
+    {% if config.DATA_LOCATION %}
+    <h2><i class="fas fa-map-marker-alt"></i> Where your data is stored</h2>
+    <div class="card"><div class="card-body">
+        <p>This instance stores and processes its data in {{ config.DATA_LOCATION }}.</p>
+    </div></div>
+    {% endif %}
+
+    {# --- Data at rest -------------------------------------------------- #}
+    <h2><i class="fas fa-server"></i> Data at rest</h2>
+    <div class="card"><div class="card-body">
+        <p>Apart from password hashes, data is stored unencrypted at the application level so picks
+            can be scored and standings computed. Protecting the database at rest (disk or
+            managed-database encryption) is the responsibility of whoever operates this instance.</p>
+    </div></div>
+
+    {# --- Your control -------------------------------------------------- #}
+    <h2><i class="fas fa-sliders-h"></i> Your data, your control</h2>
+    <div class="card"><div class="card-body">
+        <ul class="privacy-list">
+            <li>Review your full pick history and season results at any time from your profile.</li>
+            <li>Update your username, email, and password from your profile page.</li>
+            <li>For account deletion, or an export of your data, contact the operator. Deletion is
+                irreversible in the live database, though operator backups may retain a copy until
+                they age out.</li>
+        </ul>
+    </div></div>
+
+    {# --- Contact ------------------------------------------------------- #}
+    <h2><i class="fas fa-comments"></i> Questions?</h2>
+    <div class="card"><div class="card-body">
+        {% if contact_email or contact_links %}
+        <p>For privacy questions, reach the operator:</p>
+        <div class="legal-contact">
+            {% if contact_email %}
+            <a class="js-mail" data-user="{{ contact_email[0] }}" data-domain="{{ contact_email[1] }}" rel="nofollow">
+                <i class="fas fa-envelope"></i> <span class="mail-text">{{ contact_email[0] }}<span aria-hidden="true"> [at] </span>{{ contact_email[1] }}</span>
+            </a>
+            {% endif %}
+            {% for link in contact_links %}
+            <a href="{{ link.url }}" target="_blank" rel="{{ link.rel }}">
+                <i class="{{ link.fa_icon }}"></i> {{ link.label }}
+            </a>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-muted">No public contact channel is configured on this instance.</p>
+        {% endif %}
+    </div></div>
+
+    {% if imprint_enabled %}
+    <p style="margin-top: 1.5rem;"><a href="{{ url_for('main.impressum') }}">See the Impressum →</a></p>
+    {% endif %}
+</section>
+{% endblock %}

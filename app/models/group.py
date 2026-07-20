@@ -4,6 +4,19 @@ from datetime import datetime, timezone
 from app import db
 
 
+# Default ruleset, used for global picks (no group context) and as form defaults:
+# - pick_team_once: each team can only be picked once during the regular season
+# - no_repeat_opponent: cannot pick against the same opponent two weeks in a row
+# - playoff_spots: top N players qualify for the playoffs
+# - superbowl_spots: top N playoff players qualify for the Super Bowl
+DEFAULT_RULES = {
+    "pick_team_once": True,
+    "no_repeat_opponent": True,
+    "playoff_spots": 4,
+    "superbowl_spots": 2,
+}
+
+
 class Group(db.Model):
     __tablename__ = "groups"
 
@@ -15,6 +28,12 @@ class Group(db.Model):
     is_public = db.Column(db.Boolean, default=False)
     is_active = db.Column(db.Boolean, default=True)
     max_members = db.Column(db.Integer, default=50)
+
+    # Pick rule settings (see DEFAULT_RULES for the standard ruleset)
+    pick_team_once = db.Column(db.Boolean, default=True, nullable=False)
+    no_repeat_opponent = db.Column(db.Boolean, default=True, nullable=False)
+    playoff_spots = db.Column(db.Integer, default=4, nullable=False)
+    superbowl_spots = db.Column(db.Integer, default=2, nullable=False)
 
     # Group code for easy joining
     invite_code = db.Column(db.String(8), unique=True, nullable=False, index=True)
@@ -152,6 +171,36 @@ class Group(db.Model):
             member.left_at = datetime.now(timezone.utc)
             return True, "User removed successfully"
         return False, "User is not a member"
+
+    def get_rules(self):
+        """Return this group's pick rule settings as a dict"""
+        return {
+            "pick_team_once": (
+                self.pick_team_once
+                if self.pick_team_once is not None
+                else DEFAULT_RULES["pick_team_once"]
+            ),
+            "no_repeat_opponent": (
+                self.no_repeat_opponent
+                if self.no_repeat_opponent is not None
+                else DEFAULT_RULES["no_repeat_opponent"]
+            ),
+            "playoff_spots": self.playoff_spots or DEFAULT_RULES["playoff_spots"],
+            "superbowl_spots": self.superbowl_spots or DEFAULT_RULES["superbowl_spots"],
+        }
+
+    @classmethod
+    def rules_for(cls, group_id):
+        """Return pick rule settings for a group, or the defaults for global picks
+
+        Args:
+            group_id: Group ID or None (global picks use DEFAULT_RULES)
+        """
+        if group_id is not None:
+            group = cls.query.get(group_id)
+            if group:
+                return group.get_rules()
+        return dict(DEFAULT_RULES)
 
     def get_leaderboard(self, season_id=None):
         """Get leaderboard for the group using the new comprehensive stats system"""

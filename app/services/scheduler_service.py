@@ -14,11 +14,8 @@ from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 
 from app import db
-from app.models import Game, Pick, Season
-from app.utils.cache_utils import (
-    commit_refresh_and_invalidate_picks,
-    invalidate_model_cache,
-)
+from app.models import Game, Season
+from app.utils.cache_utils import invalidate_model_cache
 from app.utils.data_sync import DataSync
 
 logger = logging.getLogger(__name__)
@@ -371,6 +368,9 @@ class SchedulerService:
             try:
                 logger.info("Running daily maintenance...")
 
+                # Roll over to the new season automatically when it's time
+                self._ensure_active_season()
+
                 current_season = Season.get_current_season()
                 if not current_season:
                     return
@@ -436,29 +436,40 @@ class SchedulerService:
                 self.sync_stats["last_error"] = str(e)
                 logger.error(f"Error in weekly schedule sync: {e}", exc_info=True)
 
-    def _is_game_time(self):
-        """Check if current time is during typical NFL game hours"""
-        now = datetime.now(timezone.utc)
+    def _ensure_active_season(self):
+        """Activate (and sync, if needed) the season for the current NFL year.
 
-        # Convert to US Eastern Time for game scheduling
-        eastern_offset = timedelta(hours=-5)  # EST (adjust for DST as needed)
-        eastern_time = now + eastern_offset
+        Previously a new season was only created by the container startup
+        script, so the app sat on "no active season" from the Super Bowl until
+        a manual restart after August 1st. This runs as part of daily
+        maintenance and handles the rollover automatically.
+        """
+        try:
+            target_year = Season.current_nfl_year()
+            active = Season.get_current_season()
 
-        # NFL games typically:
-        # Thursday: 8:15 PM ET
-        # Sunday: 1:00 PM, 4:05/4:25 PM, 8:20 PM ET
-        # Monday: 8:15 PM ET
-        game_days = [3, 6, 0]  # Thursday, Sunday, Monday
+            if active and active.year == target_year:
+                return  # Correct season already active
 
-        if eastern_time.weekday() not in game_days:
-            return False
+            season = Season.query.filter_by(year=target_year).first()
 
-        # Game hours (12 PM - 1 AM ET next day to cover all games + overtime)
-        game_start_hour = 12
-        game_end_hour = 25  # 1 AM next day
+            if season is None:
+                logger.info(f"Season {target_year} not found - syncing from ESPN...")
+                success, message = self.data_sync.sync_season_data(target_year)
+                if not success:
+                    logger.warning(
+                        f"Could not sync season {target_year} yet: {message}"
+                    )
+                    return
+                season = Season.query.filter_by(year=target_year).first()
 
-        current_hour = eastern_time.hour
-        return game_start_hour <= current_hour <= game_end_hour
+            if season and not season.is_active and not season.is_complete:
+                season.activate()
+                logger.info(f"Activated season {target_year}")
+
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Error ensuring active season: {e}", exc_info=True)
 
     def _check_season_completion(self):
         """Check if season (Super Bowl) is complete and finalize"""
@@ -596,17 +607,6 @@ class SchedulerService:
                 if current_season.current_week <= current_season.regular_season_weeks:
                     return  # Still in regular season, not time to create snapshot
 
-                # Check if snapshot already exists
-                from app.models.regular_season_snapshot import RegularSeasonSnapshot
-
-                existing_snapshot = RegularSeasonSnapshot.query.filter_by(
-                    season_id=current_season.id
-                ).first()
-
-                if existing_snapshot:
-                    logger.debug(f"Regular season snapshot already exists for season {current_season.id}")
-                    return
-
                 # Check if all week 18 games are final
                 from app.models.game import Game
 
@@ -624,28 +624,38 @@ class SchedulerService:
                     logger.debug(f"{len(incomplete_games)} games in week {current_season.regular_season_weeks} are not yet final")
                     return
 
-                # All conditions met - create snapshot
-                logger.info(f"Creating regular season snapshot for season {current_season.id}...")
-
-                # Create global snapshot
-                global_snapshots = RegularSeasonSnapshot.create_snapshot(current_season.id, group_id=None)
-
-                # Create snapshots for each active group
+                # Create any missing snapshots. Checked per group (not season-wide)
+                # so groups created after the first snapshot run still get one.
                 from app.models.group import Group
+                from app.models.regular_season_snapshot import RegularSeasonSnapshot
+
+                contexts_with_snapshots = {
+                    row[0]
+                    for row in db.session.query(RegularSeasonSnapshot.group_id)
+                    .filter_by(season_id=current_season.id)
+                    .distinct()
+                    .all()
+                }
+
+                created_contexts = 0
+
+                if None not in contexts_with_snapshots:
+                    logger.info(f"Creating global regular season snapshot for season {current_season.id}...")
+                    RegularSeasonSnapshot.create_snapshot(current_season.id, group_id=None)
+                    created_contexts += 1
 
                 active_groups = Group.query.filter_by(is_active=True).all()
-                group_count = 0
-
                 for group in active_groups:
-                    RegularSeasonSnapshot.create_snapshot(current_season.id, group_id=group.id)
-                    group_count += 1
+                    if group.id not in contexts_with_snapshots:
+                        logger.info(f"Creating regular season snapshot for group {group.id}...")
+                        RegularSeasonSnapshot.create_snapshot(current_season.id, group_id=group.id)
+                        created_contexts += 1
 
-                db.session.commit()
-
-                logger.info(
-                    f"Successfully created regular season snapshot: "
-                    f"{len(global_snapshots)} global snapshots, {group_count} groups"
-                )
+                if created_contexts:
+                    db.session.commit()
+                    logger.info(
+                        f"Created regular season snapshots for {created_contexts} contexts"
+                    )
 
             except Exception as e:
                 db.session.rollback()
@@ -707,8 +717,6 @@ class SchedulerService:
                         group_id=group.id
                     )
                     updated_groups += 1
-
-                db.session.commit()
 
                 logger.info(
                     f"Updated Super Bowl eligibility: "

@@ -12,7 +12,6 @@ Auto-initializes the application on first container startup:
 import os
 import sys
 import time
-from datetime import date, datetime
 
 # Eventlet monkey patching MUST be first
 import eventlet
@@ -54,16 +53,7 @@ def wait_for_db(app, max_retries=30):
 
 def get_current_nfl_season():
     """Determine current NFL season year"""
-    now = datetime.now()
-
-    # NFL season typically runs Sept-Feb
-    # If it's Jan-July, we're in the previous season
-    # If it's Aug-Dec, we're in the current season
-
-    if now.month <= 7:  # Jan-July = previous year's season
-        return now.year - 1
-    else:  # Aug-Dec = current year's season
-        return now.year
+    return Season.current_nfl_year()
 
 
 def create_default_admin():
@@ -82,19 +72,26 @@ def create_default_admin():
         display_name="Administrator",
         is_active=True,
         is_verified=True,
+        is_admin=True,
     )
-    
-    # Use environment variable for admin password, fallback to secure default
-    admin_password = os.environ.get("DEFAULT_ADMIN_PASSWORD", "ChangeMe123!")
+
+    # Never ship a well-known default password. If DEFAULT_ADMIN_PASSWORD is
+    # not set, generate a random one and print it once so the operator can log
+    # in and change it.
+    admin_password = os.environ.get("DEFAULT_ADMIN_PASSWORD")
+    if not admin_password:
+        import secrets
+
+        admin_password = secrets.token_urlsafe(12)
+        print("WARNING: DEFAULT_ADMIN_PASSWORD not set - generated a random one:")
+        print(f"         username: admin   password: {admin_password}")
+        print("         Change it after first login (shown only this once).")
     admin.set_password(admin_password)
 
     db.session.add(admin)
     db.session.commit()
 
     print("Created default admin user (username: admin)")
-    print("WARNING: Please change the default password after first login!")
-    if not os.environ.get("DEFAULT_ADMIN_PASSWORD"):
-        print("WARNING: Using default password. Set DEFAULT_ADMIN_PASSWORD environment variable for security!")
 
     return admin
 

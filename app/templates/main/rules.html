@@ -14,33 +14,42 @@
     <!-- Core Rules -->
     <div class="leaderboard-card mb-6">
         <div class="leaderboard-header">
-            <h2 style="margin: 0; font-size: 1.25rem; color: var(--text-primary);">🎯 Core Rules</h2>
+            <h2 style="margin: 0; font-size: 1.25rem; color: var(--text-primary);">🎯 Regular Season Rules</h2>
         </div>
         <div style="padding: 2rem;">
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem;">
                 <div style="padding: 1.25rem; background: rgba(59, 130, 246, 0.1); border-radius: 8px; border-left: 4px solid var(--accent-blue);">
                     <h3 style="color: var(--text-primary); font-size: 1.125rem; margin: 0 0 0.75rem 0;">One Pick Per Week</h3>
                     <p style="margin: 0; color: var(--text-secondary); line-height: 1.6;">
-                        Each game week, you select ONE team that you believe will win their game. 
-                        Choose wisely - this is your only pick for that week!
+                        Each game week, you select ONE team that you believe will win their game.
+                        You can change your pick until the game you picked kicks off.
                     </p>
                 </div>
-                
+
                 <div style="padding: 1.25rem; background: rgba(239, 68, 68, 0.1); border-radius: 8px; border-left: 4px solid var(--accent-red);">
                     <h3 style="color: var(--text-primary); font-size: 1.125rem; margin: 0 0 0.75rem 0;">No Repeat Teams</h3>
                     <p style="margin: 0; color: var(--text-secondary); line-height: 1.6;">
-                        During the regular season (Weeks 1-18), you cannot pick the same team twice. 
-                        Teams reset for playoffs, so choose strategically!
+                        During the regular season (Weeks 1-18), each team can only be picked once.
+                        Teams reset for the playoffs, so choose strategically!
                     </p>
                 </div>
-                
+
                 <div style="padding: 1.25rem; background: rgba(245, 158, 11, 0.1); border-radius: 8px; border-left: 4px solid var(--accent-orange);">
-                    <h3 style="color: var(--text-primary); font-size: 1.125rem; margin: 0 0 0.75rem 0;">No Consecutive Losers</h3>
+                    <h3 style="color: var(--text-primary); font-size: 1.125rem; margin: 0 0 0.75rem 0;">No Repeat Opponents</h3>
                     <p style="margin: 0; color: var(--text-secondary); line-height: 1.6;">
-                        If your pick loses, you must wait at least one game week before you can pick that team again. 
-                        This prevents immediate re-picks after a loss.
+                        You cannot pick <em>against</em> the same opponent two weeks in a row.
+                        If your pick faced Team X last week, this week's pick cannot be playing against Team X.
                     </p>
                 </div>
+            </div>
+
+            <div style="margin-top: 1.5rem; padding: 1rem; background: rgba(59, 130, 246, 0.1); border-radius: 8px; border-left: 3px solid var(--accent-blue);">
+                <strong style="color: var(--text-primary);">Group Settings:</strong>
+                <p style="margin: 0.5rem 0 0 0; color: var(--text-secondary);">
+                    These are the default rules. Group admins can adjust them per group in the group settings:
+                    the repeat-team and repeat-opponent rules can be switched off, and the number of playoff
+                    and Super Bowl spots can be changed.
+                </p>
             </div>
         </div>
     </div>
@@ -60,7 +69,7 @@
                         <li>Example: Team wins by 14? You get +1 win, +14 tiebreaker</li>
                     </ul>
                 </div>
-                
+
                 <div style="padding: 1.25rem; background: var(--bg-tertiary); border-radius: 8px;">
                     <h3 style="color: var(--accent-red); font-size: 1.125rem; margin: 0 0 0.75rem 0;">❌ Incorrect Pick</h3>
                     <ul style="margin: 0; padding-left: 1.25rem; color: var(--text-secondary); line-height: 1.8;">
@@ -69,13 +78,29 @@
                         <li>Example: Team loses by 7? You get 0 wins, -7 tiebreaker</li>
                     </ul>
                 </div>
+
+                <div style="padding: 1.25rem; background: var(--bg-tertiary); border-radius: 8px;">
+                    <h3 style="color: var(--accent-orange); font-size: 1.125rem; margin: 0 0 0.75rem 0;">🤝 Tie Game</h3>
+                    <ul style="margin: 0; padding-left: 1.25rem; color: var(--text-secondary); line-height: 1.8;">
+                        <li><strong>+0.5 points</strong> if your game ends in a tie</li>
+                        <li><strong>No tiebreaker change</strong> (no margin of victory)</li>
+                    </ul>
+                </div>
+
+                <div style="padding: 1.25rem; background: var(--bg-tertiary); border-radius: 8px;">
+                    <h3 style="color: var(--text-primary); font-size: 1.125rem; margin: 0 0 0.75rem 0;">⏰ Missed Week</h3>
+                    <ul style="margin: 0; padding-left: 1.25rem; color: var(--text-secondary); line-height: 1.8;">
+                        <li><strong>0 points</strong> - no pick, no win</li>
+                        <li>Missed weeks count against your accuracy</li>
+                    </ul>
+                </div>
             </div>
 
             <div style="padding: 1rem; background: rgba(59, 130, 246, 0.1); border-radius: 8px; border-left: 3px solid var(--accent-blue);">
                 <strong style="color: var(--text-primary);">How Tiebreakers Work:</strong>
                 <p style="margin: 0.5rem 0 0 0; color: var(--text-secondary);">
-                    Tiebreaker points only matter when two or more players have the same number of wins. 
-                    The player with the higher tiebreaker total ranks higher. This rewards picking teams that win decisively 
+                    Tiebreaker points only matter when two or more players have the same number of wins.
+                    The player with the higher tiebreaker total ranks higher. This rewards picking teams that win decisively
                     and penalizes picking teams that lose badly.
                 </p>
             </div>
@@ -85,14 +110,15 @@
     <!-- Playoff Rules -->
     <div class="leaderboard-card mb-6">
         <div class="leaderboard-header">
-            <h2 style="margin: 0; font-size: 1.25rem; color: var(--text-primary);">🏅 Playoff Qualification</h2>
+            <h2 style="margin: 0; font-size: 1.25rem; color: var(--text-primary);">🏅 Playoffs &amp; Super Bowl</h2>
         </div>
         <div style="padding: 2rem;">
             <div style="margin-bottom: 1.5rem;">
                 <h3 style="color: var(--text-primary); font-size: 1.125rem; margin: 0 0 1rem 0;">Who Makes the Playoffs?</h3>
                 <div style="padding: 1rem; background: rgba(16, 185, 129, 0.1); border-radius: 8px; border-left: 3px solid var(--accent-green);">
                     <p style="margin: 0; color: var(--text-secondary); line-height: 1.6;">
-                        After the regular season (18 weeks), the <strong>top 4 players</strong> advance to the playoffs. 
+                        After the regular season (18 weeks), the <strong>top 4 players</strong> advance to the playoffs
+                        (group admins can change the number of spots).
                         Rankings are determined by:
                     </p>
                     <ol style="margin: 0.5rem 0 0 1.25rem; color: var(--text-secondary); line-height: 1.8;">
@@ -102,13 +128,23 @@
                 </div>
             </div>
 
-            <div>
+            <div style="margin-bottom: 1.5rem;">
                 <h3 style="color: var(--text-primary); font-size: 1.125rem; margin: 0 0 1rem 0;">Playoff Changes</h3>
                 <ul style="margin: 0; padding-left: 1.25rem; color: var(--text-secondary); line-height: 1.8;">
-                    <li><strong>Teams reset:</strong> All teams become available again, even if you used them in regular season</li>
-                    <li><strong>Same scoring:</strong> Still 1 point per win + margin as tiebreaker</li>
-                    <li><strong>Fewer games:</strong> Only playoff teams are playing, making choices more strategic</li>
+                    <li><strong>Teams reset:</strong> Teams can be picked as often as you want, even if you used them in the regular season</li>
+                    <li><strong>Opponents reset:</strong> The repeat-opponent rule does not apply in the playoffs</li>
+                    <li><strong>Separate scoring:</strong> Your regular season score is frozen; playoff standings count playoff wins, with season-long tiebreaker points deciding ties</li>
                 </ul>
+            </div>
+
+            <div>
+                <h3 style="color: var(--text-primary); font-size: 1.125rem; margin: 0 0 1rem 0;">The Super Bowl</h3>
+                <div style="padding: 1rem; background: rgba(245, 158, 11, 0.1); border-radius: 8px; border-left: 3px solid var(--accent-orange);">
+                    <ul style="margin: 0; padding-left: 1.25rem; color: var(--text-secondary); line-height: 1.8;">
+                        <li>Only the <strong>top 2 players of the playoff standings</strong> may pick in the Super Bowl (group admins can change the number of spots)</li>
+                        <li>Each qualifier picks any team they like - no restrictions</li>
+                    </ul>
+                </div>
             </div>
         </div>
     </div>
@@ -126,25 +162,25 @@
                         Don't use all the best teams early. Save powerhouse teams for difficult weeks when other options look weak.
                     </p>
                 </div>
-                
+
                 <div style="padding: 1rem; background: var(--bg-tertiary); border-radius: 8px;">
                     <strong style="color: var(--text-primary);">📅 Plan Ahead</strong>
                     <p style="margin: 0.5rem 0 0 0; color: var(--text-secondary);">
                         Look at the upcoming schedule. If a great team has a tough matchup this week but an easy one next week, consider waiting.
                     </p>
                 </div>
-                
+
                 <div style="padding: 1rem; background: var(--bg-tertiary); border-radius: 8px;">
                     <strong style="color: var(--text-primary);">⚖️ Consider Margins</strong>
                     <p style="margin: 0.5rem 0 0 0; color: var(--text-secondary);">
                         When tied in wins, tiebreaker points decide rankings. Picking teams in blowouts helps, but be careful - big losses hurt your tiebreaker!
                     </p>
                 </div>
-                
+
                 <div style="padding: 1rem; background: var(--bg-tertiary); border-radius: 8px;">
-                    <strong style="color: var(--text-primary);">🚫 Avoid Bad Streaks</strong>
+                    <strong style="color: var(--text-primary);">🚫 Watch the Opponent Rule</strong>
                     <p style="margin: 0.5rem 0 0 0; color: var(--text-secondary);">
-                        Remember the "no consecutive losers" rule. If you pick a team and they lose, you can't use them next week. Plan around this!
+                        Remember: you can't pick against the same opponent two weeks in a row. Check who your pick is facing before you lock it in!
                     </p>
                 </div>
             </div>

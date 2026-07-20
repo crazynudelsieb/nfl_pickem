@@ -104,6 +104,37 @@ class Config:
     LOG_DIR = os.environ.get("LOG_DIR", "logs")
     SLOW_QUERY_THRESHOLD = float(os.environ.get("SLOW_QUERY_THRESHOLD", "1.0"))
 
+    # Display name used in page titles, the footer, and the legal pages
+    APP_NAME = os.environ.get("APP_NAME", "NFL Pick'em")
+
+    # --- Contact / social (optional; only the ones set are shown) ---------
+    # Standardized across the appchen apps. Each channel is opt-in: leave a
+    # value blank and it simply never appears in the footer or on the legal
+    # pages. The email is rendered obfuscated (no literal "@" or mailto: in
+    # the HTML source) to resist naive address harvesters - the client
+    # reassembles it (see the js-mail handler in base.html).
+    CONTACT_EMAIL = os.environ.get("CONTACT_EMAIL", "").strip()
+    CONTACT_MASTODON = os.environ.get("CONTACT_MASTODON", "").strip()
+    CONTACT_GITHUB = os.environ.get("CONTACT_GITHUB", "").strip()
+    CONTACT_KOFI = os.environ.get("CONTACT_KOFI", "").strip()
+    CONTACT_BUYMEACOFFEE = os.environ.get("CONTACT_BUYMEACOFFEE", "").strip()
+
+    # --- Legal / Impressum (optional) -------------------------------------
+    # Site notice required by EU law (e.g. Germany's TMG, Austria's ECG).
+    # The /impressum page is served (and linked in the footer) only once
+    # IMPRINT_NAME is set; the rest are optional detail lines. Use "\n"
+    # inside address / extra to force line breaks.
+    IMPRINT_NAME = os.environ.get("IMPRINT_NAME", "").strip()
+    IMPRINT_ADDRESS = os.environ.get("IMPRINT_ADDRESS", "").strip().replace("\\n", "\n")
+    IMPRINT_EMAIL = os.environ.get("IMPRINT_EMAIL", "").strip() or CONTACT_EMAIL
+    IMPRINT_PHONE = os.environ.get("IMPRINT_PHONE", "").strip()
+    IMPRINT_VAT = os.environ.get("IMPRINT_VAT", "").strip()
+    IMPRINT_EXTRA = os.environ.get("IMPRINT_EXTRA", "").strip().replace("\\n", "\n")
+    IMPRINT_ENABLED = bool(IMPRINT_NAME)
+
+    # Optional data-residency note shown on /privacy. Blank hides the line.
+    DATA_LOCATION = os.environ.get("DATA_LOCATION", "").strip()
+
     # Environment detection
     FLASK_ENV = os.environ.get("FLASK_ENV", "development")
     DEBUG = FLASK_ENV == "development"
@@ -124,7 +155,7 @@ class DevelopmentConfig(Config):
 
             redis_client = redis.Redis.from_url(self.CACHE_REDIS_URL)
             redis_client.ping()
-        except (ImportError, redis.exceptions.ConnectionError):
+        except Exception:
             self.CACHE_TYPE = "SimpleCache"
             warnings.warn(
                 "🔶 Redis not available, falling back to SimpleCache for development. "
@@ -143,10 +174,11 @@ class ProductionConfig(Config):
         super().__init__()  # Call parent __init__ to build database URI
 
         if not os.environ.get("SECRET_KEY"):
-            warnings.warn(
-                "🚨 PRODUCTION WARNING: SECRET_KEY not explicitly set! "
-                "Using auto-generated key is not recommended for production.",
-                UserWarning,
+            raise RuntimeError(
+                "SECRET_KEY must be set in production. An auto-generated key "
+                "would invalidate all sessions and CSRF tokens on every "
+                "restart. Run 'python generate_secrets.py' and add the keys "
+                "to your .env file."
             )
         if not os.environ.get("WTF_CSRF_SECRET_KEY"):
             warnings.warn(
@@ -159,8 +191,16 @@ class TestingConfig(Config):
     """Testing configuration"""
 
     TESTING = True
-    SQLALCHEMY_DATABASE_URI = "sqlite:///:memory:"
     WTF_CSRF_ENABLED = False
+    # Tests must not depend on a running Redis; cache in-process instead.
+    CACHE_TYPE = "SimpleCache"
+
+    def __init__(self):
+        # Config.__init__ sets an instance attribute from the environment which
+        # would override a class attribute - set it here so tests always run
+        # against in-memory SQLite, never a real database.
+        super().__init__()
+        self.SQLALCHEMY_DATABASE_URI = "sqlite:///:memory:"
 
 
 # Configuration mapping
