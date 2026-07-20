@@ -1,4 +1,3 @@
-import logging
 import os
 
 from flask import Flask, jsonify, render_template, request
@@ -13,8 +12,6 @@ from flask_wtf.csrf import CSRFProtect
 
 from config import config
 
-logger = logging.getLogger(__name__)
-
 db = SQLAlchemy()
 login_manager = LoginManager()
 socketio = SocketIO()
@@ -26,35 +23,15 @@ csrf = CSRFProtect()
 # Client IPs come from request.remote_addr, which ProxyFix (configured in
 # create_app) rewrites from X-Forwarded-For for the trusted proxy hops only.
 # Never read forwarding headers directly - they are client-spoofable.
-# Storage is selected per-app in create_app via RATELIMIT_STORAGE_URI, so that
-# importing this module never opens a network connection.
+#
+# Counters live in this process. The app runs a single worker, so shared
+# storage would add a dependency without changing behaviour; the only cost is
+# that counters reset on restart, which is immaterial at these limits.
 limiter = Limiter(
     key_func=get_remote_address,
+    storage_uri="memory://",
     default_limits=["10000 per day", "1000 per hour"],  # Liberal limits - Cloudflare/Traefik provide primary protection
 )
-
-
-def _redis_url_if_reachable(url, purpose):
-    """Return url if a Redis server answers on it, otherwise None.
-
-    Both callers degrade to a single-process backend when Redis is missing, so
-    an unreachable server is a warning rather than a startup failure.
-    """
-    if not url:
-        return None
-    try:
-        import redis
-
-        redis.Redis.from_url(url).ping()
-    except Exception as exc:
-        logger.warning(
-            "Redis unreachable for %s (%s) - falling back to in-process backend",
-            purpose,
-            exc,
-        )
-        return None
-    logger.info("%s using Redis at %s", purpose, url)
-    return url
 
 
 def create_app(config_name=None):
@@ -105,17 +82,6 @@ def create_app(config_name=None):
     app.config["WTF_CSRF_SSL_STRICT"] = False  # Allow HTTP in development
     app.config["WTF_CSRF_CHECK_DEFAULT"] = True
 
-    # Redis backs both the rate limiter and the Socket.IO message queue. Probe
-    # once and share the result rather than connecting twice.
-    redis_url = _redis_url_if_reachable(
-        os.environ.get("REDIS_URL") or app.config.get("CACHE_REDIS_URL"),
-        "Shared Redis backend",
-    )
-    app.config["RATELIMIT_STORAGE_URI"] = redis_url or "memory://"
-    # The probe above only covers startup; this keeps rate limiting working if
-    # Redis disappears later, and Flask-Limiter reconnects on its own.
-    app.config["RATELIMIT_IN_MEMORY_FALLBACK_ENABLED"] = True
-
     # Initialize extensions
     db.init_app(app)
     login_manager.init_app(app)
@@ -139,7 +105,10 @@ def create_app(config_name=None):
         engineio_logger=app.debug,
         ping_timeout=60,
         ping_interval=25,
-        message_queue=redis_url,  # None when Redis is unavailable
+        # No message_queue: emits stay in this process, which is where every
+        # emitter (request handlers and the APScheduler job) already runs. A
+        # queue would only matter with more than one worker - and that needs
+        # sticky session routing at the proxy first, see the Dockerfile CMD.
     )
     cache.init_app(app)
     migrate.init_app(app, db)

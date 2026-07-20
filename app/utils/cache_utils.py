@@ -51,68 +51,32 @@ def cached_route(timeout=300, key_prefix="view"):
     return decorator
 
 
-# Which cached-route key prefixes each model's data feeds into. Cached route
-# keys look like "<key_prefix>_<request path>..." (see cached_route). Models
-# with no cached routes (Pick, User) need no invalidation at all.
-MODEL_CACHE_PREFIXES = {
-    "game": ["season_games", "week_games", "current_week_games"],
-    "season": [
-        "seasons",
-        "current_season",
-        "season_games",
-        "week_games",
-        "current_week_games",
-    ],
-    "team": ["season_games", "week_games", "current_week_games"],
-    "pick": [],
-    "user": [],
-}
-
-
-def _delete_keys_with_prefix(prefix):
-    """Delete cache keys starting with prefix (Redis) or clear all (SimpleCache)"""
-    backend = getattr(cache, "cache", None)
-    redis_client = getattr(backend, "_write_client", None)
-
-    if redis_client is not None:
-        full_prefix = f"{getattr(backend, 'key_prefix', '')}{prefix}"
-        keys = list(redis_client.scan_iter(match=f"{full_prefix}*"))
-        if keys:
-            redis_client.delete(*keys)
-        return len(keys)
-
-    # SimpleCache has no pattern support - fall back to clearing everything
-    cache.clear()
-    return -1
+# Models that feed no cached route, so writing them needs no invalidation at
+# all. This is the case that matters: picks are written constantly during live
+# games, and none of the cached routes serve pick or user data.
+UNCACHED_MODELS = {"pick", "user"}
 
 
 def invalidate_model_cache(model_name):
     """
     Invalidate cached routes that serve a specific model's data.
 
-    Only the affected route caches are deleted; models without cached routes
-    are a no-op (this used to clear the entire cache on every call).
+    The in-process cache has no key-pattern support, so anything that isn't in
+    UNCACHED_MODELS clears the whole cache. That is deliberately blunt: the
+    cache only ever holds the handful of read-only reference routes decorated
+    with cached_route, each of which costs a query or two to rebuild. Unknown
+    models clear too - serving stale data is worse than a rebuild.
 
     Args:
         model_name: Name of the model to invalidate (case-insensitive)
     """
-    prefixes = MODEL_CACHE_PREFIXES.get(model_name.lower())
-    if prefixes is None:
-        # Unknown model - be safe and clear everything
-        try:
-            cache.clear()
-            current_app.logger.info(f"Cache cleared for unknown model: {model_name}")
-        except Exception as e:
-            current_app.logger.error(f"Failed to clear cache: {e}")
+    if model_name.lower() in UNCACHED_MODELS:
         return
 
-    for prefix in prefixes:
-        try:
-            _delete_keys_with_prefix(prefix)
-        except Exception as e:
-            current_app.logger.error(
-                f"Failed to invalidate cache prefix {prefix}: {e}"
-            )
+    try:
+        cache.clear()
+    except Exception as e:
+        current_app.logger.error(f"Failed to invalidate cache for {model_name}: {e}")
 
 
 def invalidate_pick_related_caches():
@@ -177,7 +141,6 @@ class CacheManager:
     @staticmethod
     def get_cache_stats():
         """Get cache statistics"""
-        # This is a basic implementation - Redis would provide better stats
         return {
             "type": current_app.config.get("CACHE_TYPE", "Unknown"),
             "timeout": current_app.config.get("CACHE_DEFAULT_TIMEOUT", 300),

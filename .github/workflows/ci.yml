@@ -27,9 +27,8 @@ jobs:
           # Track the Dockerfile base image.
           python-version: "3.14"
 
-      # Resolving the pinned set is itself a test. Transitive caps that pip can
-      # only see when the relevant extra is declared - such as limits' redis<8
-      # via Flask-Limiter[redis] - fail here instead of silently at runtime.
+      # Resolving the pinned set is itself a test: a dependency bump that
+      # conflicts with the pins fails here instead of at deploy time.
       - name: Install dependencies
         run: pip install --disable-pip-version-check -r requirements-dev.txt
 
@@ -50,8 +49,6 @@ jobs:
             --bind 127.0.0.1:5000 --log-level info run:app > gunicorn.log 2>&1 &
           gunicorn_pid=$!
 
-          # No Redis service here on purpose: this also exercises the
-          # in-process fallback paths for the limiter and the message queue.
           if ! python scripts/smoke_test.py http://127.0.0.1:5000; then
             echo "----- gunicorn output -----"
             cat gunicorn.log

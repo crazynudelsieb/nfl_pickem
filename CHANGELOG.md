@@ -31,8 +31,17 @@ All notable changes to this project will be documented in this file.
 - Groupmates' picks are hidden until each game kicks off (no more pick-sniping).
 - Rules page rewritten to match the actual rules incl. tie scoring (0.5 points)
   and Super Bowl rules.
-- Cache invalidation is now targeted per route prefix instead of flushing the
-  entire Redis cache every 90 seconds during live games.
+- **Redis removed.** The app runs as a single Gunicorn worker, so Redis had one
+  client and backed three things that do not need it: a Socket.IO message queue
+  that only matters across processes, rate limit counters that are equivalent
+  in-memory, and a cache of a few read-only reference routes. Caching and rate
+  limiting are now in-process. Drop the `redis` service from your compose file
+  (`docker compose up -d --remove-orphans`); `CACHE_TYPE` and `CACHE_REDIS_URL`
+  are no longer read. A shared backend is only needed to run more than one
+  process, which also requires sticky session routing at the proxy.
+- Cache invalidation no longer runs on pick and user writes at all (the hot
+  path during live games); writes to game, season and team data clear the
+  cache, which holds only the handful of cached reference routes.
 - Leaderboards (all-time, playoff mode, season) rebuilt to use a fixed number
   of queries instead of dozens of queries per user; the duplicated playoff
   leaderboard code from three pages now lives in `app/utils/leaderboard.py`.

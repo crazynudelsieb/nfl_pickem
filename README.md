@@ -65,7 +65,6 @@ FLASK_ENV=production
 SECRET_KEY=<generate with generate_secrets.py>
 WTF_CSRF_SECRET_KEY=<generate with generate_secrets.py>
 DATABASE_URL=postgresql://user:pass@db:5432/nfl_pickem
-REDIS_URL=redis://redis:6379/0
 TIMEZONE=Europe/Vienna
 ```
 
@@ -95,7 +94,7 @@ Manual runs accept an optional version tag and let you toggle `:latest` and `--n
 
 ## Technology Stack
 
-**Backend**: Python 3.12+, Flask, SQLAlchemy, PostgreSQL, Redis
+**Backend**: Python 3.12+, Flask, SQLAlchemy, PostgreSQL
 **Frontend**: Jinja2, vanilla JS, custom CSS, Socket.IO
 **Infrastructure**: Docker, Gunicorn, reverse proxy (Nginx recommended)
 **Background jobs**: APScheduler with adaptive sync frequency
@@ -177,7 +176,7 @@ export FLASK_ENV=development
 python run.py             # http://localhost:5000
 ```
 
-SQLite and an in-process cache are used automatically when PostgreSQL/Redis aren't reachable in development.
+SQLite is used automatically when PostgreSQL isn't reachable in development. Caching and rate limiting are always in-process - the app runs as a single worker, so there is no cache server to run.
 
 ### Database schema
 
