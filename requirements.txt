@@ -11,11 +11,15 @@ Werkzeug==3.1.8
 psycopg[binary,pool]==3.3.4
 python-socketio==5.16.3
 python-engineio==4.13.3
+# WebSocket transport for async_mode="threading" - no monkey patching required.
+simple-websocket==1.1.0
 requests==2.34.2
 python-dotenv==1.2.2
 pytz==2026.2
 APScheduler==3.11.3
 email-validator==2.3.0
-gunicorn==23.0.0
-eventlet==0.41.1
-Flask-Limiter==4.1.1
+gunicorn==26.0.0
+# The [redis] extra is load-bearing, not cosmetic: it carries limits' redis<8
+# cap into the resolver. Without it an unsafe redis bump installs cleanly and
+# fails at runtime instead of failing loudly at install time.
+Flask-Limiter[redis]==4.1.1

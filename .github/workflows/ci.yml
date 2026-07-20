@@ -1,0 +1,85 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    name: Install and boot
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          # Track the Dockerfile base image.
+          python-version: "3.14"
+
+      # Resolving the pinned set is itself a test. Transitive caps that pip can
+      # only see when the relevant extra is declared - such as limits' redis<8
+      # via Flask-Limiter[redis] - fail here instead of silently at runtime.
+      - name: Install dependencies
+        run: pip install --disable-pip-version-check -r requirements-dev.txt
+
+      - name: Boot the app and run the smoke test
+        env:
+          SCHEDULER_ENABLED: "False"
+          SECRET_KEY: ci-smoke-test-key
+          WTF_CSRF_SECRET_KEY: ci-smoke-test-csrf-key
+          DATABASE_URL: sqlite:///ci-smoke.db
+          # Socket.IO rejects unlisted origins, so name the one the test uses.
+          ALLOWED_ORIGINS: http://127.0.0.1:5000
+        run: |
+          set -euo pipefail
+
+          # Same worker configuration the production image runs, so a Gunicorn
+          # release that drops a worker class fails the PR, not the deploy.
+          gunicorn -k gthread -w 1 --threads 100 --timeout 120 \
+            --bind 127.0.0.1:5000 --log-level info run:app > gunicorn.log 2>&1 &
+          gunicorn_pid=$!
+
+          # No Redis service here on purpose: this also exercises the
+          # in-process fallback paths for the limiter and the message queue.
+          if ! python scripts/smoke_test.py http://127.0.0.1:5000; then
+            echo "----- gunicorn output -----"
+            cat gunicorn.log
+            kill "$gunicorn_pid" 2>/dev/null || true
+            exit 1
+          fi
+
+          kill "$gunicorn_pid" 2>/dev/null || true
+
+  build:
+    name: Build image
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      # amd64 only and no push: this validates the Dockerfile on every PR,
+      # while the tagged multi-arch release build stays in build-multiarch.yml.
+      - name: Build linux/amd64 image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          platforms: linux/amd64
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

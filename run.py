@@ -1,7 +1,3 @@
-# Eventlet monkey patching MUST be first before any other imports
-import eventlet
-eventlet.monkey_patch()
-
 from app import create_app, db
 from app.models import Game, Group, Pick, Season, Team, User
 
