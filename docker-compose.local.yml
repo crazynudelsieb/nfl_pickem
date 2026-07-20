@@ -36,38 +36,6 @@ services:
     security_opt:
       - no-new-privileges:true
 
-  redis:
-    image: redis:7-alpine
-    container_name: nfl_pickem_redis
-    # Cache-only mode: disable persistence (no RDB snapshots, no AOF)
-    command: redis-server --save "" --appendonly no --maxmemory 256mb --maxmemory-policy allkeys-lru --loglevel warning
-    volumes:
-      - redis_data:/data
-    ports:
-      - "6379:6379"
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 3s
-      retries: 5
-      start_period: 5s
-    restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 512M
-        reservations:
-          cpus: '0.1'
-          memory: 128M
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "5m"
-        max-file: "3"
-    security_opt:
-      - no-new-privileges:true
-
   web:
     build:
       context: .
@@ -78,15 +46,11 @@ services:
     environment:
       - FLASK_ENV=development
       - DATABASE_URL=postgresql+psycopg://${DB_USER:-nfl_user}:${DB_PASSWORD}@db:5432/${DB_NAME:-nfl_pickem_db}
-      - CACHE_REDIS_URL=redis://redis:6379/0
-      - CACHE_TYPE=RedisCache
       - TIMEZONE=${TIMEZONE:-Europe/Vienna}
     ports:
       - "5000:5000"
     depends_on:
       db:
-        condition: service_healthy
-      redis:
         condition: service_healthy
     volumes:
       - ./logs:/app/logs
@@ -116,7 +80,6 @@ services:
 
 volumes:
   postgres_data:
-  redis_data:
 
 networks:
   default:

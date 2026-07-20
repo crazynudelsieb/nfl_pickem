@@ -86,13 +86,21 @@ class Config:
     INVITE_TOKEN_EXPIRY = int(os.environ.get("INVITE_TOKEN_EXPIRY") or 168)  # hours
     TIMEZONE = os.environ.get("TIMEZONE", "UTC")  # Default to UTC if not specified
 
-    # Caching configuration
-    CACHE_TYPE = os.environ.get("CACHE_TYPE", "RedisCache")
+    # Caching configuration.
+    #
+    # In-process on purpose. The app is deployed as a single Gunicorn worker
+    # (Socket.IO sessions cannot be load-balanced across workers without sticky
+    # routing), so a shared cache server would only ever have one client. The
+    # cache holds a handful of read-only reference routes - seasons, games,
+    # teams - which cost a few queries to rebuild after a restart.
+    #
+    # Reintroduce a shared backend only when the app runs as more than one
+    # process; at that point the rate limiter and the Socket.IO message queue
+    # need it too.
+    CACHE_TYPE = "SimpleCache"
     CACHE_DEFAULT_TIMEOUT = int(
         os.environ.get("CACHE_DEFAULT_TIMEOUT", 300)
     )  # 5 minutes
-    CACHE_REDIS_URL = os.environ.get("CACHE_REDIS_URL", "redis://localhost:6379/0")
-    CACHE_KEY_PREFIX = "nfl_pickem:"
 
     # Scheduler configuration
     SCHEDULER_ENABLED = os.environ.get("SCHEDULER_ENABLED", "True").lower() == "true"
@@ -147,22 +155,6 @@ class DevelopmentConfig(Config):
     DEBUG = True
     SQLALCHEMY_ECHO = os.environ.get("SQLALCHEMY_ECHO", "False").lower() == "true"
 
-    def __init__(self):
-        super().__init__()
-        # Fallback to SimpleCache if Redis isn't available in development
-        try:
-            import redis
-
-            redis_client = redis.Redis.from_url(self.CACHE_REDIS_URL)
-            redis_client.ping()
-        except Exception:
-            self.CACHE_TYPE = "SimpleCache"
-            warnings.warn(
-                "🔶 Redis not available, falling back to SimpleCache for development. "
-                "Run 'docker-compose -f docker-compose.redis.yml up -d' to use Redis.",
-                UserWarning,
-            )
-
 
 class ProductionConfig(Config):
     """Production configuration with security focus"""
@@ -192,8 +184,6 @@ class TestingConfig(Config):
 
     TESTING = True
     WTF_CSRF_ENABLED = False
-    # Tests must not depend on a running Redis; cache in-process instead.
-    CACHE_TYPE = "SimpleCache"
 
     def __init__(self):
         # Config.__init__ sets an instance attribute from the environment which
