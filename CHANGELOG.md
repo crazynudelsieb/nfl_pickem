@@ -2,6 +2,74 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.3.0] - 2026-07-20
+
+### Added
+- **Per-group pick rules** - Group admins can now configure the ruleset per group
+  (create/edit group pages): toggle the one-team-per-regular-season rule, toggle
+  the no-repeat-opponent rule, and set the number of playoff spots (default 4)
+  and Super Bowl spots (default 2). Global picks use the defaults.
+- **Automatic season rollover** - The daily maintenance job now creates, syncs
+  and activates the new season automatically from August 1st; no container
+  restart or manual `manage.py` run needed anymore.
+- **Schema guard** - Columns added after a table already exists are now added
+  automatically on startup (`app/utils/schema_guard.py`); removed the manual
+  `scripts/add_admin_column.py` hack.
+- `/auth/change-password`, `/search`, and `/groups/<id>` no longer crash -
+  missing templates were added (`change_password.html`, `search_results.html`)
+  and the group detail route now redirects to the group page.
+
+### Changed
+- **Ruleset clarified** - The "no consecutive losers" rule was removed (it was
+  redundant under one-team-per-season and contradicted free team reuse in the
+  playoffs). The "no picking against the same opponent two weeks in a row" rule
+  is now enforced consistently in one place (`User.can_pick_team`), documented
+  on the rules page, and applies to the regular season only.
+- Playoff weeks now have no team restrictions at all: teams and opponents can
+  be repeated freely (only eligibility is enforced). Super Bowl qualifiers pick
+  any team they like - the old opposing-teams constraint was removed.
+- Groupmates' picks are hidden until each game kicks off (no more pick-sniping).
+- Rules page rewritten to match the actual rules incl. tie scoring (0.5 points)
+  and Super Bowl rules.
+- Cache invalidation is now targeted per route prefix instead of flushing the
+  entire Redis cache every 90 seconds during live games.
+- Leaderboards (all-time, playoff mode, season) rebuilt to use a fixed number
+  of queries instead of dozens of queries per user; the duplicated playoff
+  leaderboard code from three pages now lives in `app/utils/leaderboard.py`.
+
+### Fixed
+- **Security: pick deletion IDOR** - Group admins could delete or inspect ANY
+  user's picks by ID; both endpoints now verify the pick belongs to the group.
+- **Security: debug endpoints removed** (`/api/debug/avatars`, `/api/debug/group/<id>`)
+  which exposed all users and any group's data to any logged-in user.
+- **Security: rate limiter spoofing** - Client-supplied `X-Forwarded-For` was
+  trusted directly; now handled by ProxyFix with a configurable hop count
+  (`PROXY_HOPS`, default 1).
+- **Security: production config** - `FLASK_ENV=production` now selects the
+  production config even without `FLASK_CONFIG`; production refuses to start
+  without an explicit `SECRET_KEY`; default admin gets a random generated
+  password instead of `ChangeMe123!`; Postgres/Redis ports bound to localhost;
+  CSP `img-src` no longer allows all https hosts; CDN scripts pinned with SRI.
+- **Admin pick management corrupted per-group picks** - Admin flows looked up
+  and deleted picks without a group filter, so managing a pick could modify or
+  delete the user's pick in a *different* group, and `Pick.create_pick` always
+  created global picks. All admin pick paths are now group-aware.
+- **Admins could create duplicate week picks** - Switching a user's pick to a
+  different game as admin left both picks in place (double points).
+- **Live scores API returned nothing** - `/api/scores/live` filtered on the
+  Python-only `Game.status` property; now filters on real columns.
+- **Super Bowl eligibility job crashed on every run** (`len(None)` after commit).
+- **Late-created groups never got playoff snapshots** - snapshot creation now
+  checks per group instead of bailing when any snapshot exists.
+- **TestingConfig used the real database** - the in-memory SQLite setting was
+  overridden by the environment-based database URI.
+- **Pick submissions accepted any group slug** without a membership check.
+- Tie picks were re-processed by the "self-healing" sync forever.
+- `/health` now actually checks database connectivity.
+- Removed dead code (`_is_game_time`, `broadcast_pick_update`, `cached_query`,
+  unused pick helpers) and unused dependencies (sportsipy, bcrypt, asgiref);
+  deleted a stray committed `git diff` dump ("coring architecture").
+
 ## [1.2.34] - 2026-02-11
 
 ### Fixed
@@ -74,4 +142,5 @@ All notable changes to this project will be documented in this file.
 
 ## License
 
-MIT License with Commercial Use Restriction - See LICENSE file for details.
+PolyForm Noncommercial License 1.0.0 - See LICENSE file for details.
+Commercial use requires a separate license: appchen@outlook.at

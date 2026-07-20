@@ -71,7 +71,7 @@ app.db
 logs/
 nul
 
-# AI/Claude specific - keep private
+# Local editor / assistant workspaces - keep private
 .serena/
 .claude/
 CLAUDE.md
@@ -79,16 +79,13 @@ copilot-instructions.md
 
 # Development artifacts
 debug_*.py
-test_*.py
 manual_*.py
 fix_*.py
 cookies.txt
-*.ps1
-build.ps1
+# Local-only helper scripts (build.ps1 is tracked)
 init-local-repo.ps1
 create-signed-commit.ps1
 docker-compose.dev.yml
-.claude/
 .docker-config/
 
 # Documentation artifacts

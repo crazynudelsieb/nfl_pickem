@@ -9,7 +9,14 @@ from wtforms import (
     SubmitField,
     TextAreaField,
 )
-from wtforms.validators import DataRequired, Email, Length, NumberRange, Regexp
+from wtforms.validators import (
+    DataRequired,
+    Email,
+    Length,
+    NumberRange,
+    Regexp,
+    ValidationError,
+)
 
 
 def sanitize_input(text):
@@ -19,7 +26,42 @@ def sanitize_input(text):
     return html.escape(text.strip())
 
 
-class CreateGroupForm(FlaskForm):
+class GroupRulesMixin:
+    """Pick rule settings shared by the create and edit group forms"""
+
+    pick_team_once = BooleanField(
+        "Each team can only be picked once during the regular season",
+        default=True,
+    )
+    no_repeat_opponent = BooleanField(
+        "No picking against the same opponent two weeks in a row",
+        default=True,
+    )
+    playoff_spots = IntegerField(
+        "Playoff Spots",
+        validators=[
+            DataRequired(),
+            NumberRange(min=2, max=10, message="Playoff spots must be between 2 and 10"),
+        ],
+        default=4,
+        description="Top N players qualify for the playoffs",
+    )
+    superbowl_spots = IntegerField(
+        "Super Bowl Spots",
+        validators=[
+            DataRequired(),
+            NumberRange(min=2, max=4, message="Super Bowl spots must be between 2 and 4"),
+        ],
+        default=2,
+        description="Top N playoff players qualify for the Super Bowl",
+    )
+
+    def validate_superbowl_spots(self, field):
+        if self.playoff_spots.data and field.data and field.data > self.playoff_spots.data:
+            raise ValidationError("Super Bowl spots cannot exceed playoff spots")
+
+
+class CreateGroupForm(GroupRulesMixin, FlaskForm):
     name = StringField(
         "Group Name",
         validators=[
@@ -54,7 +96,7 @@ class CreateGroupForm(FlaskForm):
     submit = SubmitField("Create Group")
 
 
-class EditGroupForm(FlaskForm):
+class EditGroupForm(GroupRulesMixin, FlaskForm):
     name = StringField(
         "Group Name", validators=[DataRequired(), Length(min=3, max=100)]
     )

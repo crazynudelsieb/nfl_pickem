@@ -297,6 +297,11 @@ class DataSync:
             params = {
                 "seasontype": seasontype,
                 "week": espn_week,
+                # Pin the request to the season being synced. Without "dates"
+                # ESPN answers for whatever season is current, so syncing an
+                # upcoming season during the offseason would silently fill it
+                # with the previous season's games.
+                "dates": season.year,
             }
 
             response = self._make_api_request(url, params=params)
@@ -427,12 +432,15 @@ class DataSync:
             # This catches games that slipped through (errors, timeouts, etc.)
             from app.models import Pick
 
+            # NOTE: tie picks legitimately keep is_correct=None but have
+            # points_earned=0.5, so exclude them or they'd be "healed" forever
             final_games_needing_calc = db.session.query(Game.id).join(
                 Pick, Game.id == Pick.game_id
             ).filter(
                 Game.season_id == current_season.id,
                 Game.is_final == True,
-                Pick.is_correct == None  # Picks not calculated yet
+                Pick.is_correct == None,  # Picks not calculated yet
+                db.or_(Pick.points_earned.is_(None), Pick.points_earned == 0),
             ).distinct().all()
 
             # Add them to finalization list for recalculation

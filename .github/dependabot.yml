@@ -38,6 +38,12 @@ updates:
       day: "tuesday"
       time: "09:00"
       timezone: "Europe/Vienna"
+    # Keep runtime on a stable Python minor branch; avoid automatic jumps.
+    ignore:
+      - dependency-name: "python"
+        update-types:
+          - "version-update:semver-minor"
+          - "version-update:semver-major"
     open-pull-requests-limit: 5
     assignees:
       - "crazynudelsieb"

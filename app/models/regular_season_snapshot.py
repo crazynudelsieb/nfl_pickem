@@ -64,7 +64,10 @@ class RegularSeasonSnapshot(db.Model):
         Returns:
             List of created RegularSeasonSnapshot objects
         """
+        from .group import Group
         from .user import User
+
+        playoff_spots = Group.rules_for(group_id)["playoff_spots"]
 
         # Get regular season leaderboard (weeks 1-18 only)
         leaderboard = User.get_season_leaderboard(
@@ -102,14 +105,14 @@ class RegularSeasonSnapshot(db.Model):
                 total_score=entry["total_score"],
                 tiebreaker_points=entry["tiebreaker_points"],
                 accuracy=entry["accuracy"],
-                is_playoff_eligible=(rank <= 4),  # Top 4 qualify for playoffs
+                is_playoff_eligible=(rank <= playoff_spots),
                 is_superbowl_eligible=False  # Updated later after playoff rounds
             )
             db.session.add(snapshot)
             snapshots.append(snapshot)
 
             logger.info(f"Created snapshot: user {entry['user_id']} rank #{rank} "
-                       f"(playoff eligible: {rank <= 4})")
+                       f"(playoff eligible: {rank <= playoff_spots})")
 
         try:
             db.session.commit()
@@ -131,18 +134,26 @@ class RegularSeasonSnapshot(db.Model):
         Args:
             season_id: Season ID
             group_id: Optional group ID (None for global)
+
+        Returns:
+            List of user IDs granted Super Bowl eligibility
         """
+        from .group import Group
         from .user import User
 
-        # Get playoff leaderboard (weeks 19-21 only, ranked by playoff wins)
+        superbowl_spots = Group.rules_for(group_id)["superbowl_spots"]
+
+        # Get playoff leaderboard (playoff rounds only, ranked by playoff wins)
         playoff_leaderboard = User.get_playoff_leaderboard(season_id, group_id=group_id)
 
         if not playoff_leaderboard:
             logger.warning(f"No playoff leaderboard data for season {season_id}, group {group_id}")
-            return
+            return []
 
-        # Top 2 from playoffs qualify for Super Bowl
-        top2_user_ids = [entry["user_id"] for entry in playoff_leaderboard[:2]]
+        # Top N from playoffs qualify for Super Bowl
+        top2_user_ids = [
+            entry["user_id"] for entry in playoff_leaderboard[:superbowl_spots]
+        ]
 
         # Reset all Super Bowl eligibility flags for this season/group
         reset_query = RegularSeasonSnapshot.query.filter_by(
@@ -176,6 +187,8 @@ class RegularSeasonSnapshot(db.Model):
             logger.error(f"Error updating Super Bowl eligibility: {e}")
             db.session.rollback()
             raise
+
+        return top2_user_ids
 
     @staticmethod
     def get_playoff_eligible_users(season_id, group_id=None):
@@ -226,10 +239,10 @@ class RegularSeasonSnapshot(db.Model):
         return [s.user_id for s in snapshots]
 
     @staticmethod
-    def get_top4_names(season_id, group_id=None):
-        """Get usernames of top 4 from regular season
+    def get_qualifier_names(season_id, group_id=None):
+        """Get usernames of playoff qualifiers from the regular season
 
-        Useful for displaying "You did not qualify. Top 4: user1, user2, user3, user4"
+        Useful for displaying "You did not qualify. Top N: user1, user2, ..."
 
         Args:
             season_id: Season ID
@@ -248,7 +261,7 @@ class RegularSeasonSnapshot(db.Model):
         else:
             query = query.filter(RegularSeasonSnapshot.group_id.is_(None))
 
-        snapshots = query.order_by(RegularSeasonSnapshot.final_rank).limit(4).all()
+        snapshots = query.order_by(RegularSeasonSnapshot.final_rank).all()
         return [s.user.username for s in snapshots]
 
     def to_dict(self):

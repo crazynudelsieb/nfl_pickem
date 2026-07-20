@@ -23,23 +23,6 @@ migrate = Migrate()
 csrf = CSRFProtect()
 
 
-def get_real_ip():
-    """
-    Get the real client IP address, accounting for reverse proxies like Traefik.
-    Checks X-Forwarded-For, X-Real-IP, and falls back to remote_addr.
-    """
-    # X-Forwarded-For: client, proxy1, proxy2, ...
-    # We want the leftmost (original client) IP
-    if request.headers.get("X-Forwarded-For"):
-        # Get the first IP in the chain (the original client)
-        return request.headers.get("X-Forwarded-For").split(",")[0].strip()
-    # X-Real-IP is set by some proxies (nginx, Traefik)
-    if request.headers.get("X-Real-IP"):
-        return request.headers.get("X-Real-IP")
-    # Fallback to direct connection IP
-    return get_remote_address()
-
-
 # Determine rate limiter storage backend
 # Use Redis in production for shared rate limiting across multiple workers
 limiter_storage_uri = "memory://"
@@ -52,11 +35,14 @@ if redis_url:
         redis_client.ping()
         limiter_storage_uri = redis_url
         print(f"[OK] Rate limiter using Redis storage at {redis_url}")
-    except (ImportError, redis.exceptions.ConnectionError) as e:
+    except Exception as e:
         print(f"[WARN] Redis not available for rate limiter, using memory storage: {e}")
 
+# Client IPs come from request.remote_addr, which ProxyFix (configured in
+# create_app) rewrites from X-Forwarded-For for the trusted proxy hops only.
+# Never read forwarding headers directly - they are client-spoofable.
 limiter = Limiter(
-    key_func=get_real_ip,
+    key_func=get_remote_address,
     default_limits=["10000 per day", "1000 per hour"],  # Liberal limits - Cloudflare/Traefik provide primary protection
     storage_uri=limiter_storage_uri,
 )
@@ -65,11 +51,28 @@ limiter = Limiter(
 def create_app(config_name=None):
     app = Flask(__name__)
 
-    # Determine configuration
+    # Determine configuration: FLASK_CONFIG wins, otherwise FLASK_ENV=production
+    # selects the production config (docker-compose only sets FLASK_ENV).
     if config_name is None:
-        config_name = os.environ.get("FLASK_CONFIG", "default")
+        config_name = os.environ.get("FLASK_CONFIG")
+    if config_name is None:
+        config_name = (
+            "production"
+            if os.environ.get("FLASK_ENV") == "production"
+            else "default"
+        )
 
     app.config.from_object(config[config_name]())
+
+    # Trust forwarding headers from the reverse proxy (Traefik/nginx) only.
+    # PROXY_HOPS is the number of proxies in front of the app (0 disables).
+    proxy_hops = int(os.environ.get("PROXY_HOPS", "1"))
+    if proxy_hops > 0:
+        from werkzeug.middleware.proxy_fix import ProxyFix
+
+        app.wsgi_app = ProxyFix(
+            app.wsgi_app, x_for=proxy_hops, x_proto=proxy_hops, x_host=proxy_hops
+        )
 
     # Configure session settings for better multi-device support
     app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
@@ -110,7 +113,7 @@ def create_app(config_name=None):
             redis_client.ping()
             message_queue = redis_url
             print(f"[OK] Socket.IO using Redis message queue at {redis_url}")
-        except (ImportError, redis.exceptions.ConnectionError) as e:
+        except Exception as e:
             print(f"[WARN] Redis not available for Socket.IO message queue: {e}")
 
     socketio.init_app(
@@ -152,6 +155,14 @@ def create_app(config_name=None):
 
     app.register_blueprint(api_bp, url_prefix="/api")
 
+    # Contact / legal globals for the footer and legal pages (computed once per
+    # request from config). Shared standard across the appchen apps.
+    from app.contact import legal_globals
+
+    @app.context_processor
+    def inject_legal_globals():
+        return legal_globals(app.config)
+
     # Register error handlers
     register_error_handlers(app)
 
@@ -163,9 +174,13 @@ def create_app(config_name=None):
     # Show configuration warnings
     show_config_warnings(app)
 
-    # Create database tables
+    # Create database tables. create_all only creates missing tables - the
+    # schema guard adds columns introduced after a table already exists.
     with app.app_context():
         db.create_all()
+        from app.utils.schema_guard import ensure_schema
+
+        ensure_schema()
 
     # Initialize and start background scheduler
     if not app.config.get("TESTING", False):
@@ -256,7 +271,7 @@ def register_error_handlers(app):
             "default-src 'self'",
             "script-src 'self' 'unsafe-inline' https://cdn.socket.io https://unpkg.com",
             "style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com",
-            "img-src 'self' data: https://api.dicebear.com https://a.espncdn.com https://http.cat https:",
+            "img-src 'self' data: https://api.dicebear.com https://a.espncdn.com https://http.cat",
             "connect-src 'self' wss: ws: https://site.api.espn.com",
             "font-src 'self' https://cdnjs.cloudflare.com",
             "frame-ancestors 'none'",

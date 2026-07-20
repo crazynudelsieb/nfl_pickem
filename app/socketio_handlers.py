@@ -186,35 +186,6 @@ def broadcast_game_final(game):
         db.session.rollback()
 
 
-def broadcast_pick_update(pick, action="updated"):
-    """Broadcast pick update to relevant users"""
-    try:
-        pick_data = pick.to_dict()
-        pick_data["action"] = action
-
-        # Notify the user who made the pick
-        socketio.emit(
-            "pick_update",
-            pick_data,
-            room=f"user_picks_{pick.user_id}",
-            namespace="/scores",
-        )
-
-        # Notify group members if needed (for admin actions)
-        if hasattr(pick, "group_id"):
-            socketio.emit(
-                "group_pick_update",
-                pick_data,
-                room=f"group_{pick.group_id}",
-                namespace="/scores",
-            )
-
-        logger.debug(f"Broadcasted pick {action} for pick {pick.id}")
-
-    except Exception as e:
-        logger.error(f"Error broadcasting pick update: {e}")
-
-
 # General notifications namespace
 @socketio.on("connect", namespace="/notifications")
 def on_notifications_connect():

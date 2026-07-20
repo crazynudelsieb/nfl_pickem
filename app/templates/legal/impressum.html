@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+
+{% block title %}Impressum - {{ config.APP_NAME }}{% endblock %}
+
+{% block content %}
+<section class="container legal" style="max-width: 900px; margin: 0 auto; padding: 2rem 1rem;">
+    <h1><i class="fas fa-building"></i> Impressum</h1>
+    <p class="lead">Information pursuant to applicable disclosure requirements (e.g. TMG, ECG).</p>
+
+    <div class="card"><div class="card-body">
+        <dl class="legal-dl">
+            <dt>Operator</dt>
+            <dd>{{ config.IMPRINT_NAME }}</dd>
+
+            {% if config.IMPRINT_ADDRESS %}
+            <dt>Address</dt>
+            <dd style="white-space: pre-line;">{{ config.IMPRINT_ADDRESS }}</dd>
+            {% endif %}
+
+            {% if imprint_email %}
+            <dt>Email</dt>
+            <dd>
+                <a class="js-mail" data-user="{{ imprint_email[0] }}" data-domain="{{ imprint_email[1] }}" rel="nofollow">
+                    <span class="mail-text">{{ imprint_email[0] }}<span aria-hidden="true"> [at] </span>{{ imprint_email[1] }}</span>
+                </a>
+            </dd>
+            {% endif %}
+
+            {% if config.IMPRINT_PHONE %}
+            <dt>Phone</dt>
+            <dd>{{ config.IMPRINT_PHONE }}</dd>
+            {% endif %}
+
+            {% if config.IMPRINT_VAT %}
+            <dt>VAT ID</dt>
+            <dd>{{ config.IMPRINT_VAT }}</dd>
+            {% endif %}
+
+            {% if config.IMPRINT_EXTRA %}
+            <dt>Further information</dt>
+            <dd style="white-space: pre-line;">{{ config.IMPRINT_EXTRA }}</dd>
+            {% endif %}
+        </dl>
+    </div></div>
+
+    <h2><i class="fas fa-exclamation-triangle"></i> Disclaimer</h2>
+    <div class="card"><div class="card-body">
+        <p>
+            {{ config.APP_NAME }} is provided free of charge and "as is", without warranty of any
+            kind. It is a private pick'em tracker for entertainment among friends: it involves no
+            wagering, no stakes, and no prizes, and it is not affiliated with, endorsed by, or
+            sponsored by the National Football League or any of its teams. NFL team names and
+            logos are the property of their respective owners.
+        </p>
+        <p>
+            Schedules and scores are pulled automatically from a public third-party source and may
+            be delayed, incomplete, or wrong; the official NFL result always governs. Group names,
+            usernames, and other entries are provided by users, not the operator, who removes
+            unlawful content upon becoming aware of it. To the extent permitted by law, liability
+            is limited to intent and gross negligence; this does not affect statutory rights that
+            cannot be excluded. No liability is accepted for the content of external sites linked
+            here.
+        </p>
+    </div></div>
+
+    <p style="margin-top: 1.5rem;"><a href="{{ url_for('main.privacy') }}">See our privacy information →</a></p>
+</section>
+{% endblock %}

@@ -3,6 +3,8 @@ import os
 from datetime import datetime, timezone
 
 from flask import (
+    abort,
+    current_app,
     flash,
     jsonify,
     redirect,
@@ -14,7 +16,7 @@ from flask import (
 from flask_login import current_user, login_required
 
 from app import db, limiter
-from app.models import Game, Group, GroupMember, Pick, Season, Team, User
+from app.models import Game, Group, GroupMember, Pick, Season, User
 from app.routes.main import bp
 
 logger = logging.getLogger(__name__)
@@ -110,24 +112,6 @@ def _calculate_team_availability(
     available_teams = {}
     effective_group_id = user.get_group_id_for_filtering(group_id)
 
-    # Get previous week's pick for consecutive opponent check
-    prev_week_pick = None
-    if current_week > 1 and not season.is_playoff_week(current_week):
-        pick_filter = [
-            Pick.user_id == user.id,
-            Pick.season_id == season.id,
-        ]
-        if effective_group_id is not None:
-            pick_filter.append(Pick.group_id == effective_group_id)
-        else:
-            pick_filter.append(Pick.group_id.is_(None))
-
-        prev_week_pick = (
-            Pick.query.join(Game)
-            .filter(*pick_filter, Game.week == current_week - 1)
-            .first()
-        )
-
     for game in games:
         existing_pick = user_picks.get(game.id)
         exclude_pick_id = existing_pick.id if existing_pick else None
@@ -141,39 +125,15 @@ def _calculate_team_availability(
                 }
                 continue
 
-            # Standard rule checking
+            # All rules (team reuse, repeat opponent) live in can_pick_team
             can_pick, reason = user.can_pick_team(
                 team.id,
                 current_week,
                 season.id,
                 group_id=effective_group_id,
                 exclude_pick_id=exclude_pick_id,
+                game=game,
             )
-
-            # Consecutive opponent check (regular season only)
-            if (
-                can_pick
-                and prev_week_pick
-                and not season.is_playoff_week(current_week)
-            ):
-                # Get this week's opponent (the team you'd play AGAINST)
-                this_week_opponent_id = (
-                    game.home_team.id if team.id == game.away_team.id else game.away_team.id
-                )
-                
-                # Get last week's opponent (the team you played AGAINST last week)
-                prev_game = prev_week_pick.game
-                last_week_opponent_id = (
-                    prev_game.home_team_id
-                    if prev_week_pick.selected_team_id == prev_game.away_team_id
-                    else prev_game.away_team_id
-                )
-
-                # Block if trying to pick against the same opponent twice in a row
-                if this_week_opponent_id == last_week_opponent_id:
-                    opponent_team = game.home_team if this_week_opponent_id == game.home_team_id else game.away_team
-                    can_pick = False
-                    reason = f"Cannot pick against {opponent_team.abbreviation} twice in a row (played them week {current_week - 1})"
 
             available_teams[team.id] = {"can_pick": can_pick, "reason": reason}
 
@@ -182,6 +142,9 @@ def _calculate_team_availability(
 
 def _get_other_users_picks(group, games, exclude_user_id):
     """Get other group members' picks for comparison
+
+    Only picks for games that have already started are included, so nobody can
+    see (and counter-pick) a groupmate's choice before kickoff.
 
     Args:
         group: Group object
@@ -194,6 +157,11 @@ def _get_other_users_picks(group, games, exclude_user_id):
     if not games or not group:
         return {}
 
+    # Picks are only revealed once the game has started
+    started_game_ids = [game.id for game in games if game.has_started()]
+    if not started_game_ids:
+        return {}
+
     # Get group members excluding current user
     group_members = [
         membership.user
@@ -204,9 +172,8 @@ def _get_other_users_picks(group, games, exclude_user_id):
     if not group_members:
         return {}
 
-    game_ids = [game.id for game in games]
     group_picks_query = db.session.query(Pick).filter(
-        Pick.game_id.in_(game_ids),
+        Pick.game_id.in_(started_game_ids),
         Pick.user_id.in_([user.id for user in group_members]),
         db.or_(
             Pick.group_id == group.id,  # Per-group picks
@@ -348,7 +315,7 @@ def current_picks():
     playoff_eligibility_message = ""
 
     if current_season and current_season.is_playoff_week(current_week):
-        is_playoff_eligible, playoff_eligibility_message = selected_user.is_playoff_eligible_from_snapshot(
+        is_playoff_eligible, playoff_eligibility_message = selected_user.is_playoff_eligible(
             current_season.id,
             effective_group_id
         )
@@ -388,8 +355,6 @@ def _process_single_pick(
     target_user, game_id, team_id, current_season, is_admin, current_group=None
 ):
     """Helper function to process a single pick submission"""
-    from app.models.team import Team
-
     # Validate inputs
     if not target_user or not current_season:
         return False, "Invalid user or season"
@@ -413,10 +378,9 @@ def _process_single_pick(
     if game.season_id != current_season.id:
         return False, "Game does not belong to current season"
 
-    # NEW: Check playoff eligibility for non-admins
-    season = Season.query.get(current_season.id)
-    if not is_admin and season and season.is_playoff_week(game.week):
-        is_eligible, eligibility_message = target_user.is_playoff_eligible_from_snapshot(
+    # Check playoff eligibility for non-admins
+    if not is_admin and current_season.is_playoff_week(game.week):
+        is_eligible, eligibility_message = target_user.is_playoff_eligible(
             current_season.id,
             group_id
         )
@@ -424,8 +388,10 @@ def _process_single_pick(
         if not is_eligible:
             return False, eligibility_message
 
-        # Super Bowl check (week 22)
-        superbowl_week = season.regular_season_weeks + season.playoff_weeks
+        # Super Bowl check (final week)
+        superbowl_week = (
+            current_season.regular_season_weeks + current_season.playoff_weeks
+        )
         if game.week == superbowl_week:
             is_sb_eligible, sb_message = target_user.is_superbowl_eligible_from_snapshot(
                 current_season.id,
@@ -480,7 +446,8 @@ def _process_single_pick(
         # Switching to different game - exclude the old week pick from validation
         exclude_pick_id = existing_week_pick.id
 
-    # Validate the pick (unless admin)
+    # Validate the pick (unless admin). All team rules - including the
+    # repeat-opponent rule - live in User.can_pick_team().
     if not is_admin:
         can_pick, reason = target_user.can_pick_team(
             team_id,
@@ -488,70 +455,30 @@ def _process_single_pick(
             current_season.id,
             group_id=group_id,
             exclude_pick_id=exclude_pick_id,
+            game=game,
         )
         if not can_pick:
             # Use preloaded team relationships instead of additional query
             team_name = (
-                game.home_team.abbreviation if team_id == game.home_team_id 
+                game.home_team.abbreviation if team_id == game.home_team_id
                 else game.away_team.abbreviation if team_id == game.away_team_id
                 else "Unknown"
             )
             return False, f"Cannot pick {team_name}: {reason}"
 
-        # Additional validation: Check if opponent was picked in consecutive week (new rule for regular season only)
-        season = Season.query.get(current_season.id)
-        if season and not season.is_playoff_week(game.week):
-            # Determine the opponent team for THIS pick
-            opponent_id = (
-                game.home_team_id if team_id == game.away_team_id else game.away_team_id
-            )
-
-            # Build pick filter for user's previous week pick
-            pick_filter = [
-                Pick.user_id == target_user.id,
-                Pick.season_id == current_season.id,
-            ]
-            if not target_user.picks_are_global:
-                pick_filter.append(Pick.group_id == group_id)
-            else:
-                pick_filter.append(Pick.group_id.is_(None))
-            if exclude_pick_id:
-                pick_filter.append(Pick.id != exclude_pick_id)
-
-            # Check if user picked a game involving the opponent in the PREVIOUS week (consecutive check)
-            if game.week > 1:
-                prev_week_pick = (
-                    Pick.query.join(Game)
-                    .filter(*pick_filter, Game.week == game.week - 1)
-                    .first()
-                )
-
-                if prev_week_pick:
-                    # Check if opponent was involved in previous week's game (as either home or away team)
-                    # This checks BOTH: if they picked this team OR if this team was their opponent
-                    prev_game = prev_week_pick.game
-                    if opponent_id in [prev_game.home_team_id, prev_game.away_team_id]:
-                        # Use preloaded team objects instead of query
-                        opponent_team = game.home_team if opponent_id == game.home_team_id else game.away_team
-                        return (
-                            False,
-                            f"Cannot pick this game: {opponent_team.abbreviation} was involved in your week {game.week - 1} pick (consecutive weeks not allowed)",
-                        )
-
-    # If user has a pick for a different game this week, delete it (switching picks)
-    if existing_week_pick and not is_admin:
-        # Check if the old pick's game has already started
-        if existing_week_pick.game.has_started():
+    # If user has a pick for a different game this week, delete it (switching
+    # picks). Admins may switch even after kickoff, but the old pick must
+    # always be removed so nobody ends up with two picks in one week.
+    if existing_week_pick:
+        if not is_admin and existing_week_pick.game.has_started():
             return (
                 False,
                 f"Cannot switch pick: Your current pick ({existing_week_pick.game.away_team.abbreviation} vs {existing_week_pick.game.home_team.abbreviation}) has already started",
             )
-        else:
-            # Delete the old pick to allow switching
-            logger.debug(
-                f"Deleting old pick for game {existing_week_pick.game_id} to switch to game {game_id}"
-            )
-            db.session.delete(existing_week_pick)
+        logger.debug(
+            f"Deleting old pick for game {existing_week_pick.game_id} to switch to game {game_id}"
+        )
+        db.session.delete(existing_week_pick)
 
     if existing_pick:
         # Update existing pick
@@ -592,6 +519,15 @@ def submit_picks():
     group_slug = request.args.get("group") or request.form.get("group")
     if group_slug:
         current_group = Group.query.filter_by(slug=group_slug).first()
+
+    # Users may only submit picks into groups they are a member of
+    if (
+        current_group
+        and not current_user.is_admin
+        and not current_user.is_member_of_group(current_group.id)
+    ):
+        flash("You are not a member of that group.", "error")
+        return redirect(url_for("main.current_picks"))
 
     # If no group specified, use user's latest group
     if not current_group:
@@ -763,47 +699,13 @@ def dashboard():
         is_playoff_mode = current_season.is_playoff_week(current_season.current_week)
 
         if is_playoff_mode:
-            # During playoffs: show dual scores for ALL users (not just top 4)
+            # During playoffs: dual scores for all group members
+            from app.utils.leaderboard import build_playoff_leaderboard
 
-            # Get all active members of this group
             member_ids = [m.user_id for m in selected_group.get_active_members()]
-            all_users = User.query.filter(User.id.in_(member_ids)).all()
-            leaderboard = []
-
-            for user in all_users:
-                stats = user.get_season_stats(current_season.id, group_id=selected_group.id)
-                if not stats:
-                    continue
-
-                # Use eligibility methods (have proper fallback if snapshots missing)
-                is_po_eligible, _ = user.is_playoff_eligible(current_season.id, selected_group.id)
-                is_sb_eligible, _ = user.is_superbowl_eligible_from_snapshot(current_season.id, selected_group.id)
-
-                leaderboard.append({
-                    "user_id": user.id,
-                    "user": user,
-                    "total_score": stats["total"]["total_score"],
-                    "wins": stats["total"]["wins"],
-                    "ties": stats["total"]["ties"],
-                    "losses": stats["total"]["losses"],
-                    "missed_games": stats["total"]["missed_games"],
-                    "completed_picks": stats["total"]["completed_picks"],
-                    "tiebreaker_points": stats["total"]["tiebreaker_points"],
-                    "accuracy": stats["total"]["accuracy"],
-                    "longest_streak": stats["total"]["longest_streak"],
-                    # Playoff-specific data (using methods with fallback)
-                    "is_playoff_eligible": is_po_eligible,
-                    "is_superbowl_eligible": is_sb_eligible,
-                    "regular_wins": stats["regular_season"]["wins"],
-                    "regular_score": stats["regular_season"]["total_score"],
-                    "playoff_wins": stats["playoffs"]["wins"],
-                    "playoff_score": stats["playoffs"]["total_score"],
-                })
-
-            # CRITICAL: During playoffs, sort by playoff wins (not total score)
-            # Then by season-long tiebreaker points for ties
-            leaderboard.sort(
-                key=lambda x: (x["playoff_wins"], x["tiebreaker_points"]), reverse=True
+            members = User.query.filter(User.id.in_(member_ids)).all()
+            leaderboard = build_playoff_leaderboard(
+                current_season, group_id=selected_group.id, users=members
             )
         else:
             # Regular season: use existing leaderboard
@@ -927,6 +829,146 @@ def week_detail(season_id, week):
     )
 
 
+def _build_alltime_leaderboard():
+    """Build the all-time leaderboard with a fixed number of queries.
+
+    Loads picks, games, snapshots and championships in bulk instead of
+    re-querying them for every user.
+    """
+    from app.models.regular_season_snapshot import RegularSeasonSnapshot
+    from app.models.season_winner import SeasonWinner
+
+    all_users = User.query.filter_by(is_active=True).all()
+
+    # All picks with their games, grouped by user
+    all_picks = (
+        Pick.query.options(db.joinedload(Pick.game)).all()
+    )
+    picks_by_user = {}
+    for p in all_picks:
+        picks_by_user.setdefault(p.user_id, []).append(p)
+
+    # Weeks with completed games, per season
+    seasons_by_id = {s.id: s for s in Season.query.all()}
+    completed_week_rows = (
+        db.session.query(Game.season_id, Game.week)
+        .filter(Game.is_final == True)  # noqa: E712
+        .distinct()
+        .all()
+    )
+    completed_weeks_by_season = {}
+    for sid, week in completed_week_rows:
+        completed_weeks_by_season.setdefault(sid, set()).add(week)
+
+    # Global snapshots for playoff/Super Bowl eligibility, keyed by (user, season)
+    snapshots = RegularSeasonSnapshot.query.filter(
+        RegularSeasonSnapshot.group_id.is_(None)
+    ).all()
+    snapshot_by_user_season = {(s.user_id, s.season_id): s for s in snapshots}
+
+    # Global championship counts in one query
+    championship_rows = (
+        db.session.query(SeasonWinner.user_id, db.func.count(SeasonWinner.id))
+        .filter(SeasonWinner.group_id.is_(None), SeasonWinner.award_type == "champion")
+        .group_by(SeasonWinner.user_id)
+        .all()
+    )
+    championships_by_user = dict(championship_rows)
+
+    leaderboard_data = []
+
+    for user in all_users:
+        user_picks = picks_by_user.get(user.id, [])
+        if not user_picks:
+            continue
+
+        # Separate completed picks into wins, losses, and ties.
+        # A tie is a final game where is_correct stayed None.
+        completed_picks = []
+        wins = ties = losses = 0
+        for p in user_picks:
+            if p.is_correct is True:
+                wins += 1
+                completed_picks.append(p)
+            elif p.is_correct is False:
+                losses += 1
+                completed_picks.append(p)
+            elif p.is_correct is None and p.game and p.game.is_final:
+                ties += 1
+                completed_picks.append(p)
+
+        # Count missed WEEKS (one pick per week), skipping playoff/Super Bowl
+        # weeks the user wasn't eligible for.
+        eligible_weeks = set()
+        for sid, weeks in completed_weeks_by_season.items():
+            season = seasons_by_id.get(sid)
+            if not season:
+                continue
+            snapshot = snapshot_by_user_season.get((user.id, sid))
+            superbowl_week = season.regular_season_weeks + season.playoff_weeks
+            for week in weeks:
+                if not season.is_playoff_week(week):
+                    eligible_weeks.add((sid, week))
+                elif snapshot and snapshot.is_playoff_eligible:
+                    if week < superbowl_week or (
+                        week == superbowl_week and snapshot.is_superbowl_eligible
+                    ):
+                        eligible_weeks.add((sid, week))
+
+        picked_weeks = {
+            (p.game.season_id, p.game.week) for p in user_picks if p.game
+        }
+        missed_games = len(eligible_weeks - picked_weeks)
+
+        total_score = wins + (0.5 * ties)
+
+        accuracy_denominator = len(completed_picks) + missed_games
+        accuracy = (
+            (total_score / accuracy_denominator * 100)
+            if accuracy_denominator > 0
+            else 0
+        )
+
+        total_tiebreaker = sum(p.tiebreaker_points or 0 for p in completed_picks)
+
+        # Longest streak from the already-loaded picks, in season/week order
+        streak_picks = sorted(
+            (p for p in user_picks if p.is_correct is not None and p.game),
+            key=lambda p: (p.game.season_id, p.game.week),
+        )
+        longest_streak = User._compute_longest_streak_from_picks(streak_picks)
+
+        leaderboard_data.append(
+            {
+                "user_id": user.id,
+                "user": user,
+                "total_score": total_score,  # Wins + (0.5 x ties)
+                "wins": wins,
+                "ties": ties,
+                "losses": losses,
+                "missed_games": missed_games,
+                "completed_picks": len(completed_picks),
+                "total_picks": len(user_picks),
+                "tiebreaker_points": total_tiebreaker,
+                "accuracy": accuracy,
+                "longest_streak": longest_streak,
+                "season_championships": championships_by_user.get(user.id, 0),
+            }
+        )
+
+    # Sort by: Titles (desc) > Total Score (desc) > Tiebreaker Points (desc)
+    leaderboard_data.sort(
+        key=lambda x: (
+            x["season_championships"],
+            x["total_score"],
+            x["tiebreaker_points"],
+        ),
+        reverse=True,
+    )
+
+    return leaderboard_data
+
+
 @bp.route("/leaderboard")
 @login_required
 def leaderboard():
@@ -953,179 +995,17 @@ def leaderboard():
     leaderboard_data = []
 
     if filter_type == "all-time":
-        # Calculate all-time statistics for all users
-        all_users = User.query.filter_by(is_active=True).all()
-
-        for user in all_users:
-            # Get all picks for this user
-            all_picks = Pick.query.filter_by(user_id=user.id).all()
-            if not all_picks:
-                continue
-
-            # Count season championships (global champion awards only)
-            from app.models.season_winner import SeasonWinner
-            season_championships = SeasonWinner.query.filter_by(
-                user_id=user.id,
-                group_id=None,  # Global wins only
-                award_type='champion'
-            ).count()
-
-            # Separate completed picks into wins, losses, and ties
-            # A pick is "completed" if: is_correct is True/False OR (is_correct is None AND game is final = tie)
-            all_completed_picks = []
-            all_wins = 0
-            all_ties = 0
-            all_losses = 0
-
-            for p in all_picks:
-                if p.is_correct is True:
-                    all_wins += 1
-                    all_completed_picks.append(p)
-                elif p.is_correct is False:
-                    all_losses += 1
-                    all_completed_picks.append(p)
-                elif p.is_correct is None and p.game and p.game.is_final:
-                    # This is a tie - game is final but is_correct is None
-                    all_ties += 1
-                    all_completed_picks.append(p)
-
-            # Count missed WEEKS (not games)
-            # User makes one pick per week, so we count weeks where they didn't pick
-            # IMPORTANT: Don't count playoff/Super Bowl weeks where user wasn't eligible
-            
-            # Get all weeks that have completed games (across all seasons)
-            completed_games = Game.query.filter(Game.is_final == True).all()
-            completed_weeks_by_season = {}
-            for g in completed_games:
-                if g.season_id not in completed_weeks_by_season:
-                    completed_weeks_by_season[g.season_id] = set()
-                completed_weeks_by_season[g.season_id].add(g.week)
-            
-            # Filter out playoff/Super Bowl weeks where user wasn't eligible
-            all_eligible_weeks = set()
-            for sid, weeks in completed_weeks_by_season.items():
-                season = Season.query.get(sid)
-                if not season:
-                    continue
-                for week in weeks:
-                    # Regular season weeks are always eligible
-                    if not season.is_playoff_week(week):
-                        all_eligible_weeks.add((sid, week))
-                    else:
-                        # Playoff week - check eligibility using snapshot
-                        is_po_eligible = user._check_playoff_eligible_from_snapshot(sid, None)
-                        if is_po_eligible:
-                            superbowl_week = season.regular_season_weeks + season.playoff_weeks
-                            if week < superbowl_week:
-                                # Playoff week (not Super Bowl) - eligible
-                                all_eligible_weeks.add((sid, week))
-                            elif week == superbowl_week:
-                                # Super Bowl - check Super Bowl eligibility
-                                is_sb_eligible = user._check_superbowl_eligible_from_snapshot(sid, None)
-                                if is_sb_eligible:
-                                    all_eligible_weeks.add((sid, week))
-            
-            # Get user's picked weeks by season
-            user_picked_weeks = set()
-            for p in all_picks:
-                if p.game:
-                    user_picked_weeks.add((p.game.season_id, p.game.week))
-            
-            # Missed weeks = eligible weeks where user didn't pick
-            missed_weeks = all_eligible_weeks - user_picked_weeks
-            all_missed_games = len(missed_weeks)
-
-            # Calculate total_score: wins + (0.5 × ties)
-            total_score = all_wins + (0.5 * all_ties)
-
-            # Calculate accuracy (includes missed games as losses)
-            accuracy_denominator = len(all_completed_picks) + all_missed_games
-            accuracy = (
-                (total_score / accuracy_denominator * 100)
-                if accuracy_denominator > 0
-                else 0
-            )
-
-            total_tiebreaker = sum(
-                p.tiebreaker_points or 0 for p in all_completed_picks
-            )
-
-            # Calculate all-time longest streak
-            longest_streak = user.calculate_alltime_longest_streak()
-
-            leaderboard_data.append(
-                {
-                    "user_id": user.id,
-                    "user": user,
-                    "total_score": total_score,  # Wins + (0.5 × ties)
-                    "wins": all_wins,
-                    "ties": all_ties,
-                    "losses": all_losses,
-                    "missed_games": all_missed_games,
-                    "completed_picks": len(all_completed_picks),
-                    "total_picks": len(all_picks),
-                    "tiebreaker_points": total_tiebreaker,
-                    "accuracy": accuracy,
-                    "longest_streak": longest_streak,
-                    "season_championships": season_championships,  # Season wins count
-                }
-            )
-        
-        # Sort all-time stats by: Titles (desc) > Total Score (desc) > Tiebreaker Points (desc)
-        leaderboard_data.sort(
-            key=lambda x: (x["season_championships"], x["total_score"], x["tiebreaker_points"]), reverse=True
-        )
+        leaderboard_data = _build_alltime_leaderboard()
 
     elif filter_type == "season" and selected_season:
         # Check if we're in playoffs
         is_playoff_mode = selected_season.is_playoff_week(selected_season.current_week)
 
         if is_playoff_mode:
-            # During playoffs: show dual scores for ALL users (not just top 4)
-            # This allows everyone to see the overall standings with separate playoff tracking
-            
-            # Ensure we have fresh data from the database
-            db.session.commit()
-            db.session.expire_all()
-            
-            all_users = User.query.filter_by(is_active=True).all()
-            leaderboard_data = []
+            # During playoffs: dual scores for ALL users (not just qualifiers)
+            from app.utils.leaderboard import build_playoff_leaderboard
 
-            for user in all_users:
-                stats = user.get_season_stats(selected_season.id, group_id=None)
-                if not stats:
-                    continue
-
-                # Use eligibility methods (have proper fallback if snapshots missing)
-                is_po_eligible, _ = user.is_playoff_eligible(selected_season.id, None)
-                is_sb_eligible, _ = user.is_superbowl_eligible_from_snapshot(selected_season.id, None)
-
-                leaderboard_data.append({
-                    "user_id": user.id,
-                    "user": user,
-                    "total_score": stats["total"]["total_score"],
-                    "wins": stats["total"]["wins"],
-                    "ties": stats["total"]["ties"],
-                    "losses": stats["total"]["losses"],
-                    "missed_games": stats["total"]["missed_games"],
-                    "completed_picks": stats["total"]["completed_picks"],
-                    "tiebreaker_points": stats["total"]["tiebreaker_points"],
-                    "accuracy": stats["total"]["accuracy"],
-                    "longest_streak": stats["total"]["longest_streak"],
-                    # Playoff-specific data (using methods with fallback)
-                    "is_playoff_eligible": is_po_eligible,
-                    "is_superbowl_eligible": is_sb_eligible,
-                    "regular_wins": stats["regular_season"]["wins"],
-                    "regular_score": stats["regular_season"]["total_score"],
-                    "playoff_wins": stats["playoffs"]["wins"],
-                    "playoff_score": stats["playoffs"]["total_score"],
-                })
-            
-            # CRITICAL: During playoffs, sort by playoff wins (not total score)
-            # Then by season-long tiebreaker points for ties
-            leaderboard_data.sort(
-                key=lambda x: (x["playoff_wins"], x["tiebreaker_points"]), reverse=True
-            )
+            leaderboard_data = build_playoff_leaderboard(selected_season, group_id=None)
         else:
             # Regular season: use existing leaderboard
             leaderboard_data = User.get_season_leaderboard(
@@ -1245,16 +1125,26 @@ def about():
     return render_template("main/about.html")
 
 
-@bp.route("/contact")
-def contact():
-    """Contact page"""
-    return render_template("main/contact.html")
-
-
 @bp.route("/rules")
 def rules():
     """Game rules page"""
     return render_template("main/rules.html")
+
+
+@bp.route("/privacy")
+def privacy():
+    """Data-transparency page: exactly what the service does and does not store."""
+    return render_template("legal/privacy.html")
+
+
+@bp.route("/impressum")
+def impressum():
+    """Site notice (Impressum) required by EU law (e.g. TMG, ECG). Served only
+    once an operator has configured IMPRINT_NAME; otherwise there is nothing to
+    disclose and the route 404s."""
+    if not current_app.config.get("IMPRINT_ENABLED"):
+        abort(404)
+    return render_template("legal/impressum.html")
 
 
 @bp.route("/season/<int:season_id>/winners")
@@ -1360,8 +1250,22 @@ def offline():
 @limiter.exempt
 def health():
     """Health check endpoint - exempt from rate limiting for monitoring systems"""
-    return jsonify(
-        {"status": "healthy", "timestamp": datetime.now(timezone.utc).isoformat()}
+    try:
+        db.session.execute(db.text("SELECT 1"))
+        db_ok = True
+    except Exception:
+        db_ok = False
+
+    status_code = 200 if db_ok else 503
+    return (
+        jsonify(
+            {
+                "status": "healthy" if db_ok else "unhealthy",
+                "database": "up" if db_ok else "down",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+        ),
+        status_code,
     )
 
 
@@ -1516,10 +1420,19 @@ def api_live_scores():
     if not current_season:
         return jsonify({"error": "No active season"}), 404
 
-    # Get live games
-    live_games = Game.query.filter(
-        Game.season_id == current_season.id, Game.status == "in_progress"
-    ).all()
+    # Get live games (started but not final).
+    # NOTE: status is a Python @property and cannot be used in SQL filters.
+    live_games = (
+        Game.query.options(
+            db.joinedload(Game.home_team), db.joinedload(Game.away_team)
+        )
+        .filter(
+            Game.season_id == current_season.id,
+            Game.is_final.is_(False),
+            Game.game_time <= datetime.now(timezone.utc),
+        )
+        .all()
+    )
 
     games_data = []
     for game in live_games:
@@ -1584,6 +1497,11 @@ def api_player_picks(user_id):
         picks_query = picks_query.filter(Pick.group_id == group_id)
 
     picks = picks_query.order_by(Game.week.desc(), Game.game_time.desc()).all()
+
+    # Another user's pick is only revealed once its game has started
+    reveal_all = current_user.id == user_id or current_user.is_admin
+    if not reveal_all:
+        picks = [p for p in picks if p.game and p.game.has_started()]
 
     picks_data = []
     for pick in picks:

@@ -185,12 +185,16 @@ class User(UserMixin, db.Model):
         return self.display_name or self.username
 
     def get_groups(self):
-        """Get all groups this user is a member of (excludes inactive groups unless user is creator)"""
+        """Get all groups this user is a member of (excludes inactive groups unless user is creator)
+
+        Ordered by join date so "latest group" defaults are deterministic.
+        """
         from .group_member import GroupMember
 
         group_memberships = (
             db.session.query(GroupMember)
             .filter_by(user_id=self.id, is_active=True)
+            .order_by(GroupMember.joined_at.asc())
             .all()
         )
 
@@ -241,12 +245,15 @@ class User(UserMixin, db.Model):
         self.last_login = datetime.now(timezone.utc)
         db.session.commit()
 
-    def get_season_stats(self, season_id, group_id=None):
+    def get_season_stats(self, season_id, group_id=None, completed_games=None):
         """Get comprehensive season stats for new rules system
 
         Args:
             season_id: Season ID
             group_id: Optional group ID to filter picks by (for users with per-group picks)
+            completed_games: Optional pre-fetched list of completed games for the
+                season. Leaderboard builders pass this to avoid re-querying the
+                same games for every user.
         """
         from .game import Game
         from .pick import Pick
@@ -260,11 +267,12 @@ class User(UserMixin, db.Model):
         pick_filter = self.build_pick_filter(season_id=season_id, group_id=group_id)
         picks = Pick.query.filter_by(**pick_filter).all()
 
-        # Get all completed games in this season
+        # Get all completed games in this season (unless caller provided them)
         # NOTE: Must use is_final column, not status property (status is @property, can't filter)
-        completed_games = Game.query.filter(
-            Game.season_id == season_id, Game.is_final == True
-        ).all()
+        if completed_games is None:
+            completed_games = Game.query.filter(
+                Game.season_id == season_id, Game.is_final == True
+            ).all()
 
         # Separate into regular season and playoff games
         regular_season_completed_games = [
@@ -581,13 +589,21 @@ class User(UserMixin, db.Model):
             group_id=effective_group_id
         ).first()
 
+        from .group import Group
+
+        playoff_spots = Group.rules_for(effective_group_id)["playoff_spots"]
+
         if snapshot:
             if snapshot.is_playoff_eligible:
                 return True, f"Qualified: Rank #{snapshot.final_rank}"
             else:
-                # Get top 4 names for message
-                top4_names = RegularSeasonSnapshot.get_top4_names(season_id, effective_group_id)
-                return False, f"Did not qualify. Top 4: {', '.join(top4_names)}"
+                qualifier_names = RegularSeasonSnapshot.get_qualifier_names(
+                    season_id, effective_group_id
+                )
+                return (
+                    False,
+                    f"Did not qualify. Top {playoff_spots}: {', '.join(qualifier_names)}",
+                )
 
         # Fallback: dynamic calculation (original logic) if snapshot doesn't exist
         leaderboard = self.get_season_leaderboard(
@@ -604,12 +620,17 @@ class User(UserMixin, db.Model):
         if user_position is None:
             return False, "User not found in leaderboard"
 
-        if user_position <= 4:
+        if user_position <= playoff_spots:
             return True, f"Qualified: Position {user_position}"
         else:
-            # Get top 4 names for better message
-            top4_names = [leaderboard[i]["user"].username for i in range(min(4, len(leaderboard)))]
-            return False, f"Did not qualify. Top 4: {', '.join(top4_names)}"
+            qualifier_names = [
+                leaderboard[i]["user"].username
+                for i in range(min(playoff_spots, len(leaderboard)))
+            ]
+            return (
+                False,
+                f"Did not qualify. Top {playoff_spots}: {', '.join(qualifier_names)}",
+            )
 
     def is_superbowl_eligible(self, season_id, group_id=None):
         """Check if user is in top 2 for Super Bowl eligibility (of playoff participants)
@@ -620,8 +641,6 @@ class User(UserMixin, db.Model):
             season_id: Season ID
             group_id: Optional group ID to filter picks by
         """
-        from .game import Game
-        from .pick import Pick
         from .season import Season
 
         season = Season.query.get(season_id)
@@ -630,19 +649,26 @@ class User(UserMixin, db.Model):
         ):  # Need to be past first playoff rounds
             return False, "Playoffs not advanced enough"
 
-        # Get playoff-eligible users (top 4 from regular season)
+        # Get playoff-eligible users (top N from regular season)
         # First try snapshot-based, then fall back to dynamic
+        from .group import Group
+
+        effective_group_id = self.get_group_id_for_filtering(group_id)
+        rules = Group.rules_for(effective_group_id)
+
         eligible_user_ids = []
         from .regular_season_snapshot import RegularSeasonSnapshot
         snapshot_eligible = RegularSeasonSnapshot.get_playoff_eligible_users(season_id, group_id)
         if snapshot_eligible:
             eligible_user_ids = snapshot_eligible
         else:
-            # Dynamic fallback: get top 4 from regular season leaderboard
+            # Dynamic fallback: get top N from regular season leaderboard
             leaderboard = self.get_season_leaderboard(
                 season_id, regular_season_only=True, group_id=group_id
             )
-            eligible_user_ids = [entry["user_id"] for entry in leaderboard[:4]]
+            eligible_user_ids = [
+                entry["user_id"] for entry in leaderboard[: rules["playoff_spots"]]
+            ]
 
         if self.id not in eligible_user_ids:
             return False, "Not playoff eligible"
@@ -678,23 +704,10 @@ class User(UserMixin, db.Model):
         if user_position is None:
             return False, "User not found in playoff rankings"
 
-        return user_position <= 2, f"Playoff position: {user_position}"
-
-    def is_playoff_eligible_from_snapshot(self, season_id, group_id=None):
-        """Check playoff eligibility from snapshot (more reliable than recalculating)
-
-        This is the preferred method to check eligibility during playoffs.
-        Falls back to is_playoff_eligible() if snapshot doesn't exist.
-
-        Args:
-            season_id: Season ID
-            group_id: Optional group ID to filter picks by
-
-        Returns:
-            tuple: (boolean, message_string)
-        """
-        # Delegate to is_playoff_eligible which now checks snapshots first
-        return self.is_playoff_eligible(season_id, group_id)
+        return (
+            user_position <= rules["superbowl_spots"],
+            f"Playoff position: {user_position}",
+        )
 
     def is_superbowl_eligible_from_snapshot(self, season_id, group_id=None):
         """Check Super Bowl eligibility from snapshot
@@ -721,7 +734,13 @@ class User(UserMixin, db.Model):
             if snapshot.is_superbowl_eligible:
                 return True, "Super Bowl eligible"
             else:
-                return False, "Only top 2 from playoffs can pick in Super Bowl"
+                from .group import Group
+
+                spots = Group.rules_for(effective_group_id)["superbowl_spots"]
+                return (
+                    False,
+                    f"Only the top {spots} from the playoffs can pick in the Super Bowl",
+                )
 
         # Fallback: dynamic calculation if snapshot doesn't exist
         return self.is_superbowl_eligible(season_id, group_id)
@@ -754,6 +773,7 @@ class User(UserMixin, db.Model):
         Returns:
             list: Leaderboard entries with playoff + regular season stats
         """
+        from .game import Game
         from .regular_season_snapshot import RegularSeasonSnapshot
 
         # Get playoff-eligible users from snapshots
@@ -762,13 +782,19 @@ class User(UserMixin, db.Model):
         if not eligible_user_ids:
             return []
 
+        completed_games = Game.query.filter(
+            Game.season_id == season_id, Game.is_final == True
+        ).all()
+
         leaderboard = []
         for user_id in eligible_user_ids:
             user = User.query.get(user_id)
             if not user:
                 continue
 
-            stats = user.get_season_stats(season_id, group_id=group_id)
+            stats = user.get_season_stats(
+                season_id, group_id=group_id, completed_games=completed_games
+            )
 
             if not stats:
                 continue
@@ -833,9 +859,17 @@ class User(UserMixin, db.Model):
         return [pick.selected_team for pick in picks if pick.selected_team]
 
     def can_pick_team(
-        self, team_id, week, season_id, group_id=None, exclude_pick_id=None
+        self, team_id, week, season_id, group_id=None, exclude_pick_id=None, game=None
     ):
         """Check if user can pick a specific team for a specific week
+
+        Rules (each configurable per group, see Group.rules_for):
+        - pick_team_once: each team can only be picked once during the regular season
+        - no_repeat_opponent: cannot pick against the same opponent two weeks in
+          a row (requires the game context to know who the opponent is)
+
+        Playoff weeks have no team restrictions - teams and opponents can repeat.
+        Playoff/Super Bowl eligibility is enforced separately at the week level.
 
         Args:
             team_id: ID of the team to pick
@@ -843,8 +877,10 @@ class User(UserMixin, db.Model):
             season_id: Season ID
             group_id: Group ID (None for global picks)
             exclude_pick_id: Pick ID to exclude from validation (for updates)
+            game: The Game being picked (needed for the opponent rule)
         """
         from .game import Game
+        from .group import Group
         from .pick import Pick
         from .season import Season
 
@@ -852,10 +888,17 @@ class User(UserMixin, db.Model):
         if not season:
             return False, "Invalid season"
 
+        # Playoffs: teams and opponents can be picked as often as you want
+        if season.is_playoff_week(week):
+            return True, "Team available"
+
+        effective_group_id = self.get_group_id_for_filtering(group_id)
+        rules = Group.rules_for(effective_group_id)
+
         # Build filter for picks based on picks_are_global setting
         pick_filter = [Pick.user_id == self.id, Pick.season_id == season_id]
-        if not self.picks_are_global:
-            pick_filter.append(Pick.group_id == group_id)
+        if effective_group_id is not None:
+            pick_filter.append(Pick.group_id == effective_group_id)
         else:
             pick_filter.append(Pick.group_id.is_(None))
 
@@ -863,43 +906,44 @@ class User(UserMixin, db.Model):
         if exclude_pick_id:
             pick_filter.append(Pick.id != exclude_pick_id)
 
-        # Rule 1: Team already used this season (except playoffs)
-        if not season.is_playoff_week(week):
-            # Get used teams for this group (or globally)
-            used_picks = Pick.query.filter(*pick_filter).all()
-            used_team_ids = [pick.selected_team_id for pick in used_picks]
-
+        # Rule 1: Team can only be picked once during the regular season
+        if rules["pick_team_once"]:
+            used_team_ids = [
+                row[0]
+                for row in Pick.query.join(Game)
+                .filter(*pick_filter, Game.week <= season.regular_season_weeks)
+                .with_entities(Pick.selected_team_id)
+                .all()
+            ]
             if team_id in used_team_ids:
                 return False, "Team already used this season"
 
-        # Rule 2: Check losing team restriction
-        if week > 1:
-            previous_week_filter = pick_filter + [Game.week == week - 1]
+        # Rule 2: Cannot pick against the same opponent two weeks in a row
+        if rules["no_repeat_opponent"] and game is not None and week > 1:
             previous_week_pick = (
-                Pick.query.join(Game).filter(*previous_week_filter).first()
+                Pick.query.join(Game)
+                .filter(*pick_filter, Game.week == week - 1)
+                .first()
             )
 
-            if (
-                previous_week_pick
-                and previous_week_pick.is_correct is False
-                and previous_week_pick.selected_team_id == team_id
-            ):
-                return False, "Cannot pick losing team from previous game week"
-            
-            # Rule 3: Can't pick against same opponent twice in a row (regular season only)
-            if previous_week_pick and not season.is_playoff_week(week):
-                # Get the opponent from last week's pick
+            if previous_week_pick and previous_week_pick.game:
                 prev_game = previous_week_pick.game
                 last_week_opponent_id = (
-                    prev_game.home_team_id 
-                    if previous_week_pick.selected_team_id == prev_game.away_team_id 
+                    prev_game.home_team_id
+                    if previous_week_pick.selected_team_id == prev_game.away_team_id
                     else prev_game.away_team_id
                 )
-                
-                # Check if we're being asked about a specific game's opponent
-                # Note: This requires game context which we don't have here
-                # The frontend will handle this check with full game context
-                pass
+                this_week_opponent_id = (
+                    game.home_team_id
+                    if team_id == game.away_team_id
+                    else game.away_team_id
+                )
+
+                if this_week_opponent_id == last_week_opponent_id:
+                    return (
+                        False,
+                        "Cannot pick against the same opponent two weeks in a row",
+                    )
 
         return True, "Team available"
 
@@ -912,6 +956,7 @@ class User(UserMixin, db.Model):
             regular_season_only: If True, only count regular season stats
             group_id: Optional group ID to filter picks by
         """
+        from .game import Game
         from .group_member import GroupMember
         from .pick import Pick
         from .season import Season
@@ -920,12 +965,8 @@ class User(UserMixin, db.Model):
         if not season:
             return []
 
-        # Get all users who have picks in this season using SQLAlchemy but with fresh session
-        db.session.commit()  # Ensure any pending changes are committed
-        db.session.expire_all()  # Force all objects to be reloaded from DB
-
         # Build query to get users with picks in this season
-        query = db.session.query(User.id).join(Pick).filter(Pick.season_id == season_id)
+        query = db.session.query(User).join(Pick).filter(Pick.season_id == season_id)
 
         # If filtering by group, only get users who are members of that group
         if group_id is not None:
@@ -936,18 +977,20 @@ class User(UserMixin, db.Model):
 
         users_with_picks = query.distinct().all()
 
-        user_ids = [user.id for user in users_with_picks]
+        # Fetch completed games once and share across all users' stats
+        completed_games = Game.query.filter(
+            Game.season_id == season_id, Game.is_final == True
+        ).all()
 
         leaderboard = []
 
-        for user_id in user_ids:
-            # Get fresh user object
-            user = User.query.get(user_id)
-
+        for user in users_with_picks:
             # Pass group_id to get_season_stats for per-group filtering
             # For users with global picks, this will still get all their picks
             # For users with per-group picks, this will filter by the specific group
-            stats = user.get_season_stats(season_id, group_id=group_id)
+            stats = user.get_season_stats(
+                season_id, group_id=group_id, completed_games=completed_games
+            )
 
             if not stats:
                 continue

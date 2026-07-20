@@ -55,6 +55,16 @@ class Season(db.Model):
         return Season.query.filter_by(is_active=True).first()
 
     @staticmethod
+    def current_nfl_year():
+        """NFL season year for today's date
+
+        The NFL season runs Sept-Feb, so Jan-Jul belongs to the previous
+        year's season and Aug-Dec to the current year's.
+        """
+        now = datetime.now(timezone.utc)
+        return now.year if now.month >= 8 else now.year - 1
+
+    @staticmethod
     def create_season(year, start_date, end_date):
         """Create a new season"""
         season = Season(
