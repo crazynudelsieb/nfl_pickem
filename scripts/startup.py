@@ -13,10 +13,6 @@ import os
 import sys
 import time
 
-# Eventlet monkey patching MUST be first
-import eventlet
-eventlet.monkey_patch()
-
 # Add app directory to path
 sys.path.insert(0, "/app")
 
@@ -353,14 +349,15 @@ def main():
             print("SUCCESS: NFL Pick'em is ready!")
             print(f"Active Season: {season.year}")
             print("Access the app at http://localhost:5000")
-            print("Login: admin / admin123")
-            print("WARNING: Remember to change the default password!")
+            print("Login as 'admin' with DEFAULT_ADMIN_PASSWORD (or the")
+            print("generated password printed above on first run).")
             print("=" * 50)
         else:
             print("=" * 50)
             print("WARNING: Setup completed with warnings")
             print("Access the app at http://localhost:5000")
-            print("Login: admin / admin123")
+            print("Login as 'admin' with DEFAULT_ADMIN_PASSWORD (or the")
+            print("generated password printed above on first run).")
             print("NOTE: You may need to manually load NFL data")
             print("=" * 50)
 

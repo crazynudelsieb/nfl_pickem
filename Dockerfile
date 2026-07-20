@@ -68,5 +68,8 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD curl -f http://localhost:5000/health || exit 1
 
 # Start command with entrypoint
+# Stay at a single worker: Gunicorn cannot pin a Socket.IO session to a worker,
+# so extra workers break WebSocket handshakes regardless of the message queue.
+# Concurrency comes from threads instead (gthread + async_mode="threading").
 ENTRYPOINT ["/app/scripts/entrypoint.sh"]
-CMD ["gunicorn", "-k", "eventlet", "-w", "1", "--timeout", "120", "--worker-connections", "1000", "--bind", "0.0.0.0:5000", "--access-logfile", "-", "--error-logfile", "-", "--log-level", "info", "run:app"]
+CMD ["gunicorn", "-k", "gthread", "-w", "1", "--threads", "100", "--timeout", "120", "--bind", "0.0.0.0:5000", "--access-logfile", "-", "--error-logfile", "-", "--log-level", "info", "run:app"]

@@ -23,29 +23,38 @@ migrate = Migrate()
 csrf = CSRFProtect()
 
 
-# Determine rate limiter storage backend
-# Use Redis in production for shared rate limiting across multiple workers
-limiter_storage_uri = "memory://"
-redis_url = os.environ.get("REDIS_URL") or os.environ.get("CACHE_REDIS_URL")
-if redis_url:
-    try:
-        import redis
-
-        redis_client = redis.Redis.from_url(redis_url)
-        redis_client.ping()
-        limiter_storage_uri = redis_url
-        print(f"[OK] Rate limiter using Redis storage at {redis_url}")
-    except Exception as e:
-        print(f"[WARN] Redis not available for rate limiter, using memory storage: {e}")
-
 # Client IPs come from request.remote_addr, which ProxyFix (configured in
 # create_app) rewrites from X-Forwarded-For for the trusted proxy hops only.
 # Never read forwarding headers directly - they are client-spoofable.
+# Storage is selected per-app in create_app via RATELIMIT_STORAGE_URI, so that
+# importing this module never opens a network connection.
 limiter = Limiter(
     key_func=get_remote_address,
     default_limits=["10000 per day", "1000 per hour"],  # Liberal limits - Cloudflare/Traefik provide primary protection
-    storage_uri=limiter_storage_uri,
 )
+
+
+def _redis_url_if_reachable(url, purpose):
+    """Return url if a Redis server answers on it, otherwise None.
+
+    Both callers degrade to a single-process backend when Redis is missing, so
+    an unreachable server is a warning rather than a startup failure.
+    """
+    if not url:
+        return None
+    try:
+        import redis
+
+        redis.Redis.from_url(url).ping()
+    except Exception as exc:
+        logger.warning(
+            "Redis unreachable for %s (%s) - falling back to in-process backend",
+            purpose,
+            exc,
+        )
+        return None
+    logger.info("%s using Redis at %s", purpose, url)
+    return url
 
 
 def create_app(config_name=None):
@@ -63,6 +72,12 @@ def create_app(config_name=None):
         )
 
     app.config.from_object(config[config_name]())
+
+    # Configure logging before anything else, so the rest of startup reports
+    # through it instead of bare prints.
+    from app.utils.logging_config import setup_logging
+
+    setup_logging(app)
 
     # Trust forwarding headers from the reverse proxy (Traefik/nginx) only.
     # PROXY_HOPS is the number of proxies in front of the app (0 disables).
@@ -90,6 +105,17 @@ def create_app(config_name=None):
     app.config["WTF_CSRF_SSL_STRICT"] = False  # Allow HTTP in development
     app.config["WTF_CSRF_CHECK_DEFAULT"] = True
 
+    # Redis backs both the rate limiter and the Socket.IO message queue. Probe
+    # once and share the result rather than connecting twice.
+    redis_url = _redis_url_if_reachable(
+        os.environ.get("REDIS_URL") or app.config.get("CACHE_REDIS_URL"),
+        "Shared Redis backend",
+    )
+    app.config["RATELIMIT_STORAGE_URI"] = redis_url or "memory://"
+    # The probe above only covers startup; this keeps rate limiting working if
+    # Redis disappears later, and Flask-Limiter reconnects on its own.
+    app.config["RATELIMIT_IN_MEMORY_FALLBACK_ENABLED"] = True
+
     # Initialize extensions
     db.init_app(app)
     login_manager.init_app(app)
@@ -102,29 +128,18 @@ def create_app(config_name=None):
             "ALLOWED_ORIGINS", "https://yourdomain.com,https://www.yourdomain.com"
         ).split(",")
 
-    # Try to use Redis as message queue for Socket.IO (better for multiple connections)
-    message_queue = None
-    redis_url = app.config.get("CACHE_REDIS_URL") or os.environ.get("REDIS_URL")
-    if redis_url:
-        try:
-            import redis
-            # Test connection
-            redis_client = redis.Redis.from_url(redis_url)
-            redis_client.ping()
-            message_queue = redis_url
-            print(f"[OK] Socket.IO using Redis message queue at {redis_url}")
-        except Exception as e:
-            print(f"[WARN] Redis not available for Socket.IO message queue: {e}")
-
     socketio.init_app(
         app,
         cors_allowed_origins=allowed_origins,
-        async_mode="eventlet",  # Use eventlet for WebSocket support
-        logger=True,  # Enable logging for debugging
-        engineio_logger=True,  # Enable engine.io logging for debugging
+        # Ordinary OS threads with simple-websocket as the WebSocket transport.
+        # No monkey patching, and no dependency on eventlet or gevent - both of
+        # which are unmaintained and/or dropped by newer Gunicorn.
+        async_mode="threading",
+        logger=app.debug,
+        engineio_logger=app.debug,
         ping_timeout=60,
         ping_interval=25,
-        message_queue=message_queue,  # Use Redis for message queue
+        message_queue=redis_url,  # None when Redis is unavailable
     )
     cache.init_app(app)
     migrate.init_app(app, db)
@@ -166,13 +181,8 @@ def create_app(config_name=None):
     # Register error handlers
     register_error_handlers(app)
 
-    # Setup logging
-    from app.utils.logging_config import setup_logging
-
-    setup_logging(app)
-
     # Show configuration warnings
-    show_config_warnings(app)
+    show_config_warnings(app, config_name)
 
     # Create database tables. create_all only creates missing tables - the
     # schema guard adds columns introduced after a table already exists.
@@ -194,12 +204,12 @@ def create_app(config_name=None):
     return app
 
 
-def show_config_warnings(app):
+def show_config_warnings(app, config_name):
     """Display configuration warnings and status"""
     import warnings
 
-    config_name = os.environ.get("FLASK_CONFIG", "default")
-
+    # Report the config that was actually resolved. Reading FLASK_CONFIG here
+    # used to print "default" while FLASK_ENV=production was really in effect.
     print(f"NFL Pick'em starting with '{config_name}' configuration")
 
     if config_name == "production" and app.config.get("DEBUG"):
