@@ -1,6 +1,10 @@
 # Test-only dependencies. Not needed to run the app.
 -r requirements.txt
 
+# Linting and tests used by GitHub Actions CI.
+ruff==0.13.0
+pytest==8.4.2
+
 # The Socket.IO *client* needs its own WebSocket implementation to use the
 # websocket transport; the server side uses simple-websocket. Without this,
 # scripts/smoke_test.py silently degrades to polling and proves nothing.

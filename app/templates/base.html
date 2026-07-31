@@ -714,10 +714,25 @@
                    rel="nofollow" aria-label="Email" title="Email"><i class="fas fa-envelope"></i></a>
                 {% endif %}
                 {% for link in contact_links %}
+                {% if link.key not in ['kofi', 'buymeacoffee'] %}
                 <a href="{{ link.url }}" target="_blank" rel="{{ link.rel }}"
                    aria-label="{{ link.label }}" title="{{ link.label }}"><i class="{{ link.fa_icon }}"></i></a>
+                {% endif %}
                 {% endfor %}
             </div>
+
+            {% set support_links = contact_links | selectattr('key', 'equalto', 'kofi') | list + contact_links | selectattr('key', 'equalto', 'buymeacoffee') | list %}
+            {% if support_links %}
+            <div class="footer-support" aria-label="Support this project">
+                {% for link in support_links %}
+                <a class="footer-support-btn" href="{{ link.url }}" target="_blank" rel="{{ link.rel }}"
+                   aria-label="Support via {{ link.label }}" title="Support via {{ link.label }}">
+                    <i class="{{ link.fa_icon }}" aria-hidden="true"></i>
+                    <span>Support on {{ link.label }}</span>
+                </a>
+                {% endfor %}
+            </div>
+            {% endif %}
             {% endif %}
 
             <p class="disclaimer mb-0">
