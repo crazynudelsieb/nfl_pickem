@@ -344,13 +344,26 @@ class SchedulerService:
                 success, message = self.data_sync.update_live_scores()
 
                 if success:
+                    # Catch score corrections ESPN published after a game was
+                    # already marked final - update_live_scores() only looks at
+                    # games that are still open, so nothing else would.
+                    reconciled, reconcile_message = (
+                        self.data_sync.reconcile_final_scores(within_hours=48)
+                    )
+                    if not reconciled:
+                        logger.warning(
+                            f"Final-score reconciliation failed: {reconcile_message}"
+                        )
+
                     # Picks already updated by two-phase commit in update_live_scores()
                     db.session.expire_all()
                     invalidate_model_cache("Game")
                     invalidate_model_cache("Pick")
 
                     self._update_stats(True)
-                    logger.info(f"Hourly sync completed: {message}")
+                    logger.info(
+                        f"Hourly sync completed: {message}; {reconcile_message}"
+                    )
                 else:
                     self._update_stats(False)
                     self.sync_stats["last_error"] = message
@@ -381,6 +394,19 @@ class SchedulerService:
                 if success:
                     # Clean up old sync stats
                     self._cleanup_old_data()
+
+                    # Wider reconciliation sweep than the hourly one: a whole
+                    # week back, so a correction published late (or missed
+                    # while the app was down) still gets picked up.
+                    reconciled, reconcile_message = (
+                        self.data_sync.reconcile_final_scores(within_hours=168)
+                    )
+                    if reconciled:
+                        logger.info(f"Daily reconciliation: {reconcile_message}")
+                    else:
+                        logger.warning(
+                            f"Daily reconciliation failed: {reconcile_message}"
+                        )
 
                     # Picks auto-update via Pick.update_result() when games finalize
                     db.session.expire_all()

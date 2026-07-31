@@ -172,6 +172,71 @@ class Group(db.Model):
             return True, "User removed successfully"
         return False, "User is not a member"
 
+    # Fields frozen by rules_locked_reason(). Cosmetic settings - name,
+    # description, visibility, capacity - stay editable all season.
+    RULE_FIELDS = (
+        "pick_team_once",
+        "no_repeat_opponent",
+        "playoff_spots",
+        "superbowl_spots",
+    )
+
+    def rules_locked_reason(self):
+        """Why this group's pick rules can no longer change, or None.
+
+        Rules freeze as soon as a pick exists in this group for the active
+        season. Those picks were made - and validated - under the current
+        ruleset, so rewriting it afterwards retroactively changes which of them
+        were ever legal, and can move the playoff cutoff under players who have
+        already finished their regular season.
+
+        Scoped to this group's own picks rather than to the calendar, so a
+        group created mid-season can still be configured up until its first
+        pick. Members whose picks are global are governed by DEFAULT_RULES and
+        are deliberately not counted here.
+        """
+        from .pick import Pick
+        from .season import Season
+
+        season = Season.get_current_season()
+        if not season:
+            return None
+
+        first_pick = Pick.query.filter_by(
+            group_id=self.id, season_id=season.id
+        ).first()
+
+        if first_pick is None:
+            return None
+
+        return f"picks have already been made in {season.name}"
+
+    def apply_rules(self, pick_team_once, no_repeat_opponent, playoff_spots,
+                    superbowl_spots):
+        """Apply a ruleset unless the rules are locked.
+
+        Returns:
+            tuple: (applied, reason) - reason is None when applied, and when
+            refused it is set only if the submitted rules actually differed.
+        """
+        submitted = {
+            "pick_team_once": pick_team_once,
+            "no_repeat_opponent": no_repeat_opponent,
+            "playoff_spots": playoff_spots,
+            "superbowl_spots": superbowl_spots,
+        }
+
+        reason = self.rules_locked_reason()
+        if reason is None:
+            for field, value in submitted.items():
+                setattr(self, field, value)
+            return True, None
+
+        changed = any(
+            getattr(self, field) != value for field, value in submitted.items()
+        )
+        return False, (reason if changed else None)
+
     def get_rules(self):
         """Return this group's pick rule settings as a dict"""
         return {
@@ -217,20 +282,27 @@ class Group(db.Model):
 
         return leaderboard_data
 
-    def to_dict(self, include_members=False):
-        """Convert group to dictionary for API responses"""
+    def to_dict(self, include_members=False, include_invite_code=False):
+        """Convert group to dictionary for API responses
+
+        The invite code is opt-in: /api/search returns public groups the caller
+        is not a member of, and the code is what grants membership. Callers
+        that have already established membership pass include_invite_code=True.
+        """
         data = {
             "id": self.id,
             "name": self.name,
             "description": self.description,
             "is_public": self.is_public,
             "is_active": self.is_active,
-            "invite_code": self.invite_code,
             "member_count": self.get_member_count(),
             "max_members": self.max_members,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "creator": self.creator.username if self.creator else None,
         }
+
+        if include_invite_code:
+            data["invite_code"] = self.invite_code
 
         if include_members:
             data["members"] = [member.to_dict() for member in self.get_active_members()]

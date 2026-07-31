@@ -1,6 +1,6 @@
 import logging
 import time
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from functools import wraps
 
 import requests
@@ -477,37 +477,154 @@ class DataSync:
             logger.error(f"Error updating live scores: {str(e)}", exc_info=True)
             return False, str(e)
 
+    def reconcile_final_scores(self, within_hours=48):
+        """Re-check recently finalized games for score corrections.
+
+        update_live_scores() only ever looks at games that are not yet final,
+        so a stat correction ESPN publishes after a game is marked final was
+        invisible: the game kept the wrong score and every pick on it kept the
+        wrong result permanently. This re-fetches games that finalized inside
+        the window and reruns scoring on the ones whose score actually moved.
+
+        The window keeps the cost bounded - a full-season sweep would be 270+
+        API calls at a 500ms floor - and corrections in practice land within a
+        day or two of the game.
+
+        Args:
+            within_hours: How far back to look, measured from game kickoff.
+
+        Returns:
+            tuple: (success, message)
+        """
+        try:
+            current_season = Season.get_current_season()
+            if not current_season:
+                return False, "No active season"
+
+            cutoff = datetime.now(timezone.utc) - timedelta(hours=within_hours)
+
+            recent_final_games = Game.query.filter(
+                Game.season_id == current_season.id,
+                Game.is_final == True,
+                Game.game_time >= cutoff,
+            ).all()
+
+            if not recent_final_games:
+                return True, "No recently finalized games to reconcile"
+
+            corrected_game_ids = []
+            for game in recent_final_games:
+                if self._reconcile_game_score(game):
+                    corrected_game_ids.append(game.id)
+
+            if not corrected_game_ids:
+                return True, f"Checked {len(recent_final_games)} games, no corrections"
+
+            db.session.commit()
+
+            # Rescore the affected picks. Same two-phase shape as
+            # update_live_scores: scores land first, picks follow.
+            from app.models import Pick
+
+            total_picks_updated = 0
+            for game_id in corrected_game_ids:
+                picks_updated, week = Pick.recalculate_for_game(game_id, commit=True)
+                total_picks_updated += picks_updated
+                logger.warning(
+                    f"Score correction on game {game_id} (week {week}): "
+                    f"rescored {picks_updated} picks"
+                )
+
+            return True, (
+                f"Corrected {len(corrected_game_ids)} of {len(recent_final_games)} "
+                f"games, rescored {total_picks_updated} picks"
+            )
+
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Error reconciling final scores: {str(e)}", exc_info=True)
+            return False, str(e)
+
+    def _reconcile_game_score(self, game):
+        """Apply an ESPN score correction to an already-final game
+
+        Returns True if the stored score changed (caller commits).
+        """
+        try:
+            if not game.espn_id:
+                return False
+
+            competition = self._fetch_competition(game)
+            home_score, away_score, is_final = self._parse_competition(competition)
+
+            if not is_final:
+                # ESPN no longer calls this game complete. Almost always a
+                # transient API state rather than a real un-finalization, and
+                # un-scoring settled picks on that basis would be worse than
+                # doing nothing - so log it and leave the game alone.
+                logger.warning(
+                    f"Game {game.id} is final locally but ESPN reports it "
+                    f"incomplete - leaving stored result untouched"
+                )
+                return False
+
+            if home_score is None or away_score is None:
+                return False
+
+            if game.home_score == home_score and game.away_score == away_score:
+                return False
+
+            logger.warning(
+                f"ESPN corrected game {game.id}: "
+                f"{game.away_score}-{game.home_score} -> {away_score}-{home_score}"
+            )
+            game.home_score = home_score
+            game.away_score = away_score
+            return True
+
+        except Exception as e:
+            logger.error(
+                f"Error reconciling game {game.id}: {str(e)}", exc_info=True
+            )
+            return False
+
+    def _fetch_competition(self, game):
+        """Fetch the ESPN competition block for a game"""
+        url = f"{self.api_base_url}/summary"
+        response = self._make_api_request(url, params={"event": game.espn_id})
+        return response.json().get("header", {}).get("competition", {})
+
+    @staticmethod
+    def _parse_competition(competition):
+        """Pull (home_score, away_score, is_final) out of a competition block
+
+        Shared by the live-score path and the reconciliation pass so the two
+        cannot drift apart in how they read a result.
+        """
+        is_final = competition.get("status", {}).get("type", {}).get("completed", False)
+
+        home_score = None
+        away_score = None
+
+        for competitor in competition.get("competitors", []):
+            score = competitor.get("score", 0)
+            value = int(score) if score else 0
+
+            if competitor.get("homeAway") == "home":
+                home_score = value
+            else:
+                away_score = value
+
+        return home_score, away_score, is_final
+
     def _update_game_score(self, game):
         """Update score for a single game"""
         try:
             if not game.espn_id:
                 return False
 
-            url = f"{self.api_base_url}/summary"
-            params = {"event": game.espn_id}
-
-            response = self._make_api_request(url, params=params)
-
-            data = response.json()
-            competition = data.get("header", {}).get("competition", {})
-
-            # Check if game is complete
-            status = competition.get("status", {})
-            is_final = status.get("type", {}).get("completed", False)
-
-            # Get current scores
-            competitors = competition.get("competitors", [])
-            home_score = None
-            away_score = None
-
-            for competitor in competitors:
-                score = competitor.get("score", 0)
-                is_home = competitor.get("homeAway") == "home"
-
-                if is_home:
-                    home_score = int(score) if score else 0
-                else:
-                    away_score = int(score) if score else 0
+            competition = self._fetch_competition(game)
+            home_score, away_score, is_final = self._parse_competition(competition)
 
             # Check if anything changed
             score_changed = (

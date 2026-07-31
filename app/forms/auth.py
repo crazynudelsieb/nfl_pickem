@@ -1,5 +1,3 @@
-import html
-
 from flask_wtf import FlaskForm
 from wtforms import BooleanField, PasswordField, StringField, SubmitField
 from wtforms.validators import (
@@ -13,12 +11,12 @@ from wtforms.validators import (
 
 from app.models.user import User
 
-
-def sanitize_input(text):
-    """Sanitize user input to prevent XSS"""
-    if not text:
-        return text
-    return html.escape(text.strip())
+# Names reach the browser through HTML data attributes that client code reads
+# back with getAttribute(), which returns the decoded value - template escaping
+# does not protect that path. Restricting the character set at the door does.
+# Every form that writes a name must apply these, not just registration.
+USERNAME_PATTERN = r"^[a-zA-Z0-9_.-]+$"
+DISPLAY_NAME_PATTERN = r"^[a-zA-Z0-9 _.-]*$"
 
 
 class LoginForm(FlaskForm):
@@ -39,7 +37,7 @@ class RegistrationForm(FlaskForm):
                 min=3, max=80, message="Username must be between 3 and 80 characters"
             ),
             Regexp(
-                r"^[a-zA-Z0-9_.-]+$",
+                USERNAME_PATTERN,
                 message="Username can only contain letters, numbers, dots, underscores, and hyphens",
             ),
         ],
@@ -50,7 +48,7 @@ class RegistrationForm(FlaskForm):
         validators=[
             Length(max=100),
             Regexp(
-                r"^[a-zA-Z0-9 _.-]*$",
+                DISPLAY_NAME_PATTERN,
                 message="Display name contains invalid characters",
             ),
         ],
@@ -91,11 +89,33 @@ class RegistrationForm(FlaskForm):
 
 
 class EditProfileForm(FlaskForm):
+    # Same character restrictions as RegistrationForm. Without them a user
+    # could register with a clean name and then edit it to markup: the
+    # leaderboard passes the username to the browser through a data attribute,
+    # and getAttribute() hands back the decoded value, so Jinja's escaping does
+    # not survive the round trip.
     username = StringField(
-        "Username", validators=[DataRequired(), Length(min=3, max=80)]
+        "Username",
+        validators=[
+            DataRequired(),
+            Length(min=3, max=80),
+            Regexp(
+                USERNAME_PATTERN,
+                message="Username can only contain letters, numbers, dots, underscores, and hyphens",
+            ),
+        ],
     )
     email = StringField("Email", validators=[DataRequired(), Email()])
-    display_name = StringField("Display Name (Optional)", validators=[Length(max=100)])
+    display_name = StringField(
+        "Display Name (Optional)",
+        validators=[
+            Length(max=100),
+            Regexp(
+                DISPLAY_NAME_PATTERN,
+                message="Display name contains invalid characters",
+            ),
+        ],
+    )
     submit = SubmitField("Update Profile")
 
     def __init__(self, original_username, original_email, *args, **kwargs):

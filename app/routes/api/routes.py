@@ -129,8 +129,13 @@ def teams_by_season(season_id):
 @add_security_headers
 def groups():
     """Get user's groups"""
-    user_groups = current_user.get_groups()
-    return jsonify([membership.group.to_dict() for membership in user_groups])
+    # get_groups() returns Group objects, not memberships.
+    return jsonify(
+        [
+            group.to_dict(include_invite_code=True)
+            for group in current_user.get_groups()
+        ]
+    )
 
 
 @bp.route("/groups/<int:group_id>/leaderboard")
@@ -278,8 +283,8 @@ def search():
 
     results = {"groups": [], "users": [], "games": []}
 
-    # Search groups
-    user_group_ids = [membership.group_id for membership in current_user.get_groups()]
+    # Search groups. get_groups() returns Group objects, not memberships.
+    user_group_ids = [group.id for group in current_user.get_groups()]
     groups = (
         Group.query.filter(
             db.or_(Group.is_public.is_(True), Group.id.in_(user_group_ids)),
