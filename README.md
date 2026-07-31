@@ -4,6 +4,14 @@ A Progressive Web App for running NFL pick'em leagues, with live score updates a
 
 Pick one game each week, follow the league rules, and climb the standings. Self-hosted, no accounts on anyone else's servers, no wagering.
 
+Part of the appchen ecosystem: [appchen.com](https://appchen.com) is the main hub for all -chen apps.
+
+## appchen ecosystem
+
+- **Main website**: [appchen.com](https://appchen.com)
+- **Sister project**: [terminchen](https://github.com/crazynudelsieb/terminchen) (shared calendar)
+- **This project**: [nfl_pickem](https://github.com/crazynudelsieb/nfl_pickem)
+
 ## Features
 
 - **Weekly picks** — select one team per week to win; change your pick any time before that game kicks off
@@ -91,6 +99,19 @@ git push origin v1.2.35
 ```
 
 Manual runs accept an optional version tag and let you toggle `:latest` and `--no-cache`.
+
+## CI / Build workflows
+
+This repository uses the same workflow pattern as other -chen projects:
+
+- **CI**: [.github/workflows/ci.yml](.github/workflows/ci.yml)
+    - Lint (`ruff check .`)
+    - Unit tests (`pytest`)
+    - Runtime smoke test (Gunicorn boot + HTTP/WebSocket check)
+    - PR Docker build validation (`linux/amd64`, no push)
+- **Release build**: [.github/workflows/build-multiarch.yml](.github/workflows/build-multiarch.yml)
+    - Triggered by `v*` tags or manually
+    - Publishes multi-arch images (`linux/amd64` + `linux/arm64`) to GHCR
 
 ## Technology Stack
 
@@ -206,5 +227,14 @@ Commercial use requires a separate license: appchen@outlook.at
 ## Contributing
 
 Bug reports and feature requests are welcome via [GitHub Issues](https://github.com/crazynudelsieb/nfl_pickem/issues). For code changes, fork the repository, create a feature branch, and open a pull request.
+
+## Support
+
+If you run this project and want to support ongoing maintenance, configure the optional footer links in [.env.example](.env.example):
+
+- `CONTACT_KOFI`
+- `CONTACT_BUYMEACOFFEE`
+
+They render as small footer support chips only when set.
 
 See [CHANGELOG.md](CHANGELOG.md) for version history.
