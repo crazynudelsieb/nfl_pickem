@@ -7,7 +7,7 @@ It provides intelligent scheduling that adjusts frequency based on game status.
 
 import atexit
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -189,10 +189,10 @@ class SchedulerService:
                 # Get only live games (game has started but not finished)
                 # NOTE: Can't use Game.status == "in_progress" (status is @property)
                 # Must query by game_time and is_final columns
-                now_utc = datetime.now(timezone.utc)
+                now_utc = datetime.now(UTC)
                 live_games = Game.query.filter(
                     Game.season_id == current_season.id,
-                    Game.is_final == False,
+                    Game.is_final.is_(False),
                     Game.game_time <= now_utc
                 ).all()
 
@@ -264,7 +264,7 @@ class SchedulerService:
                     Game.season_id == current_season.id,
                     Game.week.in_([current_week - 1, current_week, current_week + 1]),
                     Game.is_final.is_(False),
-                    Game.game_time <= datetime.now(timezone.utc) + timedelta(hours=6),
+                    Game.game_time <= datetime.now(UTC) + timedelta(hours=6),
                 ).all()
 
                 # PHASE 1: Update game scores
@@ -539,7 +539,7 @@ class SchedulerService:
 
     def _update_stats(self, success, games_updated=0):
         """Update sync statistics"""
-        self.sync_stats["last_sync"] = datetime.now(timezone.utc)
+        self.sync_stats["last_sync"] = datetime.now(UTC)
         self.sync_stats["total_syncs"] += 1
 
         if success:

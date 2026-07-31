@@ -1,6 +1,6 @@
 """Season Winner Model - Tracks champions and awards"""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from app import db
 
@@ -32,7 +32,7 @@ class SeasonWinner(db.Model):
     accuracy = db.Column(db.Float, default=0.0)
 
     # Timestamps
-    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
 
     # Relationships
     season = db.relationship("Season", backref="winners")
@@ -69,7 +69,7 @@ class SeasonWinner(db.Model):
         For seasons without Super Bowl:
         - Use full season leaderboard
         """
-        from app.models import Group, User, Game, Pick
+        from app.models import Game, Group, Pick, User
         from app.models.regular_season_snapshot import RegularSeasonSnapshot
 
         results = {"global_winners": [], "group_winners": {}}

@@ -6,7 +6,7 @@ pick notifications, and other live features.
 """
 
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from flask import request
 from flask_login import current_user
@@ -227,7 +227,7 @@ def notify_user(user_id, notification_type, message, data=None):
                 "type": notification_type,
                 "message": message,
                 "data": data or {},
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
             },
             room=f"user_{user_id}",
             namespace="/notifications",

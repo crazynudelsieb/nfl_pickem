@@ -143,10 +143,9 @@ def profile():
 
     # Count missed WEEKS across all seasons
     # User makes one pick per week, so we count weeks where they didn't pick
-    picked_game_ids = {p.game_id for p in all_picks}
-    
+
     # Get all weeks that have completed games (across all seasons)
-    completed_games = Game.query.filter(Game.is_final == True).all()
+    completed_games = Game.query.filter(Game.is_final.is_(True)).all()
     completed_weeks_by_season = {}
     for g in completed_games:
         if g.season_id not in completed_weeks_by_season:

@@ -1,8 +1,7 @@
 import secrets
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from app import db
-
 
 # Default ruleset, used for global picks (no group context) and as form defaults:
 # - pick_team_once: each team can only be picked once during the regular season
@@ -43,11 +42,11 @@ class Group(db.Model):
 
     # Creator and timestamps
     creator_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
-    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
     updated_at = db.Column(
         db.DateTime,
-        default=lambda: datetime.now(timezone.utc),
-        onupdate=lambda: datetime.now(timezone.utc),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
     )
 
     # Current season
@@ -75,7 +74,7 @@ class Group(db.Model):
         return f"<Group {self.name}>"
 
     def __init__(self, **kwargs):
-        super(Group, self).__init__(**kwargs)
+        super().__init__(**kwargs)
         if not self.invite_code:
             self.invite_code = self.generate_invite_code()
         if not self.slug:
@@ -150,7 +149,7 @@ class Group(db.Model):
             else:
                 # Reactivate membership
                 existing.is_active = True
-                existing.joined_at = datetime.now(timezone.utc)
+                existing.joined_at = datetime.now(UTC)
                 return True, "Membership reactivated"
 
         # Check capacity
@@ -168,7 +167,7 @@ class Group(db.Model):
         member = self.members.filter_by(user_id=user_id, is_active=True).first()
         if member:
             member.is_active = False
-            member.left_at = datetime.now(timezone.utc)
+            member.left_at = datetime.now(UTC)
             return True, "User removed successfully"
         return False, "User is not a member"
 

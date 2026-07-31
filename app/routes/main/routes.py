@@ -1,6 +1,6 @@
 import logging
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from flask import (
     abort,
@@ -15,7 +15,7 @@ from flask import (
 )
 from flask_login import current_user, login_required
 
-from app import db, limiter
+from app import __version__, db, limiter
 from app.models import Game, Group, GroupMember, Pick, Season, User
 from app.routes.main import bp
 
@@ -485,7 +485,7 @@ def _process_single_pick(
         existing_pick.selected_team_id = team_id
         existing_pick.game_id = game_id  # Update game as well
         existing_pick.group_id = group_id  # Update group_id
-        existing_pick.updated_at = datetime.now(timezone.utc)
+        existing_pick.updated_at = datetime.now(UTC)
         return True, "Pick updated"
     else:
         # Create new pick (validation already done above)
@@ -1187,8 +1187,9 @@ def season_winners(season_id):
 @login_required
 def hall_of_fame():
     """Display all-time hall of fame"""
-    from app.models import SeasonWinner, Pick
     from collections import Counter
+
+    from app.models import Pick, SeasonWinner
 
     # Get user's awards
     user_awards = SeasonWinner.get_user_awards(current_user.id)
@@ -1262,7 +1263,10 @@ def health():
             {
                 "status": "healthy" if db_ok else "unhealthy",
                 "database": "up" if db_ok else "down",
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                # Stamped from the git tag by the release workflow, so a bug
+                # report can name the exact image it came from.
+                "version": __version__,
+                "timestamp": datetime.now(UTC).isoformat(),
             }
         ),
         status_code,
@@ -1429,7 +1433,7 @@ def api_live_scores():
         .filter(
             Game.season_id == current_season.id,
             Game.is_final.is_(False),
-            Game.game_time <= datetime.now(timezone.utc),
+            Game.game_time <= datetime.now(UTC),
         )
         .all()
     )
@@ -1450,7 +1454,7 @@ def api_live_scores():
         )
 
     return jsonify(
-        {"games": games_data, "last_updated": datetime.now(timezone.utc).isoformat()}
+        {"games": games_data, "last_updated": datetime.now(UTC).isoformat()}
     )
 
 

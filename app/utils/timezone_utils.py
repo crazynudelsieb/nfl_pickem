@@ -2,7 +2,7 @@
 Timezone utility functions for the NFL Pick'em application
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytz
 from flask import current_app
@@ -26,7 +26,7 @@ def get_current_time():
 
 def get_utc_time():
     """Get current time in UTC"""
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def convert_to_app_timezone(dt):
@@ -38,7 +38,7 @@ def convert_to_app_timezone(dt):
 
     # If datetime is naive, assume it's UTC
     if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
+        dt = dt.replace(tzinfo=UTC)
 
     return dt.astimezone(app_tz)
 
@@ -53,7 +53,7 @@ def convert_to_utc(dt):
         app_tz = get_app_timezone()
         dt = app_tz.localize(dt)
 
-    return dt.astimezone(timezone.utc)
+    return dt.astimezone(UTC)
 
 
 def format_game_time(dt, format_str="%a %m/%d at %I:%M %p"):

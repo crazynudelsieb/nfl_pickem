@@ -1,5 +1,5 @@
-from datetime import datetime, timezone
 import logging
+from datetime import UTC, datetime
 
 from app import db
 
@@ -25,11 +25,11 @@ class Season(db.Model):
     current_week = db.Column(db.Integer, default=1)
 
     # Timestamps
-    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
     updated_at = db.Column(
         db.DateTime,
-        default=lambda: datetime.now(timezone.utc),
-        onupdate=lambda: datetime.now(timezone.utc),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
     )
 
     # Relationships
@@ -61,7 +61,7 @@ class Season(db.Model):
         The NFL season runs Sept-Feb, so Jan-Jul belongs to the previous
         year's season and Aug-Dec to the current year's.
         """
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         return now.year if now.month >= 8 else now.year - 1
 
     @staticmethod
@@ -269,9 +269,9 @@ class Season(db.Model):
 
     def get_current_week_auto(self):
         """Automatically determine current week based on game schedule and current date"""
-        from datetime import datetime, timezone
+        from datetime import datetime
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         # Get all games for this season, ordered by week and game time
         all_games = self.games.order_by("week", "game_time").all()
@@ -292,11 +292,11 @@ class Season(db.Model):
             # Ensure game times are timezone-aware for comparison
             first_game_time = first_game_of_week.game_time
             if first_game_time.tzinfo is None:
-                first_game_time = first_game_time.replace(tzinfo=timezone.utc)
+                first_game_time = first_game_time.replace(tzinfo=UTC)
 
             last_game_time = last_game_of_week.game_time
             if last_game_time.tzinfo is None:
-                last_game_time = last_game_time.replace(tzinfo=timezone.utc)
+                last_game_time = last_game_time.replace(tzinfo=UTC)
 
             # If we haven't reached the first game of this week yet,
             # but we're within 3 days, consider it current week for pick making

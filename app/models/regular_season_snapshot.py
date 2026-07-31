@@ -1,5 +1,5 @@
-from datetime import datetime, timezone
 import logging
+from datetime import UTC, datetime
 
 from app import db
 
@@ -35,7 +35,7 @@ class RegularSeasonSnapshot(db.Model):
     is_superbowl_eligible = db.Column(db.Boolean, default=False)  # Top 2 from playoffs
 
     # Snapshot metadata
-    snapshot_date = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    snapshot_date = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
 
     # Relationships
     season = db.relationship("Season", backref="regular_season_snapshots")
