@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from app import db
 
@@ -30,7 +30,7 @@ class AdminAction(db.Model):
     action_metadata = db.Column(db.JSON, nullable=True)
 
     # Timestamps
-    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
 
     # Relationships
     admin_user = db.relationship(

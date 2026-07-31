@@ -6,20 +6,20 @@ on:
       - "v*"
   workflow_dispatch:
     inputs:
+      version_bump:
+        description: "Auto-increment the next version from the latest v* git tag, and push that tag on success"
+        required: true
+        default: patch
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+          - none
       version:
-        description: "Optional image tag (for example v1.2.3). If empty, only latest is used."
+        description: "Explicit image tag (for example v1.2.3). Overrides version_bump. If both are empty, only latest is used."
         required: false
         type: string
-      auto_patch:
-        description: "If version is empty: bump latest v* tag by one patch and create a new tag"
-        required: true
-        default: true
-        type: boolean
-      create_tag:
-        description: "Create and push the resolved version tag before building"
-        required: true
-        default: true
-        type: boolean
       push_latest:
         description: "Also push :latest"
         required: true
@@ -39,14 +39,21 @@ env:
   APP_IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/nfl_pickem
 
 jobs:
+  # Nothing is published from a tree that doesn't lint and pass its tests.
+  test:
+    uses: ./.github/workflows/ci.yml
+
   build-and-push:
+    needs: test
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
         uses: actions/checkout@v7
         with:
+          # Full history + tags so the version bump can find the latest v* tag.
           fetch-depth: 0
+          fetch-tags: true
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v4
@@ -70,72 +77,76 @@ jobs:
         # body, so input values can never be executed as shell code.
         env:
           INPUT_VERSION: ${{ inputs.version }}
-          INPUT_AUTO_PATCH: ${{ inputs.auto_patch }}
-          INPUT_CREATE_TAG: ${{ inputs.create_tag }}
+          INPUT_VERSION_BUMP: ${{ inputs.version_bump }}
+          # Base used when the repo has no v* tags yet. Only a fallback -- the
+          # repo is already tagged well past this.
+          SEED_VERSION: v1.2.37
         run: |
           set -euo pipefail
 
           VERSION_TAG=""
-          SHOULD_CREATE_TAG="false"
+          CREATE_TAG="false"
 
           if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
             VERSION_TAG="${GITHUB_REF_NAME}"
-          elif [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            if [[ -n "${INPUT_VERSION}" ]]; then
-              VERSION_TAG="${INPUT_VERSION}"
-            elif [[ "${INPUT_AUTO_PATCH}" == "true" ]]; then
-              git fetch --tags --force
-              LATEST_TAG="$(git tag -l 'v*' --sort=-version:refname | head -n 1)"
+          elif [[ -n "${INPUT_VERSION}" ]]; then
+            VERSION_TAG="${INPUT_VERSION}"
+          elif [[ -n "${INPUT_VERSION_BUMP:-}" && "${INPUT_VERSION_BUMP}" != "none" ]]; then
+            # Highest plain vMAJOR.MINOR.PATCH tag; pre-release tags are ignored.
+            LATEST="$(git tag --list 'v*' --sort=-v:refname \
+              | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n1 || true)"
 
-              if [[ -z "${LATEST_TAG}" ]]; then
-                VERSION_TAG="v0.0.1"
-              elif [[ "${LATEST_TAG}" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
-                MAJOR="${BASH_REMATCH[1]}"
-                MINOR="${BASH_REMATCH[2]}"
-                PATCH="${BASH_REMATCH[3]}"
-                VERSION_TAG="v${MAJOR}.${MINOR}.$((PATCH + 1))"
-              else
-                echo "Latest tag '${LATEST_TAG}' does not match v<major>.<minor>.<patch> format."
-                exit 1
-              fi
+            if [[ -z "${LATEST}" ]]; then
+              LATEST="${SEED_VERSION}"
+              echo "No vMAJOR.MINOR.PATCH tags found; seeding from ${LATEST}"
             fi
 
-            if [[ -n "${VERSION_TAG}" && "${INPUT_CREATE_TAG}" == "true" ]]; then
-              SHOULD_CREATE_TAG="true"
+            if [[ ! "${LATEST}" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+              echo "Cannot parse '${LATEST}' as a version; aborting." >&2
+              exit 1
+            fi
+            MAJOR="${BASH_REMATCH[1]}"
+            MINOR="${BASH_REMATCH[2]}"
+            PATCH="${BASH_REMATCH[3]}"
+
+            case "${INPUT_VERSION_BUMP}" in
+              major) MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
+              minor) MINOR=$((MINOR + 1)); PATCH=0 ;;
+              patch) PATCH=$((PATCH + 1)) ;;
+              *) echo "Unknown version_bump '${INPUT_VERSION_BUMP}'" >&2; exit 1 ;;
+            esac
+
+            VERSION_TAG="v${MAJOR}.${MINOR}.${PATCH}"
+            CREATE_TAG="true"
+            echo "Auto-bump (${INPUT_VERSION_BUMP}): ${LATEST} -> ${VERSION_TAG}"
+
+            if git rev-parse -q --verify "refs/tags/${VERSION_TAG}" >/dev/null; then
+              echo "Tag ${VERSION_TAG} already exists; aborting." >&2
+              exit 1
             fi
           fi
 
           echo "version_tag=${VERSION_TAG}" >> "$GITHUB_OUTPUT"
-          echo "should_create_tag=${SHOULD_CREATE_TAG}" >> "$GITHUB_OUTPUT"
+          echo "create_tag=${CREATE_TAG}" >> "$GITHUB_OUTPUT"
 
-      - name: Create and push git tag
-        id: create_tag
-        if: ${{ github.event_name == 'workflow_dispatch' && steps.vars.outputs.should_create_tag == 'true' }}
+      # app.__version__ is what /health reports, so it has to be the tag being
+      # published -- otherwise a bug report names a version that was never
+      # released. Stamped into the tree that gets built, and committed alongside
+      # the tag below so the repo doesn't drift.
+      - name: Stamp version
+        if: steps.vars.outputs.version_tag != ''
         shell: bash
         env:
           VERSION_TAG: ${{ steps.vars.outputs.version_tag }}
         run: |
           set -euo pipefail
-
-          if [[ -z "${VERSION_TAG}" ]]; then
-            echo "No VERSION_TAG resolved."
-            exit 1
-          fi
-
-          if git rev-parse -q --verify "refs/tags/${VERSION_TAG}" >/dev/null; then
-            echo "Tag ${VERSION_TAG} already exists locally."
-            exit 1
-          fi
-
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git tag "${VERSION_TAG}"
-          git push origin "${VERSION_TAG}"
-
-          echo "created=true" >> "$GITHUB_OUTPUT"
+          VERSION="${VERSION_TAG#v}"
+          INIT="app/__init__.py"
+          sed -i -E "s/^__version__ = \".*\"$/__version__ = \"${VERSION}\"/" "${INIT}"
+          grep -q "^__version__ = \"${VERSION}\"$" "${INIT}"
+          echo "Stamped ${INIT} as ${VERSION}"
 
       - name: Build and push linux/amd64 + linux/arm64 images
-        if: ${{ !(github.event_name == 'workflow_dispatch' && steps.create_tag.outputs.created == 'true') }}
         shell: bash
         env:
           VERSION_TAG: ${{ steps.vars.outputs.version_tag }}
@@ -182,3 +193,25 @@ jobs:
           }
 
           build_image "${APP_IMAGE_NAME}" "Dockerfile"
+
+      # Only runs for auto-bumped dispatch builds. Tags pushed with GITHUB_TOKEN
+      # do not trigger workflows, so this cannot re-enter the v* push trigger.
+      - name: Push version tag
+        if: steps.vars.outputs.create_tag == 'true'
+        shell: bash
+        env:
+          VERSION_TAG: ${{ steps.vars.outputs.version_tag }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # Carry the stamped __version__ into the tag (and onto the branch), so
+          # the released commit is the one that declares the released version.
+          git add app/__init__.py
+          if ! git diff --cached --quiet; then
+            git commit -m "release: ${VERSION_TAG}"
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+          fi
+          git tag -a "${VERSION_TAG}" -m "Release ${VERSION_TAG}"
+          git push origin "refs/tags/${VERSION_TAG}"
+          echo "Pushed tag ${VERSION_TAG} at $(git rev-parse HEAD)"

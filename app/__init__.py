@@ -12,6 +12,12 @@ from flask_wtf.csrf import CSRFProtect
 
 from config import config
 
+# Single source of truth for the released version, reported by /health. The
+# release workflow stamps this from the git tag it is publishing and commits it
+# alongside that tag, so a running instance always names a version that
+# actually shipped.
+__version__ = "1.2.37"
+
 db = SQLAlchemy()
 login_manager = LoginManager()
 socketio = SocketIO()
@@ -182,7 +188,9 @@ def show_config_warnings(app, config_name):
     print(f"NFL Pick'em starting with '{config_name}' configuration")
 
     if config_name == "production" and app.config.get("DEBUG"):
-        warnings.warn("DEBUG mode is enabled in production!", UserWarning)
+        warnings.warn(
+            "DEBUG mode is enabled in production!", UserWarning, stacklevel=2
+        )
 
     if not os.environ.get("SECRET_KEY"):
         print(

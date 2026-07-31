@@ -1,6 +1,6 @@
 import random
 import secrets
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from flask_login import UserMixin
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -37,11 +37,11 @@ class User(UserMixin, db.Model):
     reset_token_expiry = db.Column(db.DateTime(timezone=True), nullable=True)
 
     # Timestamps
-    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
     updated_at = db.Column(
         db.DateTime,
-        default=lambda: datetime.now(timezone.utc),
-        onupdate=lambda: datetime.now(timezone.utc),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
     )
     last_login = db.Column(db.DateTime)
 
@@ -146,7 +146,7 @@ class User(UserMixin, db.Model):
     def generate_reset_token(self):
         """Generate a password reset token"""
         self.reset_token = secrets.token_urlsafe(32)
-        self.reset_token_expiry = datetime.now(timezone.utc) + timedelta(hours=1)
+        self.reset_token_expiry = datetime.now(UTC) + timedelta(hours=1)
         return self.reset_token
 
     @staticmethod
@@ -160,9 +160,9 @@ class User(UserMixin, db.Model):
             # Ensure both datetimes are timezone-aware for comparison
             expiry = user.reset_token_expiry
             if expiry.tzinfo is None:
-                expiry = expiry.replace(tzinfo=timezone.utc)
+                expiry = expiry.replace(tzinfo=UTC)
             
-            if expiry > datetime.now(timezone.utc):
+            if expiry > datetime.now(UTC):
                 return user
         return None
 
@@ -234,7 +234,7 @@ class User(UserMixin, db.Model):
 
     def update_last_login(self):
         """Update last login timestamp"""
-        self.last_login = datetime.now(timezone.utc)
+        self.last_login = datetime.now(UTC)
         db.session.commit()
 
     def get_season_stats(self, season_id, group_id=None, completed_games=None):
@@ -263,7 +263,7 @@ class User(UserMixin, db.Model):
         # NOTE: Must use is_final column, not status property (status is @property, can't filter)
         if completed_games is None:
             completed_games = Game.query.filter(
-                Game.season_id == season_id, Game.is_final == True
+                Game.season_id == season_id, Game.is_final.is_(True)
             ).all()
 
         # Separate into regular season and playoff games
@@ -788,7 +788,7 @@ class User(UserMixin, db.Model):
             return []
 
         completed_games = Game.query.filter(
-            Game.season_id == season_id, Game.is_final == True
+            Game.season_id == season_id, Game.is_final.is_(True)
         ).all()
 
         leaderboard = []
@@ -980,7 +980,7 @@ class User(UserMixin, db.Model):
 
         # Fetch completed games once and share across all users' stats
         completed_games = Game.query.filter(
-            Game.season_id == season_id, Game.is_final == True
+            Game.season_id == season_id, Game.is_final.is_(True)
         ).all()
 
         leaderboard = []

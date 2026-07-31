@@ -1,7 +1,7 @@
 import logging
 import secrets
 import string
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from app import db
 
@@ -27,7 +27,7 @@ class Invite(db.Model):
     is_active = db.Column(db.Boolean, default=True)
 
     # Timestamps
-    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
     used_at = db.Column(db.DateTime)
 
     # Indexes
@@ -40,11 +40,11 @@ class Invite(db.Model):
         return f"<Invite {self.invitee_email} to group {self.group_id}>"
 
     def __init__(self, **kwargs):
-        super(Invite, self).__init__(**kwargs)
+        super().__init__(**kwargs)
         if not self.token:
             self.token = self.generate_token()
         if not self.expires_at:
-            self.expires_at = datetime.now(timezone.utc) + timedelta(
+            self.expires_at = datetime.now(UTC) + timedelta(
                 hours=168
             )  # 1 week default
 
@@ -62,12 +62,12 @@ class Invite(db.Model):
     def is_expired(self):
         """Check if invite has expired"""
         # Ensure both datetimes are timezone-aware for comparison
-        current_time = datetime.now(timezone.utc)
+        current_time = datetime.now(UTC)
         expires_at = self.expires_at
 
         # If expires_at is timezone-naive, assume it's UTC
         if expires_at.tzinfo is None:
-            expires_at = expires_at.replace(tzinfo=timezone.utc)
+            expires_at = expires_at.replace(tzinfo=UTC)
 
         # Debug logging to help troubleshoot
         try:
@@ -113,7 +113,7 @@ class Invite(db.Model):
         success, message = self.group.add_member(user if user_id else None)
         if success:
             self.is_used = True
-            self.used_at = datetime.now(timezone.utc)
+            self.used_at = datetime.now(UTC)
             return True, "Invite used successfully"
 
         return False, message
@@ -124,7 +124,7 @@ class Invite(db.Model):
 
     def extend_expiry(self, hours=168):
         """Extend invite expiry"""
-        self.expires_at = datetime.now(timezone.utc) + timedelta(hours=hours)
+        self.expires_at = datetime.now(UTC) + timedelta(hours=hours)
 
     @staticmethod
     def create_invite(group_id, inviter_id, invitee_email, expires_hours=168):
@@ -162,7 +162,7 @@ class Invite(db.Model):
             group_id=group_id,
             inviter_id=inviter_id,
             invitee_email=invitee_email,
-            expires_at=datetime.now(timezone.utc) + timedelta(hours=expires_hours),
+            expires_at=datetime.now(UTC) + timedelta(hours=expires_hours),
         )
 
         db.session.add(invite)

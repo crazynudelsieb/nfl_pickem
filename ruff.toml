@@ -1,0 +1,28 @@
+# Lint configuration.
+#
+# Kept in its own file rather than under [tool.ruff] in a pyproject, because
+# this project is not a packaged distribution -- dependencies live in
+# requirements*.txt and pytest is configured in pytest.ini, so there is no
+# packaging metadata to attach to.
+
+line-length = 100
+# The interpreter the image ships on (python:3.14-slim in the Dockerfile), so
+# the lint never suggests a rewrite the shipped runtime cannot execute.
+target-version = "py314"
+
+# The `app` package sits at the repository root, so the root is the import
+# root. Without this, isort files `import app...` as third-party.
+src = ["."]
+
+# Runtime and build state, not source.
+extend-exclude = ["logs", "instance", ".venv"]
+
+[lint]
+# Ruff's defaults (E4/E7/E9/F) plus:
+#   I   import sorting -- one obvious order, no debates in review
+#   UP  pyupgrade      -- the image ships on 3.14, keep it idiomatic
+#   B   bugbear        -- catches the mutable-default / zip-without-strict class
+select = ["E4", "E7", "E9", "F", "I", "UP", "B"]
+
+[lint.isort]
+known-first-party = ["app", "config", "tests"]

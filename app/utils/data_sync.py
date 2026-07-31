@@ -1,6 +1,6 @@
 import logging
 import time
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 from functools import wraps
 
 import requests
@@ -406,7 +406,7 @@ class DataSync:
             # Get games that might be in progress
             ongoing_games = (
                 Game.query.filter_by(season_id=current_season.id, is_final=False)
-                .filter(Game.game_time <= datetime.now(timezone.utc))
+                .filter(Game.game_time <= datetime.now(UTC))
                 .all()
             )
 
@@ -438,8 +438,8 @@ class DataSync:
                 Pick, Game.id == Pick.game_id
             ).filter(
                 Game.season_id == current_season.id,
-                Game.is_final == True,
-                Pick.is_correct == None,  # Picks not calculated yet
+                Game.is_final.is_(True),
+                Pick.is_correct.is_(None),  # Picks not calculated yet
                 db.or_(Pick.points_earned.is_(None), Pick.points_earned == 0),
             ).distinct().all()
 
@@ -501,11 +501,11 @@ class DataSync:
             if not current_season:
                 return False, "No active season"
 
-            cutoff = datetime.now(timezone.utc) - timedelta(hours=within_hours)
+            cutoff = datetime.now(UTC) - timedelta(hours=within_hours)
 
             recent_final_games = Game.query.filter(
                 Game.season_id == current_season.id,
-                Game.is_final == True,
+                Game.is_final.is_(True),
                 Game.game_time >= cutoff,
             ).all()
 

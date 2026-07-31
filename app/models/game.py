@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from app import db
 
@@ -36,11 +36,11 @@ class Game(db.Model):
     over_under = db.Column(db.Float)  # Total points over/under
 
     # Timestamps
-    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
     updated_at = db.Column(
         db.DateTime,
-        default=lambda: datetime.now(timezone.utc),
-        onupdate=lambda: datetime.now(timezone.utc),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
     )
 
     # Relationships
@@ -107,12 +107,12 @@ class Game(db.Model):
             return "completed"
 
         # Handle timezone comparison properly
-        now_utc = datetime.now(timezone.utc)
+        now_utc = datetime.now(UTC)
         game_time = self.game_time
 
         # If game_time is timezone-naive, assume it's in UTC
         if game_time and game_time.tzinfo is None:
-            game_time = game_time.replace(tzinfo=timezone.utc)
+            game_time = game_time.replace(tzinfo=UTC)
 
         if game_time and game_time <= now_utc and not self.is_final:
             # Game has started but not finished
@@ -213,12 +213,12 @@ class Game(db.Model):
         if not self.game_time:
             return False
         # Handle timezone comparison properly
-        now_utc = datetime.now(timezone.utc)
+        now_utc = datetime.now(UTC)
         game_time = self.game_time
 
         # If game_time is timezone-naive, assume it's in UTC
         if game_time.tzinfo is None:
-            game_time = game_time.replace(tzinfo=timezone.utc)
+            game_time = game_time.replace(tzinfo=UTC)
 
         return now_utc >= game_time
 

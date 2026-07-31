@@ -1,0 +1,14 @@
+# Enforce consistent line endings. The image build runs scripts from this tree
+# on Linux, where a stray CRLF is a syntax error, so normalise on the way in.
+* text=auto eol=lf
+
+# Binary files
+*.png binary
+*.ico binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.woff binary
+*.woff2 binary
+*.db binary

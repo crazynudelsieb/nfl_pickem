@@ -15,7 +15,7 @@ from flask_migrate import downgrade, migrate, upgrade
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from app import create_app, db
-from app.models import Game, Group, Season, Team, User
+from app.models import Game, Group, Pick, Season, Team, User
 from app.utils.data_sync import DataSync
 
 app = create_app()
@@ -487,7 +487,7 @@ def update_tie_games(season):
     # Find all tie games
     tie_games = Game.query.filter(
         Game.season_id == season_obj.id,
-        Game.is_final == True,
+        Game.is_final.is_(True),
         Game.home_score == Game.away_score,
         Game.home_score.isnot(None),
     ).all()
@@ -548,12 +548,12 @@ def create_snapshot(season_id, force):
     existing = RegularSeasonSnapshot.query.filter_by(season_id=season_id).first()
     if existing and not force:
         click.echo(f"⚠️  Snapshot already exists for season {season_id}")
-        click.echo(f"   Use --force to recreate")
+        click.echo("   Use --force to recreate")
         return
 
     if force and existing:
         # Delete existing snapshots
-        click.echo(f"🗑️  Deleting existing snapshots...")
+        click.echo("🗑️  Deleting existing snapshots...")
         RegularSeasonSnapshot.query.filter_by(season_id=season_id).delete()
         db.session.commit()
 
@@ -582,7 +582,7 @@ def create_snapshot(season_id, force):
     ).order_by(RegularSeasonSnapshot.final_rank).limit(4).all()
 
     if top4_snapshots:
-        click.echo(f"\n🏆 Top 4 (Playoff Eligible):")
+        click.echo("\n🏆 Top 4 (Playoff Eligible):")
         for snap in top4_snapshots:
             click.echo(f"   {snap.final_rank}. {snap.user.username} - {snap.total_wins} wins, {snap.total_score} pts")
 
@@ -652,8 +652,8 @@ def update_superbowl_eligibility(season_id):
         group_id=None
     ).all()
 
-    click.echo(f"✅ Updated Super Bowl eligibility")
-    click.echo(f"\n🏈 Super Bowl Eligible Users:")
+    click.echo("✅ Updated Super Bowl eligibility")
+    click.echo("\n🏈 Super Bowl Eligible Users:")
     for snap in sb_eligible:
         click.echo(f"   • {snap.user.username} (Regular season rank: #{snap.final_rank})")
 
@@ -683,9 +683,9 @@ def fix_superbowl(year):
     # Step 1: Check/create regular season snapshots
     existing = RegularSeasonSnapshot.query.filter_by(season_id=season.id).first()
     if existing:
-        click.echo(f"✅ Regular season snapshots already exist")
+        click.echo("✅ Regular season snapshots already exist")
     else:
-        click.echo(f"📸 Creating regular season snapshots...")
+        click.echo("📸 Creating regular season snapshots...")
         result = season.create_regular_season_snapshot()
 
         if isinstance(result, tuple):
@@ -700,7 +700,7 @@ def fix_superbowl(year):
     click.echo()
 
     # Step 2: Update Super Bowl eligibility
-    click.echo(f"🏆 Updating Super Bowl eligibility...")
+    click.echo("🏆 Updating Super Bowl eligibility...")
 
     # Global
     RegularSeasonSnapshot.update_superbowl_eligibility(season.id, group_id=None)
@@ -721,7 +721,7 @@ def fix_superbowl(year):
     ).order_by(RegularSeasonSnapshot.final_rank).all()
 
     if top4:
-        click.echo(f"📋 Playoff Eligible (Top 4):")
+        click.echo("📋 Playoff Eligible (Top 4):")
         for snap in top4:
             sb = "⭐ SB" if snap.is_superbowl_eligible else ""
             click.echo(
@@ -736,13 +736,13 @@ def fix_superbowl(year):
     ).all()
 
     if sb_eligible:
-        click.echo(f"\n🏟️  Super Bowl Eligible:")
+        click.echo("\n🏟️  Super Bowl Eligible:")
         for snap in sb_eligible:
             click.echo(f"   • {snap.user.username}")
     else:
-        click.echo(f"\n⚠️  No Super Bowl eligible users found (playoff games may not be final yet)")
+        click.echo("\n⚠️  No Super Bowl eligible users found (playoff games may not be final yet)")
 
-    click.echo(f"\n✅ Done! Super Bowl data has been fixed.")
+    click.echo("\n✅ Done! Super Bowl data has been fixed.")
 
 
 @cli.command()

@@ -21,6 +21,7 @@ class Config:
             "This will cause sessions to reset on app restart. "
             "Run 'python3 generate_secrets.py' to generate secure keys.",
             UserWarning,
+            stacklevel=2,
         )
 
     if not _csrf_key:
@@ -29,6 +30,7 @@ class Config:
             "🔐 WTF_CSRF_SECRET_KEY not set! Using auto-generated key. "
             "Run 'python3 generate_secrets.py' to generate secure keys.",
             UserWarning,
+            stacklevel=2,
         )
 
     SECRET_KEY = _secret_key
@@ -176,6 +178,7 @@ class ProductionConfig(Config):
             warnings.warn(
                 "🚨 PRODUCTION WARNING: WTF_CSRF_SECRET_KEY not explicitly set!",
                 UserWarning,
+                stacklevel=2,
             )
 
 

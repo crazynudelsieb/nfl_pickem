@@ -1,5 +1,5 @@
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -11,7 +11,8 @@ repo_root_str = str(REPO_ROOT)
 if repo_root_str not in sys.path:
     sys.path.insert(0, repo_root_str)
 
-from app import create_app, db as _db  # noqa: E402
+from app import create_app  # noqa: E402
+from app import db as _db  # noqa: E402
 from app.models import Game, Group, GroupMember, Season, Team, User  # noqa: E402
 
 
@@ -33,7 +34,7 @@ def db(app):
 
 def _naive_utc(offset):
     """Game.game_time is a naive UTC column - match it."""
-    return (datetime.now(timezone.utc) + offset).replace(tzinfo=None)
+    return (datetime.now(UTC) + offset).replace(tzinfo=None)
 
 
 @pytest.fixture

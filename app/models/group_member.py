@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from app import db
 
@@ -15,7 +15,7 @@ class GroupMember(db.Model):
     is_admin = db.Column(db.Boolean, default=False)
 
     # Timestamps
-    joined_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    joined_at = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
     left_at = db.Column(db.DateTime)
 
     # Constraints
@@ -39,13 +39,13 @@ class GroupMember(db.Model):
     def deactivate(self):
         """Deactivate membership"""
         self.is_active = False
-        self.left_at = datetime.now(timezone.utc)
+        self.left_at = datetime.now(UTC)
 
     def reactivate(self):
         """Reactivate membership"""
         self.is_active = True
         self.left_at = None
-        self.joined_at = datetime.now(timezone.utc)
+        self.joined_at = datetime.now(UTC)
 
     def to_dict(self):
         """Convert membership to dictionary for API responses"""
