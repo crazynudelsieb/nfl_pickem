@@ -64,6 +64,8 @@ class RegularSeasonSnapshot(db.Model):
         Returns:
             List of created RegularSeasonSnapshot objects
         """
+        from app.utils.ranking import expand_ties_at_cutoff
+
         from .group import Group
         from .user import User
 
@@ -79,6 +81,18 @@ class RegularSeasonSnapshot(db.Model):
         if not leaderboard:
             logger.warning(f"No leaderboard data for season {season_id}, group {group_id}")
             return []
+
+        # Players who are level on every merit key with whoever sits on the
+        # cutoff line all get in. Splitting them would decide a season by row
+        # order, and nothing measurable separates them.
+        qualifying = expand_ties_at_cutoff(leaderboard, playoff_spots)
+
+        if qualifying > playoff_spots:
+            logger.info(
+                f"Playoff field widened from {playoff_spots} to {qualifying} for "
+                f"season {season_id}, group {group_id}: tie on every merit key "
+                f"at the cutoff"
+            )
 
         snapshots = []
         for rank, entry in enumerate(leaderboard, start=1):
@@ -105,14 +119,14 @@ class RegularSeasonSnapshot(db.Model):
                 total_score=entry["total_score"],
                 tiebreaker_points=entry["tiebreaker_points"],
                 accuracy=entry["accuracy"],
-                is_playoff_eligible=(rank <= playoff_spots),
+                is_playoff_eligible=(rank <= qualifying),
                 is_superbowl_eligible=False  # Updated later after playoff rounds
             )
             db.session.add(snapshot)
             snapshots.append(snapshot)
 
             logger.info(f"Created snapshot: user {entry['user_id']} rank #{rank} "
-                       f"(playoff eligible: {rank <= playoff_spots})")
+                       f"(playoff eligible: {rank <= qualifying})")
 
         try:
             db.session.commit()
@@ -150,9 +164,22 @@ class RegularSeasonSnapshot(db.Model):
             logger.warning(f"No playoff leaderboard data for season {season_id}, group {group_id}")
             return []
 
-        # Top N from playoffs qualify for Super Bowl
+        # Top N from playoffs qualify for Super Bowl, widening the same way the
+        # playoff field does when the cutoff lands on a genuine tie.
+        from app.utils.ranking import expand_ties_at_cutoff, playoff_merit_key
+
+        qualifying = expand_ties_at_cutoff(
+            playoff_leaderboard, superbowl_spots, merit_key=playoff_merit_key
+        )
+
+        if qualifying > superbowl_spots:
+            logger.info(
+                f"Super Bowl field widened from {superbowl_spots} to {qualifying} "
+                f"for season {season_id}, group {group_id}: tie at the cutoff"
+            )
+
         top2_user_ids = [
-            entry["user_id"] for entry in playoff_leaderboard[:superbowl_spots]
+            entry["user_id"] for entry in playoff_leaderboard[:qualifying]
         ]
 
         # Reset all Super Bowl eligibility flags for this season/group

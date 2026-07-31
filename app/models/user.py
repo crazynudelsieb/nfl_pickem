@@ -1,4 +1,3 @@
-import html
 import random
 import secrets
 from datetime import datetime, timedelta, timezone
@@ -139,13 +138,6 @@ class User(UserMixin, db.Model):
         pick_filter.update(extra_filters)
 
         return pick_filter
-
-    def set_display_name(self, display_name):
-        """Set display name with sanitization"""
-        if display_name:
-            self.display_name = html.escape(display_name.strip())
-        else:
-            self.display_name = display_name
 
     def check_password(self, password):
         """Check password against hash"""
@@ -620,12 +612,18 @@ class User(UserMixin, db.Model):
         if user_position is None:
             return False, "User not found in leaderboard"
 
-        if user_position <= playoff_spots:
+        # Match the snapshot: everyone level with the player on the cutoff line
+        # qualifies rather than being split by presentation order.
+        from app.utils.ranking import expand_ties_at_cutoff
+
+        qualifying = expand_ties_at_cutoff(leaderboard, playoff_spots)
+
+        if user_position <= qualifying:
             return True, f"Qualified: Position {user_position}"
         else:
             qualifier_names = [
                 leaderboard[i]["user"].username
-                for i in range(min(playoff_spots, len(leaderboard)))
+                for i in range(min(qualifying, len(leaderboard)))
             ]
             return (
                 False,
@@ -686,13 +684,14 @@ class User(UserMixin, db.Model):
                 "user_id": uid,
                 "playoff_wins": stats["playoffs"]["wins"],
                 "total_tiebreaker": stats["total"]["tiebreaker_points"],
+                # Needed by the playoff tiebreak chain: the better regular
+                # season takes the tie.
+                "regular_score": stats["regular_season"]["total_score"],
             })
 
-        # Sort by playoff wins DESC, then tiebreaker DESC
-        playoff_rankings.sort(
-            key=lambda x: (x["playoff_wins"], x["total_tiebreaker"]),
-            reverse=True
-        )
+        from app.utils.ranking import sort_playoff_leaderboard
+
+        sort_playoff_leaderboard(playoff_rankings)
 
         # Find this user's position in playoff rankings
         user_position = None
@@ -704,8 +703,14 @@ class User(UserMixin, db.Model):
         if user_position is None:
             return False, "User not found in playoff rankings"
 
+        from app.utils.ranking import expand_ties_at_cutoff, playoff_merit_key
+
+        qualifying = expand_ties_at_cutoff(
+            playoff_rankings, rules["superbowl_spots"], merit_key=playoff_merit_key
+        )
+
         return (
-            user_position <= rules["superbowl_spots"],
+            user_position <= qualifying,
             f"Playoff position: {user_position}",
         )
 
@@ -818,13 +823,9 @@ class User(UserMixin, db.Model):
                 "total_score": stats["total"]["total_score"],  # Overall
             })
 
-        # Sort: (1) playoff wins DESC, (2) total tiebreaker DESC
-        leaderboard.sort(
-            key=lambda x: (x["playoff_wins"], x["total_tiebreaker"]),
-            reverse=True
-        )
+        from app.utils.ranking import sort_playoff_leaderboard
 
-        return leaderboard
+        return sort_playoff_leaderboard(leaderboard)
 
     def get_used_teams_this_season(self, season_id, group_id=None):
         """Get list of teams already used by this user in regular season
@@ -1018,12 +1019,9 @@ class User(UserMixin, db.Model):
                 }
             )
 
-        # Sort by total score (descending), then by tiebreaker points (descending)
-        leaderboard.sort(
-            key=lambda x: (x["total_score"], x["tiebreaker_points"]), reverse=True
-        )
+        from app.utils.ranking import sort_season_leaderboard
 
-        return leaderboard
+        return sort_season_leaderboard(leaderboard)
 
     def to_dict(self):
         """Convert user to dictionary for API responses"""

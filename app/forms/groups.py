@@ -1,5 +1,3 @@
-import html
-
 from flask_wtf import FlaskForm
 from wtforms import (
     BooleanField,
@@ -17,13 +15,6 @@ from wtforms.validators import (
     Regexp,
     ValidationError,
 )
-
-
-def sanitize_input(text):
-    """Sanitize user input to prevent XSS"""
-    if not text:
-        return text
-    return html.escape(text.strip())
 
 
 class GroupRulesMixin:

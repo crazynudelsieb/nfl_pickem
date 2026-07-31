@@ -313,8 +313,11 @@ function showPlayerPicks(userId, username) {
         return;
     }
     
-    // Set player name and show modal
-    modalPlayerName.innerHTML = '<span style="font-size: 1.5rem;">📊</span> ' + username + "'s Picks";
+    // Set player name and show modal. The username is a text node, never
+    // markup: getAttribute() returns the decoded attribute value, so the
+    // template's escaping is already gone by the time it reaches this line.
+    modalPlayerName.innerHTML = '<span style="font-size: 1.5rem;">📊</span> ';
+    modalPlayerName.appendChild(document.createTextNode(username + "'s Picks"));
     modal.style.display = 'block';
     
     // Show loading state

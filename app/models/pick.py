@@ -303,10 +303,43 @@ class Pick(db.Model):
                 already reflect the user's picks_are_global setting.
         """
         from .game import Game
+        from .season import Season
+        from .user import User
 
         game = Game.query.get(game_id)
         if not game:
             return None, "Game not found"
+
+        user = User.query.get(user_id)
+        if not user:
+            return None, "User not found"
+
+        # The game must still be open. This check has to happen here and not
+        # only in the caller: without it a pick can be created on a game that
+        # has kicked off - or already finished - and then scored from a result
+        # that is already known.
+        if game.has_started():
+            return None, "Game has already started"
+
+        if game.is_final:
+            return None, "Game is already complete"
+
+        # Playoff and Super Bowl eligibility, matching _validate_week_rules().
+        # Checked before anything is mutated so a rejected pick leaves the
+        # existing one untouched.
+        season = Season.query.get(game.season_id)
+        if season and season.is_playoff_week(game.week):
+            is_eligible, message = user.is_playoff_eligible(game.season_id, group_id)
+            if not is_eligible:
+                return None, message
+
+            superbowl_week = season.regular_season_weeks + season.playoff_weeks
+            if game.week == superbowl_week:
+                is_sb_eligible, sb_message = user.is_superbowl_eligible_from_snapshot(
+                    game.season_id, group_id
+                )
+                if not is_sb_eligible:
+                    return None, sb_message
 
         # Check if user already has a pick for this week in this group context
         week_filter = [
@@ -350,12 +383,8 @@ class Pick(db.Model):
         )
 
         # Manually set the relationships since the pick isn't flushed yet
-        from .user import User
-
         pick.game = game
-        pick.user = User.query.get(user_id)
-        if not pick.user:
-            return None, "User not found"
+        pick.user = user
 
         # Validate the new pick (but skip the week check since we handled it above)
         is_valid, message = pick._validate_team_rules()

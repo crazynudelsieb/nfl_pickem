@@ -185,22 +185,45 @@ def edit(group_id):
         return redirect(url_for("groups.index", group=group.slug))
 
     form = EditGroupForm(obj=group)
+    rules_locked_reason = group.rules_locked_reason()
 
     if form.validate_on_submit():
         group.name = form.name.data
         group.description = form.description.data
         group.is_public = form.is_public.data
         group.max_members = form.max_members.data
-        group.pick_team_once = form.pick_team_once.data
-        group.no_repeat_opponent = form.no_repeat_opponent.data
-        group.playoff_spots = form.playoff_spots.data
-        group.superbowl_spots = form.superbowl_spots.data
+
+        # Pick rules are frozen once the group's season is under way. The
+        # template disables the inputs, but that is presentation only - this is
+        # the check that actually holds.
+        applied, refused_reason = group.apply_rules(
+            pick_team_once=form.pick_team_once.data,
+            no_repeat_opponent=form.no_repeat_opponent.data,
+            playoff_spots=form.playoff_spots.data,
+            superbowl_spots=form.superbowl_spots.data,
+        )
 
         db.session.commit()
-        flash("Group updated successfully!", "success")
+
+        if applied:
+            flash("Group updated successfully!", "success")
+        elif refused_reason:
+            flash(
+                f"Other settings saved, but pick rules are locked: "
+                f"{refused_reason}.",
+                "warning",
+            )
+        else:
+            flash("Group updated successfully!", "success")
+
         return redirect(url_for("groups.index", group=group.slug))
 
-    return render_template("groups/edit.html", form=form, group=group)
+    return render_template(
+        "groups/edit.html",
+        form=form,
+        group=group,
+        rules_locked_reason=rules_locked_reason,
+    )
 
 
 @bp.route("/<int:group_id>/members")

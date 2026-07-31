@@ -94,9 +94,21 @@
                         <div class="form-section">
                             <h3><i class="fas fa-gavel"></i> Pick Rules</h3>
 
+                            {% if rules_locked_reason %}
+                                <div class="alert alert-info" role="status" style="display: flex; gap: 0.5rem; align-items: flex-start;">
+                                    <i class="fas fa-lock" style="margin-top: 0.2rem;"></i>
+                                    <div>
+                                        <strong>Pick rules are locked</strong> &mdash; {{ rules_locked_reason }}.
+                                        <div style="margin-top: 0.25rem;">
+                                            <small>Changing them now would rewrite which picks were legal when they were made. They unlock again next season.</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            {% endif %}
+
                             <div class="form-group form-check-container">
                                 <div class="custom-control custom-switch">
-                                    {{ form.pick_team_once(class="custom-control-input") }}
+                                    {{ form.pick_team_once(class="custom-control-input", disabled=rules_locked_reason is not none) }}
                                     {{ form.pick_team_once.label(class="custom-control-label") }}
                                 </div>
                                 <small class="form-text text-muted">
@@ -106,7 +118,7 @@
 
                             <div class="form-group form-check-container">
                                 <div class="custom-control custom-switch">
-                                    {{ form.no_repeat_opponent(class="custom-control-input") }}
+                                    {{ form.no_repeat_opponent(class="custom-control-input", disabled=rules_locked_reason is not none) }}
                                     {{ form.no_repeat_opponent.label(class="custom-control-label") }}
                                 </div>
                                 <small class="form-text text-muted">
@@ -116,7 +128,7 @@
 
                             <div class="form-group">
                                 {{ form.playoff_spots.label(class="form-label") }}
-                                {{ form.playoff_spots(class="form-control" + (" is-invalid" if form.playoff_spots.errors else "")) }}
+                                {{ form.playoff_spots(class="form-control" + (" is-invalid" if form.playoff_spots.errors else ""), disabled=rules_locked_reason is not none) }}
                                 {% if form.playoff_spots.errors %}
                                     <div class="invalid-feedback">
                                         {% for error in form.playoff_spots.errors %}
@@ -131,7 +143,7 @@
 
                             <div class="form-group">
                                 {{ form.superbowl_spots.label(class="form-label") }}
-                                {{ form.superbowl_spots(class="form-control" + (" is-invalid" if form.superbowl_spots.errors else "")) }}
+                                {{ form.superbowl_spots(class="form-control" + (" is-invalid" if form.superbowl_spots.errors else ""), disabled=rules_locked_reason is not none) }}
                                 {% if form.superbowl_spots.errors %}
                                     <div class="invalid-feedback">
                                         {% for error in form.superbowl_spots.errors %}

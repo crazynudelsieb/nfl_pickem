@@ -7,6 +7,7 @@ group pages - this module is the single implementation.
 """
 
 from app.models import Game, User
+from app.utils.ranking import sort_playoff_leaderboard
 
 
 def build_playoff_leaderboard(season, group_id=None, users=None):
@@ -70,9 +71,5 @@ def build_playoff_leaderboard(season, group_id=None, users=None):
             }
         )
 
-    # During playoffs, rank by playoff wins, then season-long tiebreaker points
-    leaderboard.sort(
-        key=lambda x: (x["playoff_wins"], x["tiebreaker_points"]), reverse=True
-    )
-
-    return leaderboard
+    # During playoffs, rank by playoff form with the regular season as decider
+    return sort_playoff_leaderboard(leaderboard)
