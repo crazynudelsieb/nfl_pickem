@@ -10,6 +10,16 @@ on:
         description: "Optional image tag (for example v1.2.3). If empty, only latest is used."
         required: false
         type: string
+      auto_patch:
+        description: "If version is empty: bump latest v* tag by one patch and create a new tag"
+        required: true
+        default: true
+        type: boolean
+      create_tag:
+        description: "Create and push the resolved version tag before building"
+        required: true
+        default: true
+        type: boolean
       push_latest:
         description: "Also push :latest"
         required: true
@@ -22,7 +32,7 @@ on:
         type: boolean
 
 permissions:
-  contents: read
+  contents: write
   packages: write
 
 env:
@@ -35,6 +45,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v4
@@ -58,16 +70,72 @@ jobs:
         # body, so input values can never be executed as shell code.
         env:
           INPUT_VERSION: ${{ inputs.version }}
+          INPUT_AUTO_PATCH: ${{ inputs.auto_patch }}
+          INPUT_CREATE_TAG: ${{ inputs.create_tag }}
         run: |
+          set -euo pipefail
+
           VERSION_TAG=""
+          SHOULD_CREATE_TAG="false"
+
           if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
             VERSION_TAG="${GITHUB_REF_NAME}"
-          elif [[ -n "${INPUT_VERSION}" ]]; then
-            VERSION_TAG="${INPUT_VERSION}"
+          elif [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            if [[ -n "${INPUT_VERSION}" ]]; then
+              VERSION_TAG="${INPUT_VERSION}"
+            elif [[ "${INPUT_AUTO_PATCH}" == "true" ]]; then
+              git fetch --tags --force
+              LATEST_TAG="$(git tag -l 'v*' --sort=-version:refname | head -n 1)"
+
+              if [[ -z "${LATEST_TAG}" ]]; then
+                VERSION_TAG="v0.0.1"
+              elif [[ "${LATEST_TAG}" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+                MAJOR="${BASH_REMATCH[1]}"
+                MINOR="${BASH_REMATCH[2]}"
+                PATCH="${BASH_REMATCH[3]}"
+                VERSION_TAG="v${MAJOR}.${MINOR}.$((PATCH + 1))"
+              else
+                echo "Latest tag '${LATEST_TAG}' does not match v<major>.<minor>.<patch> format."
+                exit 1
+              fi
+            fi
+
+            if [[ -n "${VERSION_TAG}" && "${INPUT_CREATE_TAG}" == "true" ]]; then
+              SHOULD_CREATE_TAG="true"
+            fi
           fi
+
           echo "version_tag=${VERSION_TAG}" >> "$GITHUB_OUTPUT"
+          echo "should_create_tag=${SHOULD_CREATE_TAG}" >> "$GITHUB_OUTPUT"
+
+      - name: Create and push git tag
+        id: create_tag
+        if: ${{ github.event_name == 'workflow_dispatch' && steps.vars.outputs.should_create_tag == 'true' }}
+        shell: bash
+        env:
+          VERSION_TAG: ${{ steps.vars.outputs.version_tag }}
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${VERSION_TAG}" ]]; then
+            echo "No VERSION_TAG resolved."
+            exit 1
+          fi
+
+          if git rev-parse -q --verify "refs/tags/${VERSION_TAG}" >/dev/null; then
+            echo "Tag ${VERSION_TAG} already exists locally."
+            exit 1
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag "${VERSION_TAG}"
+          git push origin "${VERSION_TAG}"
+
+          echo "created=true" >> "$GITHUB_OUTPUT"
 
       - name: Build and push linux/amd64 + linux/arm64 images
+        if: ${{ !(github.event_name == 'workflow_dispatch' && steps.create_tag.outputs.created == 'true') }}
         shell: bash
         env:
           VERSION_TAG: ${{ steps.vars.outputs.version_tag }}

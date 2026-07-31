@@ -98,7 +98,11 @@ git tag v1.2.35
 git push origin v1.2.35
 ```
 
-Manual runs accept an optional version tag and let you toggle `:latest` and `--no-cache`.
+Manual runs now support patching and tagging too:
+
+- leave `version` empty and keep `auto_patch=true` to bump the latest `v*` tag by one patch (for example `v1.2.35` -> `v1.2.36`)
+- keep `create_tag=true` to create/push the resolved tag first; the tag-triggered run then publishes the image
+- you can still provide `version` explicitly and toggle `:latest` / `--no-cache`
 
 ## CI / Build workflows
 
