@@ -8,8 +8,8 @@ Flask-Migrate==4.1.0
 WTForms==3.2.2
 Werkzeug==3.1.8
 psycopg[binary,pool]==3.3.4
-python-socketio==5.16.3
-python-engineio==4.13.3
+python-socketio==5.16.4
+python-engineio==4.13.5
 # WebSocket transport for async_mode="threading" - no monkey patching required.
 simple-websocket==1.1.0
 requests==2.34.2
