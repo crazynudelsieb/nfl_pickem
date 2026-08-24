@@ -2,7 +2,7 @@
 -r requirements.txt
 
 # Linting and tests used by GitHub Actions CI.
-ruff==0.16.1
+ruff==0.16.4
 pytest==8.4.2
 
 # The Socket.IO *client* needs its own WebSocket implementation to use the
