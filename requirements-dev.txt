@@ -2,10 +2,10 @@
 -r requirements.txt
 
 # Linting and tests used by GitHub Actions CI.
-ruff==0.16.1
+ruff==0.16.6
 pytest==8.4.2
 
 # The Socket.IO *client* needs its own WebSocket implementation to use the
 # websocket transport; the server side uses simple-websocket. Without this,
 # scripts/smoke_test.py silently degrades to polling and proves nothing.
-websocket-client==1.9.0
+websocket-client==1.9.2
