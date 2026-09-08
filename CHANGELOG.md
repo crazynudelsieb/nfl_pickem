@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Fixed
+- **Season rollover stalled on an upstream 403** - The NFL data feed started
+  refusing the hardcoded `NFL-Pickem-App/1.0` User-Agent, so every sync failed
+  and the automatic rollover could never create the new season; the app sat on
+  the previous, finished season instead. The default User-Agent now identifies
+  the app with a contact URL, and `NFL_API_USER_AGENT` overrides it without a
+  rebuild.
+
 ## [1.3.0] - 2026-07-20
 
 ### Added
