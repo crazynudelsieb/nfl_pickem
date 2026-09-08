@@ -8,9 +8,25 @@ Part of the appchen ecosystem: [appchen.com](https://appchen.com) is the main hu
 
 ## appchen ecosystem
 
-- **Main website**: [appchen.com](https://appchen.com)
-- **Sister project**: [terminchen](https://github.com/crazynudelsieb/terminchen) (shared calendar)
-- **This project**: [nfl_pickem](https://github.com/crazynudelsieb/nfl_pickem)
+[appchen.com](https://appchen.com) is the hub for the -chen apps: small, privacy-first
+web apps, most of them usable without an account. The hub carries each app's current
+maturity (alpha / beta / stable); the list below is just what they are.
+
+| App | What it does |
+| --- | --- |
+| [splittchen](https://splittchen.com) | Split group expenses and settle up - no registration, no accounts |
+| [konsumchen](https://konsumchen.com) | Log a drink or a dose in two taps and see your real trends over time |
+| [terminchen](https://terminchen.com) | A shared calendar for friend groups and clubs - just a link, no accounts |
+| [festivalplaylist](https://festivalplaylist.com) | Auto-generated Spotify & YouTube Music playlists for festival lineups |
+| [streamchen](https://streamchen.com) | Collaborative radio: one shared live stream, queue, voting, no accounts |
+| [chefchen](https://chefchen.appchen.com) | A weekly cooking planner with ingredient and recipe suggestions |
+| [kaloriechen](https://kaloriechen.appchen.com) | A lightweight calorie tracker built for fast logging and simple daily totals |
+| [fitquest](https://fitquest.appchen.com) | Turn your training plan into small quests and keep motivation high |
+| **NFL Pick'em** (this project) | Weekly NFL pick'em leagues - live at [pickem.appchen.com](https://pickem.appchen.com) |
+
+Each app is linked to where you can actually use it. This project is the only one whose
+source is public, so it is the only GitHub link here:
+[nfl_pickem](https://github.com/crazynudelsieb/nfl_pickem).
 
 ## Features
 
@@ -53,10 +69,24 @@ docker compose -f docker-compose.local.yml up --build -d
 ### First season setup
 
 ```bash
-# Create the season and pull teams + schedule from the upstream NFL data feed
-docker compose exec web python manage.py season create 2026 --activate
+# Creates the season row and pulls teams + schedule from the upstream NFL data feed
 docker compose exec web python manage.py sync all 2026
+
+# Make it the season the app serves
+docker compose exec web python manage.py season activate 2026
 ```
+
+`sync all` creates the season if it does not exist yet, so it is the only bootstrap step
+needed. Sync before activating - activating first would point the app at a season with no
+teams and no games.
+
+**Later seasons roll over on their own.** From August 1st the daily maintenance job
+(`_ensure_active_season`, 02:00 UTC) creates, syncs and activates the new season without
+a restart or a manual command. Run the two commands above only to bootstrap the first
+season, or to bring a rollover forward rather than waiting for the nightly job.
+
+Restarting the container does *not* roll the season over: `scripts/startup.py` skips
+season setup whenever the active season already has teams and games.
 
 ### Create an admin user
 
@@ -75,6 +105,12 @@ WTF_CSRF_SECRET_KEY=<generate with generate_secrets.py>
 DATABASE_URL=postgresql://user:pass@db:5432/nfl_pickem
 TIMEZONE=Europe/Vienna
 ```
+
+`NFL_API_USER_AGENT` overrides the User-Agent sent to the NFL data feed. The default
+identifies the app and links back to this repo. Set it only if the feed starts answering
+`403 Forbidden` to the default - the edge filters on this header, and a plain
+`curl/8.14.1` or `python-requests/2.32.3` also gets through. A rejected User-Agent fails
+every sync, which stalls live scores *and* the season rollover.
 
 Contact links, the commercial-license address, and the optional Impressum page are all driven by the `CONTACT_*` and `IMPRINT_*` variables. Every one is opt-in: leave it blank and it simply never appears. `/impressum` is served only once `IMPRINT_NAME` is set.
 
@@ -98,11 +134,16 @@ git tag v1.2.35
 git push origin v1.2.35
 ```
 
-Manual runs now support patching and tagging too:
+Manual runs (Actions -> Run workflow) take four inputs:
 
-- leave `version` empty and keep `auto_patch=true` to bump the latest `v*` tag by one patch (for example `v1.2.35` -> `v1.2.36`)
-- keep `create_tag=true` to create/push the resolved tag first; the tag-triggered run then publishes the image
-- you can still provide `version` explicitly and toggle `:latest` / `--no-cache`
+- `version_bump` — `patch` / `minor` / `major` bumps the latest `v*` tag (for example
+  `v1.2.41` -> `v1.2.42`); `none` builds without creating a tag
+- `version` — an explicit tag such as `v1.2.3`, overriding `version_bump`
+- `push_latest` — also publish `:latest`
+- `no_cache` — build with `--no-cache`
+
+A bumped run stamps `app.__version__` (what `/health` reports) with the tag being
+published, commits that stamp to the branch, and pushes the tag.
 
 ## CI / Build workflows
 
@@ -149,8 +190,10 @@ app/
 ## Management CLI
 
 ```bash
-python manage.py season create 2026 --activate   # Create and activate a season
-python manage.py sync all 2026                   # Sync teams + schedule
+python manage.py sync all 2026                   # Create the season, sync teams + schedule
+python manage.py season activate 2026            # Make it the season the app serves
+python manage.py season list-seasons             # List seasons and which one is active
+python manage.py season finalize 2025            # Award winners once the Super Bowl is final
 python manage.py sync scores                     # Update live scores
 python manage.py user create-admin USER EMAIL PW # Create an admin
 python manage.py status                          # Application health
@@ -207,7 +250,50 @@ SQLite is used automatically when PostgreSQL isn't reachable in development. Cac
 
 The schema is created on startup with `db.create_all()`, which only ever creates *missing tables* — it will not add a column to a table that already exists. Versioned Alembic migrations are not in use yet.
 
-So when you add a column to an existing model, also register it in [`app/utils/schema_guard.py`](app/utils/schema_guard.py). The guard applies the missing columns with an idempotent `ALTER TABLE` at startup, on both PostgreSQL and SQLite. Skipping this step is the usual cause of an `UndefinedColumn` error after deploying a model change to an existing database.
+It also never reshapes an index that already exists, even when the model's definition of
+it has changed.
+
+So when you add a column to an existing model, or change an existing index, register it in
+[`app/utils/schema_guard.py`](app/utils/schema_guard.py). The guard runs on every startup
+and applies each change with idempotent DDL, on both PostgreSQL and SQLite:
+
+- `COLUMNS` — added with `ALTER TABLE`. Skipping this is the usual cause of an
+  `UndefinedColumn` error after deploying a model change to an existing database.
+- `DROP_UNIQUE_INDEXES` — dropped and recreated without `UNIQUE`, for an index that
+  shipped unique but should not be.
+- `UNIQUE_INDEXES` — created where an existing database lacks them.
+
+The index entries exist because `teams.espn_id` shipped globally unique while teams are
+per-season rows, so the same franchise repeats every year. That made the second season's
+teams impossible to insert and blocked every season rollover until the guard relaxed it.
+
+## Troubleshooting
+
+### The app still shows last season
+
+Everything the app serves is keyed off the single season row with `is_active = true`, so
+a group showing last season's final standings means the rollover did not happen. Check
+which season is active and whether the syncs are succeeding:
+
+```bash
+docker compose exec web python manage.py season list-seasons
+docker compose logs --since 48h web | grep -iE "season|maintenance"
+```
+
+`_ensure_active_season` needs a successful data-feed sync before it can create the new
+season, so anything that breaks syncing also silently blocks the rollover — it logs
+`Could not sync season <year> yet: ...` and gives up until the next night. The two causes
+seen so far:
+
+- **`403 Forbidden` from the data feed** — the User-Agent is being filtered. Set
+  `NFL_API_USER_AGENT` (see [Configuration](#configuration)) and restart.
+- **`duplicate key value violates unique constraint "ix_teams_espn_id"`** — an old
+  database still carries the global unique index on `teams.espn_id`. Restart the app; the
+  schema guard relaxes it at startup.
+
+Restarting alone never forces a rollover, so once the underlying cause is fixed either
+wait for the 02:00 UTC job or run the [First season setup](#first-season-setup) commands
+for the new year.
 
 ## Security
 
