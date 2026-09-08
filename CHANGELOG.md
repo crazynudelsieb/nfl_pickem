@@ -5,10 +5,14 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Changed
-- **Slimmer footer** - the two labelled "Support on ..." buttons became icons in
-  the existing social row, matching splittchen and the other appchen apps, and
-  the block spacing was tightened to the same rhythm. Every link and every line
-  of the disclaimer is still there, in roughly a quarter less height.
+- **Footer halved** - it ran four stacked rows, one of them a set of labelled
+  "Support on ..." buttons no other appchen app has. Links and social icons now
+  share one line and the two legal sentences share the next, so the footer is
+  two rows instead of four: measured in Chrome, 153px -> 76px at 1440 wide and
+  186px -> 98px at 390. Every link and every claim is still there; the support
+  channels are icons in the shared row, as on splittchen.
+- The footer's `<nav>` no longer picks up the global header-bar `nav` rule,
+  which was drawing a stray underline and 20px of side padding under the links.
 
 ### Fixed
 - **Season rollover stalled on an upstream 403** - The NFL data feed started

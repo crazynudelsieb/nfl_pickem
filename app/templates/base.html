@@ -682,45 +682,44 @@
     <!-- Footer -->
     <footer class="footer">
         <div class="container text-center">
-            <p class="disclaimer">
-                <i class="fas fa-shield-alt"></i>
-                {{ config.APP_NAME }} is a private tracker for entertainment only — no wagering,
-                no stakes. Third-party scores may be delayed; the official NFL result governs.
-                Not affiliated with the NFL.
-            </p>
+            <div class="footer-bar">
+                <nav class="footer-links" aria-label="Site">
+                    {% if current_user.is_authenticated and current_group_slug %}
+                    <a href="{{ url_for('main.rules', group=current_group_slug) }}">Rules</a>
+                    <span class="sep" aria-hidden="true">·</span>
+                    <a href="{{ url_for('main.about', group=current_group_slug) }}">About</a>
+                    {% else %}
+                    <a href="{{ url_for('main.rules') }}">Rules</a>
+                    <span class="sep" aria-hidden="true">·</span>
+                    <a href="{{ url_for('main.about') }}">About</a>
+                    {% endif %}
+                    <span class="sep" aria-hidden="true">·</span>
+                    <a href="{{ url_for('main.privacy') }}">Privacy</a>
+                    {% if imprint_enabled %}
+                    <span class="sep" aria-hidden="true">·</span>
+                    <a href="{{ url_for('main.impressum') }}">Impressum</a>
+                    {% endif %}
+                </nav>
 
-            <nav class="footer-links" aria-label="Site">
-                {% if current_user.is_authenticated and current_group_slug %}
-                <a href="{{ url_for('main.rules', group=current_group_slug) }}">Rules</a>
-                <span class="sep" aria-hidden="true">·</span>
-                <a href="{{ url_for('main.about', group=current_group_slug) }}">About</a>
-                {% else %}
-                <a href="{{ url_for('main.rules') }}">Rules</a>
-                <span class="sep" aria-hidden="true">·</span>
-                <a href="{{ url_for('main.about') }}">About</a>
+                {% if contact_links or contact_email %}
+                <div class="footer-social">
+                    {% if contact_email %}
+                    <a class="js-mail" data-user="{{ contact_email[0] }}" data-domain="{{ contact_email[1] }}"
+                       rel="nofollow" aria-label="Email" title="Email"><i class="fas fa-envelope"></i></a>
+                    {% endif %}
+                    {% for link in contact_links %}
+                    <a href="{{ link.url }}" target="_blank" rel="{{ link.rel }}"
+                       aria-label="{{ link.label }}" title="{{ link.label }}"><i class="{{ link.fa_icon }}"></i></a>
+                    {% endfor %}
+                </div>
                 {% endif %}
-                <span class="sep" aria-hidden="true">·</span>
-                <a href="{{ url_for('main.privacy') }}">Privacy</a>
-                {% if imprint_enabled %}
-                <span class="sep" aria-hidden="true">·</span>
-                <a href="{{ url_for('main.impressum') }}">Impressum</a>
-                {% endif %}
-            </nav>
-
-            {% if contact_links or contact_email %}
-            <div class="footer-social">
-                {% if contact_email %}
-                <a class="js-mail" data-user="{{ contact_email[0] }}" data-domain="{{ contact_email[1] }}"
-                   rel="nofollow" aria-label="Email" title="Email"><i class="fas fa-envelope"></i></a>
-                {% endif %}
-                {% for link in contact_links %}
-                <a href="{{ link.url }}" target="_blank" rel="{{ link.rel }}"
-                   aria-label="{{ link.label }}" title="{{ link.label }}"><i class="{{ link.fa_icon }}"></i></a>
-                {% endfor %}
             </div>
-            {% endif %}
 
             <p class="disclaimer mb-0">
+                <i class="fas fa-shield-alt"></i>
+                Entertainment only — no wagering or stakes. Third-party scores may be delayed;
+                the official NFL result governs. Not affiliated with the NFL.
+                <span class="sep" aria-hidden="true">·</span>
                 © 2026 {{ config.APP_NAME }} · All rights reserved · Personal use is free —
                 commercial use requires permission:
                 <a class="js-mail" data-user="{{ license_email[0] }}" data-domain="{{ license_email[1] }}" rel="nofollow">
