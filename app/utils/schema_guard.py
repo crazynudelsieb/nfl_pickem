@@ -2,9 +2,10 @@
 Minimal schema guard for databases managed by db.create_all().
 
 create_all() only creates missing tables; it never adds columns to tables that
-already exist. Until the project adopts versioned Alembic migrations, columns
-added after the initial deployment are registered here and added on startup
-with an idempotent ALTER TABLE (works on both PostgreSQL and SQLite).
+already exist, and it never reshapes an index whose definition has changed.
+Until the project adopts versioned Alembic migrations, both kinds of change are
+registered here and applied on startup with idempotent DDL (works on both
+PostgreSQL and SQLite).
 """
 
 import logging
@@ -23,30 +24,103 @@ COLUMNS = [
     ("groups", "superbowl_spots", "INTEGER NOT NULL DEFAULT 2"),
 ]
 
+# (table, index, columns) for indexes that shipped UNIQUE but must not be.
+#
+# Teams get one row per season, so a franchise carries the same espn_id every
+# year. A global unique index on it made the second season's teams impossible to
+# insert - the first rollover attempt died on "duplicate key value violates
+# unique constraint ix_teams_espn_id" and left the app on the old season. The
+# uniqueness that actually holds is per season, recreated in UNIQUE_INDEXES.
+DROP_UNIQUE_INDEXES = [
+    ("teams", "ix_teams_espn_id", ["espn_id"]),
+    ("teams", "ix_teams_nfl_id", ["nfl_id"]),
+]
 
-def ensure_schema():
+# (table, index, columns) for unique indexes an existing database may lack.
+# On a fresh database create_all() builds these from the model's
+# UniqueConstraint, and the guard finds them already present.
+UNIQUE_INDEXES = [
+    ("teams", "unique_team_season_espn", ["season_id", "espn_id"]),
+]
+
+
+def _ensure_columns(existing_tables):
     """Add any registered columns that are missing from existing tables"""
-    try:
-        inspector = inspect(db.engine)
-        existing_tables = set(inspector.get_table_names())
-    except Exception as e:
-        logger.error(f"Schema guard could not inspect database: {e}")
-        return
-
     for table, column, ddl in COLUMNS:
         if table not in existing_tables:
             continue  # create_all will create it with all columns
 
         try:
+            inspector = inspect(db.engine)
             existing_columns = {c["name"] for c in inspector.get_columns(table)}
             if column in existing_columns:
                 continue
 
-            db.session.execute(
-                db.text(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}")
-            )
+            db.session.execute(db.text(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}"))
             db.session.commit()
             logger.info(f"Schema guard: added column {table}.{column}")
         except Exception as e:
             db.session.rollback()
             logger.error(f"Schema guard failed adding {table}.{column}: {e}")
+
+
+def _relax_unique_indexes(existing_tables):
+    """Recreate registered indexes without UNIQUE where a database still has it"""
+    for table, index, columns in DROP_UNIQUE_INDEXES:
+        if table not in existing_tables:
+            continue  # create_all builds it from the current model definition
+
+        try:
+            inspector = inspect(db.engine)
+            existing = {i["name"]: i for i in inspector.get_indexes(table)}.get(index)
+            if existing is None or not existing.get("unique"):
+                continue  # already gone, or already non-unique
+
+            column_list = ", ".join(columns)
+            db.session.execute(db.text(f"DROP INDEX {index}"))
+            db.session.execute(
+                db.text(f"CREATE INDEX {index} ON {table} ({column_list})")
+            )
+            db.session.commit()
+            logger.info(f"Schema guard: dropped UNIQUE from {table}.{index}")
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Schema guard failed relaxing {table}.{index}: {e}")
+
+
+def _ensure_unique_indexes(existing_tables):
+    """Create registered unique indexes that an existing database is missing"""
+    for table, index, columns in UNIQUE_INDEXES:
+        if table not in existing_tables:
+            continue  # create_all will build it from the model
+
+        try:
+            inspector = inspect(db.engine)
+            names = {i["name"] for i in inspector.get_indexes(table)}
+            names |= {c["name"] for c in inspector.get_unique_constraints(table)}
+            if index in names:
+                continue
+
+            column_list = ", ".join(columns)
+            db.session.execute(
+                db.text(f"CREATE UNIQUE INDEX {index} ON {table} ({column_list})")
+            )
+            db.session.commit()
+            logger.info(f"Schema guard: created unique index {table}.{index}")
+        except Exception as e:
+            # Duplicate rows would make this fail; the app still runs without it.
+            db.session.rollback()
+            logger.error(f"Schema guard failed creating {table}.{index}: {e}")
+
+
+def ensure_schema():
+    """Bring an existing database in line with the current models"""
+    try:
+        existing_tables = set(inspect(db.engine).get_table_names())
+    except Exception as e:
+        logger.error(f"Schema guard could not inspect database: {e}")
+        return
+
+    _ensure_columns(existing_tables)
+    _relax_unique_indexes(existing_tables)
+    _ensure_unique_indexes(existing_tables)
