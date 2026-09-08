@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+- **Slimmer footer** - the two labelled "Support on ..." buttons became icons in
+  the existing social row, matching splittchen and the other appchen apps, and
+  the block spacing was tightened to the same rhythm. Every link and every line
+  of the disclaimer is still there, in roughly a quarter less height.
+
 ### Fixed
 - **Season rollover stalled on an upstream 403** - The NFL data feed started
   refusing the hardcoded `NFL-Pickem-App/1.0` User-Agent, so every sync failed
