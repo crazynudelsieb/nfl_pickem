@@ -26,6 +26,22 @@ migrate = Migrate()
 csrf = CSRFProtect()
 
 
+def uses_plain_http(config):
+    """True for the two configurations that are served over cleartext.
+
+    Local development and the test client run on HTTP; everything else is a
+    real deployment behind TLS and must get Secure cookies and a strict CSRF
+    Referer check.
+
+    This used to be spelled ``FLASK_ENV == "production"`` at the call site, but
+    the config class is chosen by FLASK_CONFIG - so a deployment that set
+    FLASK_CONFIG=production and left FLASK_ENV alone got DEBUG=False *and*
+    SESSION_COOKIE_SECURE=False, and shipped its session cookie in the clear
+    without any warning.
+    """
+    return bool(config.get("DEBUG") or config.get("TESTING"))
+
+
 # Client IPs come from request.remote_addr, which ProxyFix (configured in
 # create_app) rewrites from X-Forwarded-For for the trusted proxy hops only.
 # Never read forwarding headers directly - they are client-spoofable.
@@ -72,20 +88,25 @@ def create_app(config_name=None):
             app.wsgi_app, x_for=proxy_hops, x_proto=proxy_hops, x_host=proxy_hops
         )
 
+    plain_http = uses_plain_http(app.config)
+
     # Configure session settings for better multi-device support
     app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
     app.config["SESSION_COOKIE_HTTPONLY"] = True
-    # Don't force SECURE in development, let it work over HTTP
-    app.config["SESSION_COOKIE_SECURE"] = (
-        False
-        if app.config.get("DEBUG")
-        else app.config.get("FLASK_ENV") == "production"
-    )
+    app.config["SESSION_COOKIE_SECURE"] = not plain_http
     app.config["PERMANENT_SESSION_LIFETIME"] = 86400  # 24 hours
+
+    # The "remember me" cookie is a standing credential - it outlives the
+    # session cookie, so it needs at least the same protection.
+    app.config["REMEMBER_COOKIE_SAMESITE"] = "Lax"
+    app.config["REMEMBER_COOKIE_HTTPONLY"] = True
+    app.config["REMEMBER_COOKIE_SECURE"] = not plain_http
 
     # CSRF configuration for better mobile compatibility
     app.config["WTF_CSRF_TIME_LIMIT"] = None  # No time limit on CSRF tokens
-    app.config["WTF_CSRF_SSL_STRICT"] = False  # Allow HTTP in development
+    # Referer must match over HTTPS. Off only for the HTTP-served dev/test
+    # runs - leaving it off in production dropped a defence that costs nothing.
+    app.config["WTF_CSRF_SSL_STRICT"] = not plain_http
     app.config["WTF_CSRF_CHECK_DEFAULT"] = True
 
     # Initialize extensions
@@ -245,7 +266,13 @@ def register_error_handlers(app):
         # Add security headers to all responses
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
-        response.headers["X-XSS-Protection"] = "1; mode=block"
+        # Explicitly off, not "1; mode=block". The legacy auditor is gone from
+        # every current browser, and where it lingers its filter has its own
+        # information-disclosure bugs. frame-ancestors + CSP below is the
+        # protection that actually applies.
+        response.headers["X-XSS-Protection"] = "0"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Cross-Origin-Opener-Policy"] = "same-origin"
 
         # Add Strict-Transport-Security in production
         if not app.config.get("DEBUG"):
@@ -253,7 +280,13 @@ def register_error_handlers(app):
                 "max-age=31536000; includeSubDomains"
             )
 
-        # Content Security Policy
+        # Content Security Policy.
+        #
+        # script-src still carries 'unsafe-inline'. The templates rely on 22
+        # inline <script> blocks and 62 inline on*= handlers; nonces cover the
+        # blocks but never the attributes, so dropping it means porting all of
+        # those to addEventListener first. Tracked as its own piece of work -
+        # everything else here is already as tight as the app allows.
         csp_directives = [
             "default-src 'self'",
             "script-src 'self' 'unsafe-inline' https://cdn.socket.io https://unpkg.com",
@@ -264,6 +297,7 @@ def register_error_handlers(app):
             "frame-ancestors 'none'",
             "base-uri 'self'",
             "form-action 'self'",
+            "object-src 'none'",
         ]
         response.headers["Content-Security-Policy"] = "; ".join(csp_directives)
 

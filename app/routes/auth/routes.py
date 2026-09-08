@@ -19,6 +19,24 @@ from app.routes.auth import bp
 logger = logging.getLogger(__name__)
 
 
+def is_safe_redirect_target(target):
+    r"""True only for a path on this site.
+
+    ``urlparse(target).netloc`` alone is not enough: it is empty for
+    ``https:/evil.com`` and for ``/\evil.com``, and a browser normalises both
+    of those into a cross-origin Location. Require a bare, root-relative path
+    and reject anything that could be read as an authority.
+    """
+    if not target:
+        return False
+
+    parsed = urlparse(target)
+    if parsed.scheme or parsed.netloc:
+        return False
+
+    return target.startswith("/") and not target.startswith(("//", "/\\"))
+
+
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
@@ -47,7 +65,7 @@ def login():
 
             # Smart redirect logic based on user's groups
             next_page = request.args.get("next")
-            if not next_page or urlparse(next_page).netloc != "":
+            if not is_safe_redirect_target(next_page):
                 user_groups = user.get_groups()
 
                 if not user_groups:

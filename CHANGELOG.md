@@ -4,6 +4,32 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Security
+- **Open redirect on login** - `?next=` was validated with
+  `urlparse(target).netloc != ""`, which is empty for `https:/evil.com` and for
+  `/\evil.com`; browsers normalise both into a cross-origin `Location`, so a
+  crafted login link could bounce a user straight off the site with their
+  session freshly established. `is_safe_redirect_target()` now requires a bare,
+  root-relative path and rejects any scheme, host, or authority-shaped prefix.
+- **Session cookie could ship without `Secure` in production** -
+  `SESSION_COOKIE_SECURE` was derived from `FLASK_ENV`, but the config class is
+  chosen by `FLASK_CONFIG`. A deployment that set `FLASK_CONFIG=production` and
+  left `FLASK_ENV` alone therefore ran with `DEBUG=False` *and* a cleartext-safe
+  session cookie, silently. Both cookie flags and the CSRF Referer check now key
+  off `DEBUG`/`TESTING`, which is what actually distinguishes an HTTP run.
+- **`WTF_CSRF_SSL_STRICT` was disabled everywhere** - the comment said "allow
+  HTTP in development", but the setting applied in production too, dropping the
+  Referer check on HTTPS. Now on except for the dev and test runs.
+- **"Remember me" cookie had no security flags** - it is a standing credential
+  that outlives the session cookie, and it was going out without `Secure`,
+  `HttpOnly` or `SameSite`. All three are set now.
+- Added `Referrer-Policy`, `Cross-Origin-Opener-Policy` and CSP `object-src
+  'none'`; `X-XSS-Protection` is now explicitly `0` rather than `1; mode=block`,
+  the legacy auditor having been removed from current browsers and buggy where
+  it remains.
+- All GitHub Actions are pinned to commit SHAs instead of floating major tags,
+  so a compromised or retagged action cannot silently enter the release build.
+
 ### Changed
 - **Footer halved** - it ran four stacked rows, one of them a set of labelled
   "Support on ..." buttons no other appchen app has. Links and social icons now
@@ -13,6 +39,13 @@ All notable changes to this project will be documented in this file.
   channels are icons in the shared row, as on splittchen.
 - The footer's `<nav>` no longer picks up the global header-bar `nav` rule,
   which was drawing a stray underline and 20px of side padding under the links.
+- **Copyright back on its own footer line** - it had been appended to the
+  disclaimer paragraph behind a single dot, which read as one run-on sentence.
+  That puts the footer at three rows rather than the two above.
+- **Separator dots between every footer item** - they were only drawn inside the
+  link nav, so the step from the last link to the social icons, and between the
+  icons themselves, had nothing marking it. A single `.footer .sep` rule now
+  covers the link row, the icon row and the copyright line.
 
 ### Fixed
 - **Season rollover stalled on an upstream 403** - The NFL data feed started
