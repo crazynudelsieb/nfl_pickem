@@ -1,4 +1,5 @@
 import logging
+import os
 import time
 from datetime import UTC, date, datetime, timedelta
 from functools import wraps
@@ -64,17 +65,26 @@ def rate_limit_decorator(max_retries=3, base_delay=1.0, backoff_factor=2.0):
     return decorator
 
 
+# ESPN's edge rejects a bare product token outright - "NFL-Pickem-App/1.0"
+# started answering 403 in September 2026, and browser-shaped strings are
+# refused too. A product token plus a contact URL is accepted, and is the
+# honest form for an unofficial client. Overridable via NFL_API_USER_AGENT so
+# the next change on their side is an env edit and a restart, not a rebuild.
+DEFAULT_USER_AGENT = "NFL-Pickem-App/1.0 (+https://github.com/crazynudelsieb/nfl_pickem)"
+
+
 class DataSync:
     """
     Handles synchronization of NFL data from external APIs with rate limiting and failsafe mechanisms
     """
 
-    def __init__(self, api_base_url=None):
+    def __init__(self, api_base_url=None, user_agent=None):
         self.api_base_url = (
             api_base_url or "https://site.api.espn.com/apis/site/v2/sports/football/nfl"
         )
         self.session = requests.Session()
-        self.session.headers.update({"User-Agent": "NFL-Pickem-App/1.0"})
+        self.user_agent = user_agent or os.environ.get("NFL_API_USER_AGENT") or DEFAULT_USER_AGENT
+        self.session.headers.update({"User-Agent": self.user_agent})
 
         # Rate limiting configuration
         self.request_count = 0
