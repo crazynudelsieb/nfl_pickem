@@ -16,7 +16,7 @@ from config import config
 # release workflow stamps this from the git tag it is publishing and commits it
 # alongside that tag, so a running instance always names a version that
 # actually shipped.
-__version__ = "1.2.41"
+__version__ = "1.2.42"
 
 db = SQLAlchemy()
 login_manager = LoginManager()
