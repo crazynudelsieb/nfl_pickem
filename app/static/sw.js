@@ -1,12 +1,14 @@
 // NFL Pick'em Service Worker - Enhanced PWA version
-const CACHE_NAME = 'nfl-pickem-v4';
-const RUNTIME_CACHE = 'nfl-pickem-runtime-v4';
+const CACHE_NAME = 'nfl-pickem-v5';
+const RUNTIME_CACHE = 'nfl-pickem-runtime-v5';
 
 // Assets to cache on install
 const PRECACHE_URLS = [
   '/',
   '/static/css/main.css',
   '/static/js/main.js',
+  '/static/js/actions.js',
+  '/static/js/offline.js',
   '/static/images/nfl-logo.png',
   '/static/images/icon-192x192.png',
   '/static/images/icon-512x512.png',

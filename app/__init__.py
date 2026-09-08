@@ -1,4 +1,5 @@
 import os
+import secrets
 
 from flask import Flask, jsonify, render_template, request
 from flask_caching import Cache
@@ -24,6 +25,29 @@ socketio = SocketIO()
 cache = Cache()
 migrate = Migrate()
 csrf = CSRFProtect()
+
+
+def csp_nonce():
+    """The per-request CSP nonce, minted on first use.
+
+    Both the header and the templates go through here, so the value in
+    ``script-src`` is always the same string as the one on the ``<script>``
+    tags, and a second call within a request does not invalidate the tags
+    already rendered.
+
+    Cached on ``request`` rather than on ``g``: ``g`` is scoped to the *app*
+    context, and anything holding one open across several requests - a test
+    client under ``app.app_context()``, a CLI command, a background job - would
+    then hand the same nonce to all of them. A nonce reused across responses is
+    a nonce an attacker can read off one page and reuse on the next.
+    """
+    nonce = getattr(request, "_csp_nonce", None)
+    if nonce is None:
+        # 16 bytes, base64 -> well past the 128 bits of entropy the CSP spec
+        # asks for, and unguessable by an injected script trying to self-authorise.
+        nonce = secrets.token_urlsafe(16)
+        request._csp_nonce = nonce
+    return nonce
 
 
 def uses_plain_http(config):
@@ -174,6 +198,13 @@ def create_app(config_name=None):
     def inject_legal_globals():
         return legal_globals(app.config)
 
+    @app.context_processor
+    def inject_csp_nonce():
+        # Every inline <script> in the templates carries nonce="{{ csp_nonce() }}",
+        # which is what lets script-src drop 'unsafe-inline'. The function, not
+        # its value, so a response that renders no template mints nothing.
+        return {"csp_nonce": csp_nonce}
+
     # Register error handlers
     register_error_handlers(app)
 
@@ -282,14 +313,18 @@ def register_error_handlers(app):
 
         # Content Security Policy.
         #
-        # script-src still carries 'unsafe-inline'. The templates rely on 22
-        # inline <script> blocks and 62 inline on*= handlers; nonces cover the
-        # blocks but never the attributes, so dropping it means porting all of
-        # those to addEventListener first. Tracked as its own piece of work -
-        # everything else here is already as tight as the app allows.
+        # script-src has no 'unsafe-inline': every inline block carries the
+        # per-request nonce, and the on*= attributes a nonce can never cover were
+        # ported to the delegated dispatcher in static/js/actions.js. An injected
+        # <script> therefore cannot run without guessing the nonce.
+        #
+        # style-src keeps 'unsafe-inline' deliberately. Several hundred style=
+        # attributes carry layout across the templates, and a nonce does not
+        # apply to those either - but an inline style is not a script, and with
+        # script-src locked down there is no CSS-only path to code execution here.
         csp_directives = [
             "default-src 'self'",
-            "script-src 'self' 'unsafe-inline' https://cdn.socket.io https://unpkg.com",
+            f"script-src 'self' 'nonce-{csp_nonce()}' https://cdn.socket.io",
             "style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com",
             "img-src 'self' data: https://api.dicebear.com https://a.espncdn.com https://http.cat",
             "connect-src 'self' wss: ws: https://site.api.espn.com",

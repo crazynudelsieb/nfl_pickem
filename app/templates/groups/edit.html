@@ -290,39 +290,19 @@
             </div>
         </div>
         <div class="modal-footer" style="display: flex; gap: 0.75rem; justify-content: flex-end;">
-            <button onclick="closeDeleteModal()" class="btn btn-secondary">
+            <button data-action="close-delete-modal" class="btn btn-secondary">
                 <i class="fas fa-times"></i> Cancel
             </button>
-            <button onclick="confirmDeleteGroup()" class="btn btn-danger">
+            <button data-action="confirm-delete-group-form" class="btn btn-danger">
                 <i class="fas fa-trash"></i> Delete Group
             </button>
         </div>
     </div>
 </div>
 
-<script>
+<script nonce="{{ csp_nonce() }}">
 let deleteGroupData = { name: '', id: null };
 
-document.addEventListener('DOMContentLoaded', function() {
-    // Add event listeners to danger zone buttons
-    document.querySelectorAll('button[data-action]').forEach(button => {
-        button.addEventListener('click', handleDangerAction);
-    });
-});
-
-function handleDangerAction(event) {
-    const button = event.target.closest('button');
-    const action = button.dataset.action;
-    
-    switch (action) {
-        case 'toggle-status':
-            toggleGroupStatus(button);
-            break;
-        case 'delete-group':
-            deleteGroup(button);
-            break;
-    }
-}
 
 function toggleGroupStatus(button) {
     const isActive = button.dataset.isActive === 'true';
@@ -345,6 +325,15 @@ function deleteGroup(button) {
     document.getElementById('confirmError').style.display = 'none';
     document.getElementById('deleteGroupModal').style.display = 'flex';
 }
+
+// The danger-zone buttons already carried data-action; they now resolve
+// through the shared dispatcher instead of a page-local binding pass.
+appActions.register({
+    'toggle-status': function() { toggleGroupStatus(this); },
+    'delete-group': function() { deleteGroup(this); },
+    'close-delete-modal': function() { closeDeleteModal(); },
+    'confirm-delete-group-form': function() { confirmDeleteGroup(); }
+});
 
 function closeDeleteModal() {
     document.getElementById('deleteGroupModal').style.display = 'none';

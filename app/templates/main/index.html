@@ -204,7 +204,7 @@
 {% if current_week_games %}
 {% set has_live_games = current_week_games | selectattr('status', 'equalto', 'in_progress') | list | length > 0 %}
 {% if has_live_games %}
-<script>
+<script nonce="{{ csp_nonce() }}">
     // Auto-refresh game scores every 30 seconds if there are live games
     setInterval(function() {
         // Refresh the page to get updated scores

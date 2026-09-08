@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Security
+- **CSP `script-src` no longer allows `'unsafe-inline'`** - it did, so a single
+  injected `<script>` anywhere in the app would have executed; the directive was
+  present but not actually protecting anything. Every inline block now carries a
+  per-request nonce (`secrets.token_urlsafe(16)`, minted on `request` so a
+  long-lived app context cannot make two responses share one), and the 67 inline
+  `on*=` handlers and 10 `href="javascript:..."` links a nonce can never cover
+  were ported to a delegated dispatcher in `app/static/js/actions.js`: markup
+  names an action (`data-action="close-modal"`), the page's own nonced script
+  registers what it does. Three tests scan the templates so an inline handler,
+  an unnonced block, or a `javascript:` URL fails CI rather than quietly
+  re-opening the hole.
+- **Group names could break out of an inline handler** - the switch-groups modal
+  interpolated `'{{ group.name }}'` into an `onclick` as a JS string literal.
+  Jinja escapes `'` to `&#39;`, which the HTML parser decodes back to `'` before
+  the JS parser sees it. `CreateGroupForm` restricts the name to
+  `^[a-zA-Z0-9 _.-]+$`, but `EditGroupForm` only checked its length - so a group
+  admin could *rename* a group into a stored-XSS payload against its members.
+  Fixed twice over: the modal now passes slug, name and id as `data-*`
+  attributes read via `dataset` and never parsed as code, and the edit form
+  enforces the same charset as creation.
+- **Removed the unused Alpine.js CDN script** - loaded from unpkg on every page,
+  referenced by no template, and non-functional regardless: Alpine evaluates its
+  directives with `Function()`, which this CSP has never permitted. `unpkg.com`
+  is dropped from `script-src` with it.
 - **Open redirect on login** - `?next=` was validated with
   `urlparse(target).netloc != ""`, which is empty for `https:/evil.com` and for
   `/\evil.com`; browsers normalise both into a cross-origin `Location`, so a

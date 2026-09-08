@@ -95,7 +95,7 @@
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem;">
                 <div>
                     <label for="admin-user-select" style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--text-primary); font-size: 0.875rem;">Managing picks for:</label>
-                    <select id="admin-user-select" onchange="changeSelectedUser()" class="filter-select" style="width: 100%;">
+                    <select id="admin-user-select" data-action-change="change-selected-user" class="filter-select" style="width: 100%;">
                         {% for user in all_users %}
                         <option value="{{ user.id }}" {% if user.id == selected_user.id %}selected{% endif %}>
                             {{ user.username }}{% if user.display_name %} ({{ user.display_name }}){% endif %}
@@ -107,7 +107,7 @@
 
                 <div>
                     <label for="admin-week-select" style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--text-primary); font-size: 0.875rem;">Week:</label>
-                    <select id="admin-week-select" onchange="changeSelectedWeek()" class="filter-select" style="width: 100%;">
+                    <select id="admin-week-select" data-action-change="change-selected-week" class="filter-select" style="width: 100%;">
                         {% for week_info in all_weeks %}
                         <option value="{{ week_info.week }}" {% if week_info.week == current_week %}selected{% endif %}>
                             Week {{ week_info.week }}{% if week_info.type == 'playoff' %} ({{ week_info.name }}){% endif %}
@@ -136,7 +136,7 @@
                 </h2>
                 <div style="display: flex; align-items: center; gap: 0.75rem;">
                     <label for="week-select" style="color: var(--text-secondary); font-size: 0.875rem; font-weight: 600; white-space: nowrap;">Week:</label>
-                    <select id="week-select" class="filter-select" onchange="changeWeek()">
+                    <select id="week-select" class="filter-select" data-action-change="change-week">
                         {% for week in range(1, 23) %}
                         <option value="{{ week }}" {% if week == current_week %}selected{% endif %}>
                             {% if week <= 18 %}
@@ -228,7 +228,7 @@
                                      data-team-name="{{ game.away_team.name }}"
                                      data-team-abbr="{{ game.away_team.abbreviation }}"
                                      data-pickers='{{ away_pickers|tojson }}'
-                                     onclick="showPickerPopup(this, event)">
+                                     data-action="show-picker-popup">
                                     {{ away_pick_count }}
                                 </div>
                                 {% endif %}
@@ -271,7 +271,7 @@
                                      data-team-name="{{ game.home_team.name }}"
                                      data-team-abbr="{{ game.home_team.abbreviation }}"
                                      data-pickers='{{ home_pickers|tojson }}'
-                                     onclick="showPickerPopup(this, event)">
+                                     data-action="show-picker-popup">
                                     {{ home_pick_count }}
                                 </div>
                                 {% endif %}
@@ -616,7 +616,7 @@
 {% endblock %}
 
 {% block extra_js %}
-<script>
+<script nonce="{{ csp_nonce() }}">
 // Admin functions
 function changeSelectedUser() {
     const selectedUserId = document.getElementById('admin-user-select').value;
@@ -1062,16 +1062,16 @@ function rebuildPickStatusBadges() {
 </style>
 
 <!-- Picker Popup -->
-<div class="pick-badge-popup-overlay" id="pickerPopupOverlay" onclick="closePickerPopup()"></div>
+<div class="pick-badge-popup-overlay" id="pickerPopupOverlay" data-action="close-picker-popup"></div>
 <div class="pick-badge-popup" id="pickerPopup">
     <div class="pick-badge-popup-header">
         <div class="pick-badge-popup-title" id="pickerPopupTitle"></div>
-        <button class="pick-badge-popup-close" onclick="closePickerPopup()">&times;</button>
+        <button class="pick-badge-popup-close" data-action="close-picker-popup">&times;</button>
     </div>
     <div class="pick-badge-popup-users" id="pickerPopupUsers"></div>
 </div>
 
-<script>
+<script nonce="{{ csp_nonce() }}">
 function showPickerPopup(badge, event) {
     event.stopPropagation();
 
@@ -1149,6 +1149,14 @@ function closePickerPopup() {
     document.getElementById('pickerPopup').classList.remove('show');
     document.getElementById('pickerPopupOverlay').classList.remove('show');
 }
+
+appActions.register({
+    'show-picker-popup': function(event) { showPickerPopup(this, event); },
+    'close-picker-popup': function() { closePickerPopup(); },
+    'change-selected-user': function() { changeSelectedUser(); },
+    'change-selected-week': function() { changeSelectedWeek(); },
+    'change-week': function() { changeWeek(); }
+});
 
 // Close on escape key
 document.addEventListener('keydown', function(e) {

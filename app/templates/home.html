@@ -231,7 +231,7 @@
 {% endblock %}
 
 {% block scripts %}
-<script>
+<script nonce="{{ csp_nonce() }}">
     // Auto-refresh game scores every 30 seconds if there are live games
     {% if current_week_games %}
     const hasLiveGames = {{ (current_week_games | selectattr('status', 'equalto', 'in_progress') | list | length > 0) | tojson }};

@@ -263,7 +263,7 @@
             <h3 id="modalPlayerName" style="display: flex; align-items: center; gap: 0.5rem; margin: 0; color: var(--text-primary); font-size: 1.25rem; font-weight: 700;">
                 <span style="font-size: 1.5rem;">📊</span> Player Picks
             </h3>
-            <span class="modal-close" onclick="closePlayerPicks()" style="cursor: pointer; font-size: 1.5rem; color: var(--text-secondary); padding: 0.25rem; border-radius: 4px; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; transition: background 0.2s;" onmouseover="this.style.background='rgba(107, 114, 128, 0.2)'" onmouseout="this.style.background='transparent'">&times;</span>
+            <span class="modal-close" data-action="close-player-picks">&times;</span>
         </div>
         <div class="modal-body" style="padding: 0;">
             <div id="modalLoading" class="loading-spinner" style="padding: 3rem; text-align: center; color: var(--text-secondary);">
@@ -275,7 +275,7 @@
     </div>
 </div>
 
-<script>
+<script nonce="{{ csp_nonce() }}">
 // Store selected group ID for API calls
 const selectedGroupId = {{ selected_group.id if selected_group else 'null' }};
 
@@ -469,6 +469,10 @@ function closePlayerPicks() {
     const modal = document.getElementById('playerPicksModal');
     modal.style.display = 'none';
 }
+
+appActions.register({
+    'close-player-picks': function() { closePlayerPicks(); }
+});
 
 // Close modal when clicking outside
 document.addEventListener('click', function(event) {

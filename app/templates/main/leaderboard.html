@@ -35,7 +35,7 @@
                     <label for="filter" style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--text-primary); font-size: 0.875rem;">
                         View:
                     </label>
-                    <select id="filter" name="filter" class="filter-select" style="width: 100%;" onchange="toggleSeasonSelect()">
+                    <select id="filter" name="filter" class="filter-select" style="width: 100%;" data-action-change="toggle-season-select">
                         <option value="all-time" {% if filter_type == 'all-time' %}selected{% endif %}>All-Time Statistics</option>
                         <option value="season" {% if filter_type == 'season' %}selected{% endif %}>By Season</option>
                     </select>
@@ -252,8 +252,12 @@
 {% endblock %}
 
 {% block extra_js %}
-<script>
+<script nonce="{{ csp_nonce() }}">
 console.log('Leaderboard script is loading...');
+
+appActions.register({
+    'toggle-season-select': function() { toggleSeasonSelect(); }
+});
 
 // Toggle season select visibility based on filter type
 function toggleSeasonSelect() {
@@ -268,7 +272,7 @@ function toggleSeasonSelect() {
 }
 </script>
 {% if has_live_games %}
-<script>
+<script nonce="{{ csp_nonce() }}">
 // Auto-refresh if there are live games (every 30 seconds)
 setInterval(function() {
     if (!document.hidden) {

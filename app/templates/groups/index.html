@@ -49,7 +49,7 @@
                 {% if current_group.creator_id != current_user.id %}
                     <form method="POST" action="{{ url_for('groups.leave', group_id=current_group.id) }}" style="margin: 0; display: inline;">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                        <button type="submit" title="Leave" style="padding: 0.5rem 1rem; background: #ef4444; color: white !important; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 0.5rem; font-size: 0.875rem;" onclick="return confirm('Are you sure you want to leave this group?')">
+                        <button type="submit" title="Leave" style="padding: 0.5rem 1rem; background: #ef4444; color: white !important; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 0.5rem; font-size: 0.875rem;" data-action="confirm-leave-current-group">
                             <i class="fas fa-sign-out-alt"></i> <span>Leave</span>
                         </button>
                     </form>
@@ -276,17 +276,17 @@
                 NFL Pick'em is all about competition! Choose how you want to get started:
             </p>
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1.25rem; max-width: 800px; margin: 0 auto; text-align: left;">
-                <div style="padding: 1.25rem; background: rgba(59, 130, 246, 0.1); border-radius: 12px; border: 2px solid var(--accent-blue); cursor: pointer; transition: all 0.2s ease; position: relative;" onclick="window.location.href='{{ url_for('groups.create') }}'" onmouseover="this.style.transform='translateY(-4px)'; this.style.boxShadow='0 8px 16px rgba(59, 130, 246, 0.2)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none'">
+                <div class="onboarding-card onboarding-card--create" data-action="go-create-group">
                     <div style="font-size: 2.5rem; margin-bottom: 0.75rem;">➕</div>
                     <div style="font-weight: 700; color: var(--text-primary); margin-bottom: 0.5rem; font-size: 1.125rem;">Create a Group</div>
                     <p style="margin: 0; color: var(--text-secondary); font-size: 0.875rem; line-height: 1.5;">Start your own league and invite friends, family, or colleagues to compete</p>
                 </div>
-                <div style="padding: 1.25rem; background: rgba(16, 185, 129, 0.1); border-radius: 12px; border: 2px solid var(--accent-green); cursor: pointer; transition: all 0.2s ease;" onclick="showJoinCodeModal(event)" onmouseover="this.style.transform='translateY(-4px)'; this.style.boxShadow='0 8px 16px rgba(16, 185, 129, 0.2)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none'">
+                <div class="onboarding-card onboarding-card--join" data-action="join-code">
                     <div style="font-size: 2.5rem; margin-bottom: 0.75rem;">🔑</div>
                     <div style="font-weight: 700; color: var(--text-primary); margin-bottom: 0.5rem; font-size: 1.125rem;">Join with Code</div>
                     <p style="margin: 0; color: var(--text-secondary); font-size: 0.875rem; line-height: 1.5;">Have an invite code? Enter it here to join an existing group</p>
                 </div>
-                <div style="padding: 1.25rem; background: rgba(245, 158, 11, 0.1); border-radius: 12px; border: 2px solid var(--accent-orange); cursor: pointer; transition: all 0.2s ease;" onclick="document.getElementById('public-groups-section')?.scrollIntoView({ behavior: 'smooth' })" onmouseover="this.style.transform='translateY(-4px)'; this.style.boxShadow='0 8px 16px rgba(245, 158, 11, 0.2)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none'">
+                <div class="onboarding-card onboarding-card--browse" data-action="scroll-to-public-groups">
                     <div style="font-size: 2.5rem; margin-bottom: 0.75rem;">🌐</div>
                     <div style="font-weight: 700; color: var(--text-primary); margin-bottom: 0.5rem; font-size: 1.125rem;">Browse Public Groups</div>
                     <p style="margin: 0; color: var(--text-secondary); font-size: 0.875rem; line-height: 1.5;">Discover and join open groups looking for new members</p>
@@ -368,7 +368,7 @@
             <h3 id="modalPlayerName" style="display: flex; align-items: center; gap: 0.5rem; margin: 0; color: var(--text-primary); font-size: 1.25rem; font-weight: 700;">
                 <span style="font-size: 1.5rem;">📊</span> Player Picks
             </h3>
-            <span class="modal-close" onclick="closePlayerPicks()" style="cursor: pointer; font-size: 1.5rem; color: var(--text-secondary); padding: 0.25rem; border-radius: 4px; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; transition: background 0.2s;" onmouseover="this.style.background='rgba(107, 114, 128, 0.2)'" onmouseout="this.style.background='transparent'">&times;</span>
+            <span class="modal-close" data-action="close-player-picks">&times;</span>
         </div>
         <div class="modal-body" style="padding: 0;">
             <div id="modalLoading" class="loading-spinner" style="padding: 3rem; text-align: center; color: var(--text-secondary);">
@@ -380,7 +380,7 @@
     </div>
 </div>
 
-<script>
+<script nonce="{{ csp_nonce() }}">
 // Store current group ID for API calls
 const currentGroupId = {{ current_group.id if current_group else 'null' }};
 
@@ -574,6 +574,26 @@ function closePlayerPicks() {
     const modal = document.getElementById('playerPicksModal');
     modal.style.display = 'none';
 }
+
+appActions.register({
+    'close-player-picks': function() { closePlayerPicks(); },
+    'go-create-group': function() {
+        window.location.href = '{{ url_for('groups.create') }}';
+    },
+    'scroll-to-public-groups': function() {
+        const section = document.getElementById('public-groups-section');
+        if (section) {
+            section.scrollIntoView({ behavior: 'smooth' });
+        }
+    },
+    // Was an inline confirm handler on the submit button, where returning
+    // false cancelled the submit. preventDefault does the same thing.
+    'confirm-leave-current-group': function(event) {
+        if (!confirm('Are you sure you want to leave this group?')) {
+            event.preventDefault();
+        }
+    }
+});
 
 // Close modal when clicking outside
 document.addEventListener('click', function(event) {

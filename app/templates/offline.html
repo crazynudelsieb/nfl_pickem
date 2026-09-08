@@ -121,7 +121,7 @@
             Don't worry, you can still browse previously loaded pages!
         </p>
         
-        <button class="retry-button" onclick="window.location.reload()">
+        <button class="retry-button" id="retry">
             🔄 Try Again
         </button>
 
@@ -136,16 +136,6 @@
         </div>
     </div>
 
-    <script>
-        // Auto-retry when online
-        window.addEventListener('online', function() {
-            window.location.reload();
-        });
-
-        // Check connection status
-        if (navigator.onLine) {
-            window.location.reload();
-        }
-    </script>
+    <script src="{{ url_for('static', filename='js/offline.js') }}" defer></script>
 </body>
 </html>

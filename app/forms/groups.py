@@ -88,8 +88,22 @@ class CreateGroupForm(GroupRulesMixin, FlaskForm):
 
 
 class EditGroupForm(GroupRulesMixin, FlaskForm):
+    # Same charset as CreateGroupForm. Renaming used to be the one way to get a
+    # quote or an angle bracket into a group name, which the switch-groups modal
+    # then interpolated into an inline onclick as a JS string literal.
     name = StringField(
-        "Group Name", validators=[DataRequired(), Length(min=3, max=100)]
+        "Group Name",
+        validators=[
+            DataRequired(),
+            Length(
+                min=3,
+                max=100,
+                message="Group name must be between 3 and 100 characters",
+            ),
+            Regexp(
+                r"^[a-zA-Z0-9 _.-]+$", message="Group name contains invalid characters"
+            ),
+        ],
     )
     description = TextAreaField("Description", validators=[Length(max=500)])
     is_public = BooleanField("Make this group public")

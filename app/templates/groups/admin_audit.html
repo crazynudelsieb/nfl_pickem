@@ -300,8 +300,9 @@
                         <td>{{ action.action_description }}</td>
                         <td>
                             {% if action.action_metadata %}
-                                <button class="details-button" 
-                                        onclick="toggleDetails({{ action.id }})"
+                                <button class="details-button"
+                                        data-action="toggle-details"
+                                        data-action-id="{{ action.id }}"
                                         aria-label="Show details">
                                     <i class="fas fa-info-circle"></i>
                                 </button>
@@ -342,7 +343,11 @@
     {% endif %}
 </div>
 
-<script>
+<script nonce="{{ csp_nonce() }}">
+appActions.register({
+    'toggle-details': function() { toggleDetails(this.dataset.actionId); }
+});
+
 function toggleDetails(actionId) {
     const row = document.getElementById('details-' + actionId);
     if (row.style.display === 'none') {

@@ -78,7 +78,7 @@
                     <div class="invite-code-display">
                         <div class="invite-code-container">
                             <div class="invite-code">{{ group.invite_code }}</div>
-                            <button class="btn btn-outline-primary" onclick="copyInviteCode('{{ group.invite_code }}')">
+                            <button class="btn btn-outline-primary" data-action="copy-invite-code" data-code="{{ group.invite_code }}">
                                 <i class="fas fa-copy"></i> Copy Code
                             </button>
                         </div>
@@ -104,7 +104,7 @@
                                    class="form-control invite-url-input" 
                                    value="{{ url_for('groups.join', code=group.invite_code, _external=True) }}" 
                                    readonly>
-                            <button class="btn btn-outline-primary" onclick="copyInviteLink()">
+                            <button class="btn btn-outline-primary" data-action="copy-invite-link">
                                 <i class="fas fa-copy"></i> Copy Link
                             </button>
                         </div>
@@ -127,20 +127,20 @@
                     <div class="social-buttons">
                         <a href="#" 
                            class="btn btn-social btn-facebook" 
-                           onclick="shareOnFacebook()">
+                           data-action="share-facebook">
                             <i class="fab fa-facebook-f"></i> Facebook
                         </a>
                         <a href="#" 
                            class="btn btn-social btn-twitter" 
-                           onclick="shareOnTwitter()">
+                           data-action="share-twitter">
                             <i class="fab fa-twitter"></i> Twitter
                         </a>
                         <a href="#" 
                            class="btn btn-social btn-whatsapp" 
-                           onclick="shareOnWhatsApp()">
+                           data-action="share-whatsapp">
                             <i class="fab fa-whatsapp"></i> WhatsApp
                         </a>
-                        <button class="btn btn-social btn-generic" onclick="shareNative()">
+                        <button class="btn btn-social btn-generic" data-action="share-native">
                             <i class="fas fa-share"></i> Share
                         </button>
                     </div>
@@ -176,7 +176,7 @@
                                 
                                 <div class="invite-actions">
                                     <button class="btn btn-sm btn-outline-primary" 
-                                            onclick="copyInviteToken('{{ invite.token }}')">
+                                            data-action="copy-invite-token" data-token="{{ invite.token }}">
                                         <i class="fas fa-copy"></i> Copy Link
                                     </button>
                                     <span class="badge badge-warning">Pending</span>
@@ -190,7 +190,7 @@
     </div>
 </div>
 
-<script>
+<script nonce="{{ csp_nonce() }}">
 function copyInviteCode(code) {
     navigator.clipboard.writeText(code).then(function() {
         showToast('Invite code copied!', 'success');
@@ -244,6 +244,16 @@ function shareNative() {
         copyInviteLink();
     }
 }
+
+appActions.register({
+    'copy-invite-code': function() { copyInviteCode(this.dataset.code); },
+    'copy-invite-token': function() { copyInviteToken(this.dataset.token); },
+    'copy-invite-link': function() { copyInviteLink(); },
+    'share-facebook': function() { shareOnFacebook(); },
+    'share-twitter': function() { shareOnTwitter(); },
+    'share-whatsapp': function() { shareOnWhatsApp(); },
+    'share-native': function() { shareNative(); }
+});
 
 function showToast(message, type) {
     const toast = document.createElement('div');

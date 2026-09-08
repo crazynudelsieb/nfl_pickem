@@ -6594,3 +6594,46 @@ body {
 }
 
 .legal-contact a { text-decoration: none; }
+
+/* Onboarding tiles on the empty groups page. The lift used to be two inline
+   onmouseover/onmouseout handlers per tile; it is presentation, so it belongs
+   here - and inline handlers are what kept script-src on 'unsafe-inline'. */
+.onboarding-card {
+    padding: 1.25rem;
+    border-radius: 12px;
+    border: 2px solid var(--border-color);
+    cursor: pointer;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    position: relative;
+}
+
+.onboarding-card:hover {
+    transform: translateY(-4px);
+}
+
+.onboarding-card--create {
+    background: rgba(59, 130, 246, 0.1);
+    border-color: var(--accent-blue);
+}
+
+.onboarding-card--create:hover {
+    box-shadow: 0 8px 16px rgba(59, 130, 246, 0.2);
+}
+
+.onboarding-card--join {
+    background: rgba(16, 185, 129, 0.1);
+    border-color: var(--accent-green);
+}
+
+.onboarding-card--join:hover {
+    box-shadow: 0 8px 16px rgba(16, 185, 129, 0.2);
+}
+
+.onboarding-card--browse {
+    background: rgba(245, 158, 11, 0.1);
+    border-color: var(--accent-orange);
+}
+
+.onboarding-card--browse:hover {
+    box-shadow: 0 8px 16px rgba(245, 158, 11, 0.2);
+}

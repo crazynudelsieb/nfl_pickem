@@ -131,6 +131,11 @@
             }
         }
     </style>
+
+    <!-- In <head> and not deferred: the delegated capture listener has to exist
+         before the cat image below is parsed, or its load failure is missed. -->
+    <script src="{{ url_for('static', filename='js/actions.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/error-page.js') }}"></script>
 </head>
 <body>
     <div class="error-container">
@@ -140,7 +145,7 @@
             <img src="https://http.cat/{% block cat_code %}{% endblock %}.jpg" 
                  alt="HTTP Cat {% block cat_code_alt %}{% endblock %}" 
                  class="cat-image"
-                 onerror="this.style.display='none';">
+                 data-action-error="hide-broken-image">
         </div>
         
         <h1 class="error-title">{% block error_title %}{% endblock %}</h1>

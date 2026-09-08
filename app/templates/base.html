@@ -39,6 +39,12 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw==" crossorigin="anonymous" referrerpolicy="no-referrer" />
     
     {% block extra_css %}{% endblock %}
+
+    <!-- Delegated dispatch for every data-action in the templates. In <head> and
+         not deferred: it installs the listeners the body's markup relies on,
+         including a capture-phase one for <img data-action-error>, which fires
+         while the body is still parsing. -->
+    <script src="{{ url_for('static', filename='js/actions.js') }}"></script>
 </head>
 <body>
     
@@ -66,7 +72,7 @@
                     <div class="logo">
                         <img src="https://a.espncdn.com/i/teamlogos/leagues/500/nfl.png"
                              alt="NFL"
-                             onerror="this.style.display='none'; this.nextElementSibling.style.display='inline';">
+                             data-action-error="logo-fallback">
                         <span style="display:none;">🏈</span>
                     </div>
                     <div class="title">NFL Pick'em</div>
@@ -130,7 +136,7 @@
                                 </svg>
                                 Edit Profile
                             </a>
-                            <a href="javascript:void(0);" onclick="showSwitchGroupsModal(event); return false;" class="dropdown-item" id="switch-groups-btn">
+                            <a href="#" data-action="switch-groups" class="dropdown-item" id="switch-groups-btn">
                                 <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
                                     <path d="M15 14s1 0 1-1-1-4-5-4-5 3-5 4 1 1 1 1h8zm-7.978-1A.261.261 0 0 1 7 12.996c.001-.264.167-1.03.76-1.72C8.312 10.629 9.282 10 11 10c1.717 0 2.687.63 3.24 1.276.593.69.758 1.457.76 1.72l-.008.002a.274.274 0 0 1-.014.002H7.022zM11 7a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm3-2a3 3 0 1 1-6 0 3 3 0 0 1 6 0zM6.936 9.28a5.88 5.88 0 0 0-1.23-.247A7.35 7.35 0 0 0 5 9c-4 0-5 3-5 4 0 .667.333 1 1 1h4.216A2.238 2.238 0 0 1 5 13c0-1.01.377-2.042 1.09-2.904.243-.294.526-.569.846-.816zM4.92 10A5.493 5.493 0 0 0 4 13H1c0-.26.164-1.03.76-1.724.545-.636 1.492-1.256 3.16-1.275zM1.5 5.5a3 3 0 1 1 6 0 3 3 0 0 1-6 0zm3-2a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"/>
                                 </svg>
@@ -143,7 +149,7 @@
                                 </svg>
                                 Create New Group
                             </a>
-                            <a href="javascript:void(0);" onclick="showJoinCodeModal(event); return false;" class="dropdown-item" id="join-code-btn">
+                            <a href="#" data-action="join-code" class="dropdown-item" id="join-code-btn">
                                 <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
                                     <path d="M0 8a4 4 0 0 1 7.465-2H14a.5.5 0 0 1 .354.146l1.5 1.5a.5.5 0 0 1 0 .708l-1.5 1.5a.5.5 0 0 1-.708 0L13 9.207l-.646.647a.5.5 0 0 1-.708 0L11 9.207l-.646.647a.5.5 0 0 1-.708 0L9 9.207l-.646.647A.5.5 0 0 1 8 10h-.535A4 4 0 0 1 0 8zm4-3a3 3 0 1 0 2.712 4.285A.5.5 0 0 1 7.163 9h.63l.853-.854a.5.5 0 0 1 .708 0l.646.647.646-.647a.5.5 0 0 1 .708 0l.646.647.646-.647a.5.5 0 0 1 .708 0l.646.647.793-.793-1-1h-6.63a.5.5 0 0 1-.451-.285A3 3 0 0 0 4 5z"/>
                                     <path d="M4 8a1 1 0 1 1-2 0 1 1 0 0 1 2 0z"/>
@@ -202,7 +208,7 @@
                             {% if category == 'success' %}✓{% elif category == 'error' %}✗{% elif category == 'warning' %}⚠{% else %}ℹ{% endif %}
                         </span>
                         <span class="flash-text">{{ message }}</span>
-                        <button onclick="this.parentElement.parentElement.remove()" class="flash-close">×</button>
+                        <button data-action="dismiss-flash" class="flash-close">×</button>
                     </div>
                 </div>
                 {% endfor %}
@@ -269,7 +275,7 @@
         </a>
         
         <!-- Profile Menu -->
-        <button onclick="toggleMobileProfileMenu(event)" 
+        <button data-action="toggle-mobile-profile" 
                 class="bottom-nav-item {{ 'active' if request.endpoint in ['auth.profile', 'auth.settings'] }}"
                 style="border: none; background: none; cursor: pointer; padding: 8px 4px;">
             <svg class="nav-icon" width="22" height="22" fill="currentColor" viewBox="0 0 16 16">
@@ -282,7 +288,7 @@
     
     <!-- Mobile Profile Menu Dropdown -->
     <div id="mobile-profile-menu" class="mobile-profile-dropdown" style="display: none;">
-        <div class="mobile-profile-overlay" onclick="closeMobileProfileMenu()"></div>
+        <div class="mobile-profile-overlay" data-action="close-mobile-profile"></div>
         <div class="mobile-profile-content">
             <div class="mobile-profile-header">
                 <div class="mobile-profile-info">
@@ -303,40 +309,40 @@
                         {% endif %}
                     </div>
                 </div>
-                <button onclick="closeMobileProfileMenu()" class="mobile-profile-close">
+                <button data-action="close-mobile-profile" class="mobile-profile-close">
                     <svg width="24" height="24" fill="currentColor" viewBox="0 0 16 16">
                         <path d="M2.146 2.854a.5.5 0 1 1 .708-.708L8 7.293l5.146-5.147a.5.5 0 0 1 .708.708L8.707 8l5.147 5.146a.5.5 0 0 1-.708.708L8 8.707l-5.146 5.147a.5.5 0 0 1-.708-.708L7.293 8 2.146 2.854Z"/>
                     </svg>
                 </button>
             </div>
             <div class="mobile-profile-items">
-                <a href="javascript:void(0);" onclick="closeMobileProfileMenu(); setTimeout(function() { showSwitchGroupsModal(event); }, 100);" class="mobile-profile-item">
+                <a href="#" data-action="mobile-switch-groups" class="mobile-profile-item">
                     <svg width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
                         <path d="M15 14s1 0 1-1-1-4-5-4-5 3-5 4 1 1 1 1h8zm-7.978-1A.261.261 0 0 1 7 12.996c.001-.264.167-1.03.76-1.72C8.312 10.629 9.282 10 11 10c1.717 0 2.687.63 3.24 1.276.593.69.758 1.457.76 1.72l-.008.002a.274.274 0 0 1-.014.002H7.022zM11 7a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm3-2a3 3 0 1 1-6 0 3 3 0 0 1 6 0zM6.936 9.28a5.88 5.88 0 0 0-1.23-.247A7.35 7.35 0 0 0 5 9c-4 0-5 3-5 4 0 .667.333 1 1 1h4.216A2.238 2.238 0 0 1 5 13c0-1.01.377-2.042 1.09-2.904.243-.294.526-.569.846-.816zM4.92 10A5.493 5.493 0 0 0 4 13H1c0-.26.164-1.03.76-1.724.545-.636 1.492-1.256 3.16-1.275zM1.5 5.5a3 3 0 1 1 6 0 3 3 0 0 1-6 0zm3-2a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"/>
                     </svg>
                     <span>Switch Groups</span>
                 </a>
-                <a href="javascript:void(0);" onclick="closeMobileProfileMenu(); setTimeout(function() { showJoinCodeModal(event); }, 100);" class="mobile-profile-item">
+                <a href="#" data-action="mobile-join-code" class="mobile-profile-item">
                     <svg width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
                         <path d="M0 8a4 4 0 0 1 7.465-2H14a.5.5 0 0 1 .354.146l1.5 1.5a.5.5 0 0 1 0 .708l-1.5 1.5a.5.5 0 0 1-.708 0L13 9.207l-.646.647a.5.5 0 0 1-.708 0L11 9.207l-.646.647a.5.5 0 0 1-.708 0L9 9.207l-.646.647A.5.5 0 0 1 8 10h-.535A4 4 0 0 1 0 8zm4-3a3 3 0 1 0 2.712 4.285A.5.5 0 0 1 7.163 9h.63l.853-.854a.5.5 0 0 1 .708 0l.646.647.646-.647a.5.5 0 0 1 .708 0l.646.647.646-.647a.5.5 0 0 1 .708 0l.646.647.793-.793-1-1h-6.63a.5.5 0 0 1-.451-.285A3 3 0 0 0 4 5z"/>
                         <path d="M4 8a1 1 0 1 1-2 0 1 1 0 0 1 2 0z"/>
                     </svg>
                     <span>Join by Code</span>
                 </a>
-                <a href="{{ url_for('groups.create') }}" class="mobile-profile-item" onclick="closeMobileProfileMenu()">
+                <a href="{{ url_for('groups.create') }}" class="mobile-profile-item" data-action="close-mobile-profile">
                     <svg width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
                         <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"/>
                     </svg>
                     <span>Create Group</span>
                 </a>
                 <div class="mobile-profile-divider"></div>
-                <a href="{{ url_for('auth.profile') }}" class="mobile-profile-item" onclick="closeMobileProfileMenu()">
+                <a href="{{ url_for('auth.profile') }}" class="mobile-profile-item" data-action="close-mobile-profile">
                     <svg width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
                         <path d="M3 14s-1 0-1-1 1-4 6-4 6 3 6 4-1 1-1 1H3zm5-6a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/>
                     </svg>
                     <span>My Profile</span>
                 </a>
-                <a href="{{ url_for('auth.edit_profile') }}" class="mobile-profile-item" onclick="closeMobileProfileMenu()">
+                <a href="{{ url_for('auth.edit_profile') }}" class="mobile-profile-item" data-action="close-mobile-profile">
                     <svg width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
                         <path d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l10-10zM11.207 2.5 13.5 4.793 14.793 3.5 12.5 1.207 11.207 2.5zm1.586 3L10.5 3.207 4 9.707V10h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.293l6.5-6.5zm-9.761 5.175-.106.106-1.528 3.821 3.821-1.528.106-.106A.5.5 0 0 1 5 12.5V12h-.5a.5.5 0 0 1-.5-.5V11h-.5a.5.5 0 0 1-.468-.325z"/>
                     </svg>
@@ -344,7 +350,7 @@
                 </a>
                 <div class="mobile-profile-divider"></div>
                 {% if current_group_slug %}
-                <a href="{{ url_for('main.rules', group=current_group_slug) }}" class="mobile-profile-item" onclick="closeMobileProfileMenu()">
+                <a href="{{ url_for('main.rules', group=current_group_slug) }}" class="mobile-profile-item" data-action="close-mobile-profile">
                     <svg width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
                         <path d="M14 4.5V14a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V2a2 2 0 0 1 2-2h5.5L14 4.5zm-3 0A1.5 1.5 0 0 1 9.5 3V1H4a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V4.5h-2z"/>
                         <path d="M4.603 14.087a.81.81 0 0 1-.438-.42c-.195-.388-.13-.776.08-1.102.198-.307.526-.568.897-.787a7.68 7.68 0 0 1 1.482-.645 19.697 19.697 0 0 0 1.062-2.227 7.269 7.269 0 0 1-.43-1.295c-.086-.4-.119-.796-.046-1.136.075-.354.274-.672.65-.823.192-.077.4-.12.602-.077a.7.7 0 0 1 .477.365c.088.164.12.356.127.538.007.188-.012.396-.047.614-.084.51-.27 1.134-.52 1.794a10.954 10.954 0 0 0 .98 1.686 5.753 5.753 0 0 1 1.334.05c.364.066.734.195.96.465.12.144.193.32.2.518.007.192-.047.382-.138.563a1.04 1.04 0 0 1-.354.416.856.856 0 0 1-.51.138c-.331-.014-.654-.196-.933-.417a5.712 5.712 0 0 1-.911-.95 11.651 11.651 0 0 0-1.997.406 11.307 11.307 0 0 1-1.02 1.51c-.292.35-.609.656-.927.787a.793.793 0 0 1-.58.029zm1.379-1.901c-.166.076-.32.156-.459.238-.328.194-.541.383-.647.547-.094.145-.096.25-.04.361.01.022.02.036.026.044a.266.266 0 0 0 .035-.012c.137-.056.355-.235.635-.572a8.18 8.18 0 0 0 .45-.606zm1.64-1.33a12.71 12.71 0 0 1 1.01-.193 11.744 11.744 0 0 1-.51-.858 20.801 20.801 0 0 1-.5 1.05zm2.446.45c.15.163.296.3.435.41.24.19.407.253.498.256a.107.107 0 0 0 .07-.015.307.307 0 0 0 .094-.125.436.436 0 0 0 .059-.2.095.095 0 0 0-.026-.063c-.052-.062-.2-.152-.518-.209a3.876 3.876 0 0 0-.612-.053zM8.078 7.8a6.7 6.7 0 0 0 .2-.828c.031-.188.043-.343.038-.465a.613.613 0 0 0-.032-.198.517.517 0 0 0-.145.04c-.087.035-.158.106-.196.283-.04.192-.03.469.046.822.024.111.054.227.09.346z"/>
@@ -352,7 +358,7 @@
                     <span>Game Rules</span>
                 </a>
                 {% else %}
-                <a href="{{ url_for('main.rules') }}" class="mobile-profile-item" onclick="closeMobileProfileMenu()">
+                <a href="{{ url_for('main.rules') }}" class="mobile-profile-item" data-action="close-mobile-profile">
                     <svg width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
                         <path d="M14 4.5V14a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V2a2 2 0 0 1 2-2h5.5L14 4.5zm-3 0A1.5 1.5 0 0 1 9.5 3V1H4a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V4.5h-2z"/>
                         <path d="M4.603 14.087a.81.81 0 0 1-.438-.42c-.195-.388-.13-.776.08-1.102.198-.307.526-.568.897-.787a7.68 7.68 0 0 1 1.482-.645 19.697 19.697 0 0 0 1.062-2.227 7.269 7.269 0 0 1-.43-1.295c-.086-.4-.119-.796-.046-1.136.075-.354.274-.672.65-.823.192-.077.4-.12.602-.077a.7.7 0 0 1 .477.365c.088.164.12.356.127.538.007.188-.012.396-.047.614-.084.51-.27 1.134-.52 1.794a10.954 10.954 0 0 0 .98 1.686 5.753 5.753 0 0 1 1.334.05c.364.066.734.195.96.465.12.144.193.32.2.518.007.192-.047.382-.138.563a1.04 1.04 0 0 1-.354.416.856.856 0 0 1-.51.138c-.331-.014-.654-.196-.933-.417a5.712 5.712 0 0 1-.911-.95 11.651 11.651 0 0 0-1.997.406 11.307 11.307 0 0 1-1.02 1.51c-.292.35-.609.656-.927.787a.793.793 0 0 1-.58.029zm1.379-1.901c-.166.076-.32.156-.459.238-.328.194-.541.383-.647.547-.094.145-.096.25-.04.361.01.022.02.036.026.044a.266.266 0 0 0 .035-.012c.137-.056.355-.235.635-.572a8.18 8.18 0 0 0 .45-.606zm1.64-1.33a12.71 12.71 0 0 1 1.01-.193 11.744 11.744 0 0 1-.51-.858 20.801 20.801 0 0 1-.5 1.05zm2.446.45c.15.163.296.3.435.41.24.19.407.253.498.256a.107.107 0 0 0 .07-.015.307.307 0 0 0 .094-.125.436.436 0 0 0 .059-.2.095.095 0 0 0-.026-.063c-.052-.062-.2-.152-.518-.209a3.876 3.876 0 0 0-.612-.053zM8.078 7.8a6.7 6.7 0 0 0 .2-.828c.031-.188.043-.343.038-.465a.613.613 0 0 0-.032-.198.517.517 0 0 0-.145.04c-.087.035-.158.106-.196.283-.04.192-.03.469.046.822.024.111.054.227.09.346z"/>
@@ -362,14 +368,14 @@
                 {% endif %}
                 <div class="mobile-profile-divider"></div>
                 {% if current_user.is_admin %}
-                <a href="{{ url_for('main.admin_scheduler') }}" class="mobile-profile-item" onclick="closeMobileProfileMenu()">
+                <a href="{{ url_for('main.admin_scheduler') }}" class="mobile-profile-item" data-action="close-mobile-profile">
                     <svg width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
                         <path d="M9.405 1.05c-.413-1.4-2.397-1.4-2.81 0l-.1.34a1.464 1.464 0 0 1-2.105.872l-.31-.17c-1.283-.698-2.686.705-1.987 1.987l.169.311c.446.82.023 1.841-.872 2.105l-.34.1c-1.4.413-1.4 2.397 0 2.81l.34.1a1.464 1.464 0 0 1 .872 2.105l-.17.31c-.698 1.283.705 2.686 1.987 1.987l.311-.169a1.464 1.464 0 0 1 2.105.872l.1.34c.413 1.4 2.397 1.4 2.81 0l.1-.34a1.464 1.464 0 0 1 2.105-.872l.31.17c1.283.698 2.686-.705 1.987-1.987l-.169-.311a1.464 1.464 0 0 1 .872-2.105l.34-.1c1.4-.413 1.4-2.397 0-2.81l-.34-.1a1.464 1.464 0 0 1-.872-2.105l.17-.31c.698-1.283-.705-2.686-1.987-1.987l-.311.169a1.464 1.464 0 0 1-2.105-.872l-.1-.34zM8 10.93a2.929 2.929 0 1 1 0-5.86 2.929 2.929 0 0 1 0 5.858z"/>
                     </svg>
                     <span>Scheduler</span>
                 </a>
                 {% endif %}
-                <a href="{{ url_for('auth.logout') }}" class="mobile-profile-item mobile-profile-logout" onclick="closeMobileProfileMenu()">
+                <a href="{{ url_for('auth.logout') }}" class="mobile-profile-item mobile-profile-logout" data-action="close-mobile-profile">
                     <svg width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
                         <path fill-rule="evenodd" d="M10 12.5a.5.5 0 0 1-.5.5h-8a.5.5 0 0 1-.5-.5v-9a.5.5 0 0 1 .5-.5h8a.5.5 0 0 1 .5.5v2a.5.5 0 0 0 1 0v-2A1.5 1.5 0 0 0 9.5 2h-8A1.5 1.5 0 0 0 0 3.5v9A1.5 1.5 0 0 0 1.5 14h8a1.5 1.5 0 0 0 1.5-1.5v-2a.5.5 0 0 0-1 0v2z"/>
                         <path fill-rule="evenodd" d="M15.854 8.354a.5.5 0 0 0 0-.708l-3-3a.5.5 0 0 0-.708.708L14.293 7.5H5.5a.5.5 0 0 0 0 1h8.793l-2.147 2.146a.5.5 0 0 0 .708.708l3-3z"/>
@@ -382,13 +388,12 @@
     {% endif %}
 
     <!-- Scripts (pinned versions with SRI so a CDN compromise can't inject code) -->
-    <script src="https://unpkg.com/alpinejs@3.14.9/dist/cdn.min.js" integrity="sha384-9Ax3MmS9AClxJyd5/zafcXXjxmwFhZCdsT6HJoJjarvCaAkJlk5QDzjLJm+Wdx5F" crossorigin="anonymous" defer></script>
     <script src="https://cdn.socket.io/4.7.0/socket.io.min.js" integrity="sha384-Yr9WTd0PejKq9h8C9oCidSRqKwoiY+0ps1rTn9yhBmX3aMNBz3A30CYiD1NbJ5tZ" crossorigin="anonymous"></script>
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
     
     <!-- Real-time Score Updates -->
     {% if current_user.is_authenticated %}
-    <script>
+    <script nonce="{{ csp_nonce() }}">
         // Initialize SocketIO connections for real-time updates
         document.addEventListener('DOMContentLoaded', function() {
             // Add a small delay to prevent race conditions on page load
@@ -512,7 +517,7 @@
                 toast.innerHTML = `
                     <div class="toast-content">
                         <span>${message}</span>
-                        <button class="toast-close" onclick="this.parentElement.parentElement.remove()">×</button>
+                        <button class="toast-close" data-action="dismiss-flash">×</button>
                     </div>
                 `;
                 
@@ -563,7 +568,7 @@
     {% block extra_js %}{% endblock %}
     
     <!-- Service Worker Registration & PWA Install -->
-    <script>
+    <script nonce="{{ csp_nonce() }}">
         // Service Worker Registration
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', function() {
@@ -619,12 +624,12 @@
                         <div style="font-weight: 600; margin-bottom: 0.25rem;">🏈 Install NFL Pick'em</div>
                         <div style="font-size: 0.875rem; opacity: 0.9;">Add to your home screen for quick access!</div>
                     </div>
-                    <button onclick="installPWA()" style="background: white; color: #3b82f6; border: none; 
+                    <button data-action="install-pwa" style="background: white; color: #3b82f6; border: none; 
                                                           padding: 0.5rem 1rem; border-radius: 6px; 
                                                           font-weight: 600; cursor: pointer;">
                         Install
                     </button>
-                    <button onclick="dismissInstallBanner()" style="background: transparent; color: white; 
+                    <button data-action="dismiss-install-banner" style="background: transparent; color: white; 
                                                                      border: 1px solid rgba(255,255,255,0.3); 
                                                                      padding: 0.5rem 1rem; border-radius: 6px; 
                                                                      cursor: pointer;">
@@ -664,6 +669,26 @@
             // Remember dismissal for this session
             sessionStorage.setItem('pwaInstallDismissed', 'true');
         };
+
+        appActions.register({
+            'install-pwa': function() { installPWA(); },
+            'dismiss-install-banner': function() { dismissInstallBanner(); },
+            // Flash messages and toasts share a shape: button inside a content
+            // wrapper inside the box that goes away.
+            'dismiss-flash': function() {
+                if (this.parentElement && this.parentElement.parentElement) {
+                    this.parentElement.parentElement.remove();
+                }
+            },
+            // The NFL logo is hotlinked from ESPN. If it 404s, hide it and show
+            // the emoji sitting next to it instead.
+            'logo-fallback': function() {
+                this.style.display = 'none';
+                if (this.nextElementSibling) {
+                    this.nextElementSibling.style.display = 'inline';
+                }
+            }
+        });
         
         // Detect if app is installed
         window.addEventListener('appinstalled', function(e) {
@@ -739,7 +764,7 @@
     </footer>
 
     <!-- Group Persistence Script -->
-    <script>
+    <script nonce="{{ csp_nonce() }}">
         // On page load, ensure group persistence in session storage
         document.addEventListener('DOMContentLoaded', function() {
             // Get group from URL parameter
@@ -764,7 +789,7 @@
                     </svg>
                     Switch Groups
                 </h3>
-                <button onclick="closeSwitchGroupsModal()" class="modal-close-btn">×</button>
+                <button data-action="close-switch-groups" class="modal-close-btn">×</button>
             </div>
             <div class="modal-body" style="max-height: 60vh; overflow-y: auto;">
                 {% if user_groups|length > 0 %}
@@ -777,7 +802,7 @@
                     
                     <div class="group-card {% if is_current %}active-group{% endif %}" 
                          data-group-slug="{{ group.slug }}"
-                         {% if not is_current %}onclick="switchToGroup('{{ group.slug }}')" style="cursor: pointer;"{% endif %}>
+                         {% if not is_current %}data-action="switch-to-group" style="cursor: pointer;"{% endif %}>
                         <div class="group-card-header">
                             <div class="group-name">
                                 <h4>{{ group.name }}</h4>
@@ -816,7 +841,11 @@
                         
                         <div class="group-actions">
                             {% if is_creator %}
-                            <button onclick="event.stopPropagation(); confirmDeleteGroup('{{ group.slug }}', '{{ group.name }}', {{ group.id }})" class="btn btn-sm btn-danger">
+                            <button data-action="confirm-delete-group"
+                                    data-group-slug="{{ group.slug }}"
+                                    data-group-name="{{ group.name }}"
+                                    data-group-id="{{ group.id }}"
+                                    class="btn btn-sm btn-danger">
                                 <svg width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
                                     <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
                                     <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
@@ -824,7 +853,11 @@
                                 Delete Group
                             </button>
                             {% else %}
-                            <button onclick="event.stopPropagation(); confirmLeaveGroup('{{ group.slug }}', '{{ group.name }}', {{ group.id }})" class="btn btn-sm btn-secondary">
+                            <button data-action="confirm-leave-group"
+                                    data-group-slug="{{ group.slug }}"
+                                    data-group-name="{{ group.name }}"
+                                    data-group-id="{{ group.id }}"
+                                    class="btn btn-sm btn-secondary">
                                 <svg width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
                                     <path fill-rule="evenodd" d="M10 12.5a.5.5 0 0 1-.5.5h-8a.5.5 0 0 1-.5-.5v-9a.5.5 0 0 1 .5-.5h8a.5.5 0 0 1 .5.5v2a.5.5 0 0 0 1 0v-2A1.5 1.5 0 0 0 9.5 2h-8A1.5 1.5 0 0 0 0 3.5v9A1.5 1.5 0 0 0 1.5 14h8a1.5 1.5 0 0 0 1.5-1.5v-2a.5.5 0 0 0-1 0v2z"/>
                                     <path fill-rule="evenodd" d="M15.854 8.354a.5.5 0 0 0 0-.708l-3-3a.5.5 0 0 0-.708.708L14.293 7.5H5.5a.5.5 0 0 0 0 1h8.793l-2.147 2.146a.5.5 0 0 0 .708.708l3-3z"/>
@@ -844,13 +877,13 @@
                     <h4>No Groups Yet</h4>
                     <p>Create a new group or join one to get started!</p>
                     <div style="display: flex; gap: 0.75rem; justify-content: center; margin-top: 1.5rem;">
-                        <a href="{{ url_for('groups.create') }}" class="btn btn-primary" onclick="closeSwitchGroupsModal()">
+                        <a href="{{ url_for('groups.create') }}" class="btn btn-primary" data-action="close-switch-groups">
                             <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
                                 <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"/>
                             </svg>
                             Create Group
                         </a>
-                        <button onclick="closeSwitchGroupsModal(); setTimeout(function() { showJoinCodeModal(event); }, 100);" class="btn btn-secondary">
+                        <button data-action="switch-to-join-code" class="btn btn-secondary">
                             <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
                                 <path d="M0 8a4 4 0 0 1 7.465-2H14a.5.5 0 0 1 .354.146l1.5 1.5a.5.5 0 0 1 0 .708l-1.5 1.5a.5.5 0 0 1-.708 0L13 9.207l-.646.647a.5.5 0 0 1-.708 0L11 9.207l-.646.647a.5.5 0 0 1-.708 0L9 9.207l-.646.647A.5.5 0 0 1 8 10h-.535A4 4 0 0 1 0 8zm4-3a3 3 0 1 0 2.712 4.285A.5.5 0 0 1 7.163 9h.63l.853-.854a.5.5 0 0 1 .708 0l.646.647.646-.647a.5.5 0 0 1 .708 0l.646.647.646-.647a.5.5 0 0 1 .708 0l.646.647.793-.793-1-1h-6.63a.5.5 0 0 1-.451-.285A3 3 0 0 0 4 5z"/>
                                 <path d="M4 8a1 1 0 1 1-2 0 1 1 0 0 1 2 0z"/>
@@ -872,7 +905,7 @@
                     <i class="fas fa-exclamation-triangle"></i>
                     Delete Group?
                 </h3>
-                <button onclick="closeDeleteModalFromSwitch()" class="modal-close-btn">×</button>
+                <button data-action="close-delete-from-switch" class="modal-close-btn">×</button>
             </div>
             <div class="modal-body">
                 <div style="background: rgba(220, 53, 69, 0.1); border-left: 4px solid #dc3545; padding: 1rem; border-radius: 6px; margin-bottom: 1.5rem;">
@@ -903,10 +936,10 @@
                 </div>
             </div>
             <div class="modal-footer" style="display: flex; gap: 0.75rem; justify-content: flex-end;">
-                <button onclick="closeDeleteModalFromSwitch()" class="btn btn-secondary">
+                <button data-action="close-delete-from-switch" class="btn btn-secondary">
                     <i class="fas fa-times"></i> Cancel
                 </button>
-                <button onclick="submitDeleteGroup()" class="btn btn-danger">
+                <button data-action="submit-delete-group" class="btn btn-danger">
                     <i class="fas fa-trash"></i> Delete Group
                 </button>
             </div>
@@ -949,17 +982,17 @@
                 </form>
             </div>
             <div class="modal-footer" style="display: flex; gap: 0.75rem; justify-content: flex-end;">
-                <button onclick="closeJoinCodeModal()" class="btn btn-secondary">
+                <button data-action="close-join-code" class="btn btn-secondary">
                     <i class="fas fa-times"></i> Cancel
                 </button>
-                <button onclick="document.getElementById('joinCodeForm').submit()" class="btn btn-primary">
+                <button data-action="submit-join-code" class="btn btn-primary">
                     <i class="fas fa-sign-in-alt"></i> Join Group
                 </button>
             </div>
         </div>
     </div>
     
-    <script>
+    <script nonce="{{ csp_nonce() }}">
     // Define modal functions
     
     window.showJoinCodeModal = function(event) {
@@ -1122,20 +1155,43 @@
             document.body.style.overflow = '';
         }
     };
-    
-    // User menu dropdown handler
-    document.addEventListener('DOMContentLoaded', function() {
-        
-        // Add event listener for Switch Groups button as backup
-        const switchGroupsBtn = document.getElementById('switch-groups-btn');
-        if (switchGroupsBtn) {
-            switchGroupsBtn.addEventListener('click', function(e) {
-                e.preventDefault();
-                e.stopPropagation();
-                window.showSwitchGroupsModal(e);
-                return false;
-            });
-        }
+
+    appActions.register({
+        'switch-groups': function(event) { showSwitchGroupsModal(event); },
+        'join-code': function(event) { showJoinCodeModal(event); },
+        'close-switch-groups': function() { closeSwitchGroupsModal(); },
+        'close-join-code': function() { closeJoinCodeModal(); },
+        'submit-join-code': function() { document.getElementById('joinCodeForm').submit(); },
+        'toggle-mobile-profile': function(event) { toggleMobileProfileMenu(event); },
+        'close-mobile-profile': function() { closeMobileProfileMenu(); },
+        // The menu slides shut before the modal opens, so the two animations
+        // don't fight over the same corner of the screen.
+        'mobile-switch-groups': function(event) {
+            closeMobileProfileMenu();
+            setTimeout(function() { showSwitchGroupsModal(event); }, 100);
+        },
+        'mobile-join-code': function(event) {
+            closeMobileProfileMenu();
+            setTimeout(function() { showJoinCodeModal(event); }, 100);
+        },
+        'switch-to-join-code': function(event) {
+            closeSwitchGroupsModal();
+            setTimeout(function() { showJoinCodeModal(event); }, 100);
+        },
+        // Slug, name and id arrive as data-* attributes. They used to be
+        // interpolated straight into the onclick as JS string literals, where a
+        // group named with an apostrophe broke out of the quoting.
+        'confirm-delete-group': function(event) {
+            event.stopPropagation();
+            confirmDeleteGroup(this.dataset.groupSlug, this.dataset.groupName, this.dataset.groupId);
+        },
+        'confirm-leave-group': function(event) {
+            event.stopPropagation();
+            confirmLeaveGroup(this.dataset.groupSlug, this.dataset.groupName, this.dataset.groupId);
+        },
+        'switch-to-group': function() { switchToGroup(this.dataset.groupSlug); },
+        'close-delete-from-switch': function() { closeDeleteModalFromSwitch(); },
+        'submit-delete-group': function() { submitDeleteGroup(); }
     });
     
     // Close modal on escape key
@@ -1153,7 +1209,7 @@
     });
     </script>
 
-    <script>
+    <script nonce="{{ csp_nonce() }}">
     // Email obfuscation: addresses are split into data-user / data-domain so no
     // literal address or mailto: appears in the page source. Reassemble them
     // client-side, set the mailto: href, and reveal any .mail-text label. This

@@ -126,7 +126,7 @@
                                     <form method="POST" action="{{ url_for('groups.leave', group_id=group.id) }}" style="margin: 0;">
                                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                                         <button type="submit"
-                                                onclick="return confirm('Are you sure you want to leave this group?')"
+                                                data-action="confirm-leave-current-group"
                                                 style="padding: 0.25rem 0.75rem; background: rgba(239, 68, 68, 0.1); color: var(--accent-red); border: 1px solid var(--accent-red); border-radius: 6px; font-size: 0.75rem; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 0.25rem;">
                                             <i class="fas fa-sign-out-alt"></i> Leave Group
                                         </button>
@@ -195,33 +195,28 @@
     </div>
 </div>
 
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Add event listeners to action buttons
-    document.querySelectorAll('button[data-action]').forEach(button => {
-        button.addEventListener('click', handleMemberAction);
-    });
-});
-
-async function handleMemberAction(event) {
-    const button = event.target.closest('button');
-    const action = button.dataset.action;
-    const groupId = button.dataset.groupId;
-    const userId = button.dataset.userId;
-    const userName = button.dataset.userName;
-    
-    switch (action) {
-        case 'promote':
-            await promoteMember(groupId, userId);
-            break;
-        case 'demote':
-            await demoteMember(groupId, userId);
-            break;
-        case 'remove':
-            await removeMember(groupId, userId, userName);
-            break;
+<script nonce="{{ csp_nonce() }}">
+// These buttons already carried data-action; they now resolve through the
+// shared dispatcher rather than a page-local binding pass, so a row rendered
+// after load needs no re-binding.
+appActions.register({
+    'promote': function() {
+        promoteMember(this.dataset.groupId, this.dataset.userId);
+    },
+    'demote': function() {
+        demoteMember(this.dataset.groupId, this.dataset.userId);
+    },
+    'remove': function() {
+        removeMember(this.dataset.groupId, this.dataset.userId, this.dataset.userName);
+    },
+    // Was an inline confirm handler on the submit button, where returning
+    // false cancelled the submit. preventDefault does the same thing.
+    'confirm-leave-current-group': function(event) {
+        if (!confirm('Are you sure you want to leave this group?')) {
+            event.preventDefault();
+        }
     }
-}
+});
 
 async function promoteMember(groupId, userId) {
     if (!confirm('Are you sure you want to promote this member to administrator?')) {
