@@ -11,6 +11,13 @@ All notable changes to this project will be documented in this file.
   the previous, finished season instead. The default User-Agent now identifies
   the app with a contact URL, and `NFL_API_USER_AGENT` overrides it without a
   rebuild.
+- **Season rollover blocked by a global unique index** - `teams.espn_id` was
+  declared unique across the whole table, but teams are per-season rows, so a
+  franchise repeats every year. Creating the next season's teams therefore died
+  on `duplicate key value violates unique constraint "ix_teams_espn_id"`, which
+  no deployment had hit before because none had ever reached a second season.
+  Uniqueness is now per season (`unique_team_season_espn`), and the schema guard
+  relaxes the old index on existing databases at startup.
 
 ## [1.3.0] - 2026-07-20
 

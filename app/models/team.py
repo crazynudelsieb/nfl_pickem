@@ -13,9 +13,11 @@ class Team(db.Model):
     city = db.Column(db.String(100), nullable=False)
     abbreviation = db.Column(db.String(10), nullable=False, index=True)
 
-    # External IDs for API integration
-    espn_id = db.Column(db.String(20), unique=True, index=True)
-    nfl_id = db.Column(db.String(20), unique=True, index=True)
+    # External IDs for API integration. Not globally unique: a team gets one row
+    # per season, so the same franchise carries the same espn_id in 2025 and
+    # 2026. The uniqueness that holds is per season, below.
+    espn_id = db.Column(db.String(20), index=True)
+    nfl_id = db.Column(db.String(20), index=True)
 
     # Team details
     conference = db.Column(db.String(10))  # AFC or NFC
@@ -61,6 +63,7 @@ class Team(db.Model):
         db.UniqueConstraint(
             "season_id", "abbreviation", name="unique_team_season_abbr"
         ),
+        db.UniqueConstraint("season_id", "espn_id", name="unique_team_season_espn"),
     )
 
     def __repr__(self):
