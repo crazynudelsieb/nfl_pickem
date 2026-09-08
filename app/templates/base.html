@@ -702,12 +702,16 @@
                 </nav>
 
                 {% if contact_links or contact_email %}
+                <span class="sep" aria-hidden="true">·</span>
                 <div class="footer-social">
                     {% if contact_email %}
                     <a class="js-mail" data-user="{{ contact_email[0] }}" data-domain="{{ contact_email[1] }}"
                        rel="nofollow" aria-label="Email" title="Email"><i class="fas fa-envelope"></i></a>
                     {% endif %}
                     {% for link in contact_links %}
+                    {% if not loop.first or contact_email %}
+                    <span class="sep" aria-hidden="true">·</span>
+                    {% endif %}
                     <a href="{{ link.url }}" target="_blank" rel="{{ link.rel }}"
                        aria-label="{{ link.label }}" title="{{ link.label }}"><i class="{{ link.fa_icon }}"></i></a>
                     {% endfor %}
@@ -719,9 +723,14 @@
                 <i class="fas fa-shield-alt"></i>
                 Entertainment only — no wagering or stakes. Third-party scores may be delayed;
                 the official NFL result governs. Not affiliated with the NFL.
+            </p>
+
+            <p class="copyright mb-0">
+                © 2026 {{ config.APP_NAME }}
                 <span class="sep" aria-hidden="true">·</span>
-                © 2026 {{ config.APP_NAME }} · All rights reserved · Personal use is free —
-                commercial use requires permission:
+                All rights reserved
+                <span class="sep" aria-hidden="true">·</span>
+                Personal use is free — commercial use requires permission:
                 <a class="js-mail" data-user="{{ license_email[0] }}" data-domain="{{ license_email[1] }}" rel="nofollow">
                     <span class="mail-text">{{ license_email[0] }}<span aria-hidden="true"> [at] </span>{{ license_email[1] }}</span>
                 </a>
