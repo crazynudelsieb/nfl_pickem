@@ -33,7 +33,7 @@
     <meta name="msapplication-config" content="none">
     
     <!-- CSS -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}?v=20260908v2">
+    <link rel="stylesheet" href="{{ static_url('css/main.css') }}">
     
     <!-- Font Awesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw==" crossorigin="anonymous" referrerpolicy="no-referrer" />
@@ -44,7 +44,7 @@
          not deferred: it installs the listeners the body's markup relies on,
          including a capture-phase one for <img data-action-error>, which fires
          while the body is still parsing. -->
-    <script src="{{ url_for('static', filename='js/actions.js') }}"></script>
+    <script src="{{ static_url('js/actions.js') }}"></script>
 </head>
 <body>
     
@@ -389,7 +389,7 @@
 
     <!-- Scripts (pinned versions with SRI so a CDN compromise can't inject code) -->
     <script src="https://cdn.socket.io/4.7.0/socket.io.min.js" integrity="sha384-Yr9WTd0PejKq9h8C9oCidSRqKwoiY+0ps1rTn9yhBmX3aMNBz3A30CYiD1NbJ5tZ" crossorigin="anonymous"></script>
-    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <script src="{{ static_url('js/main.js') }}"></script>
     
     <!-- Real-time Score Updates -->
     {% if current_user.is_authenticated %}
@@ -576,6 +576,24 @@
                     .then(function(registration) {
                         console.log('ServiceWorker registration successful');
                         
+                        // sw.js precaches by URL, but it can't know the ?v=
+                        // content stamps these assets are requested under, so
+                        // hand it the ones this page is using. Without this the
+                        // shell only reaches the cache once a later navigation
+                        // runs it through the fetch handler, which may not
+                        // happen before the device goes offline.
+                        navigator.serviceWorker.ready.then(function(ready) {
+                            if (ready.active) {
+                                ready.active.postMessage({
+                                    type: 'CACHE_URLS',
+                                    urls: {{ [static_url('css/main.css'),
+                                              static_url('js/actions.js'),
+                                              static_url('js/main.js'),
+                                              static_url('js/offline.js')] | tojson }}
+                                });
+                            }
+                        });
+
                         // Check for updates
                         registration.addEventListener('updatefound', function() {
                             const newWorker = registration.installing;

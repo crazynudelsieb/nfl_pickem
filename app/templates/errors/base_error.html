@@ -134,8 +134,8 @@
 
     <!-- In <head> and not deferred: the delegated capture listener has to exist
          before the cat image below is parsed, or its load failure is missed. -->
-    <script src="{{ url_for('static', filename='js/actions.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/error-page.js') }}"></script>
+    <script src="{{ static_url('js/actions.js') }}"></script>
+    <script src="{{ static_url('js/error-page.js') }}"></script>
 </head>
 <body>
     <div class="error-container">

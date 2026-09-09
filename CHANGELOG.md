@@ -72,6 +72,26 @@ All notable changes to this project will be documented in this file.
   covers the link row, the icon row and the copyright line.
 
 ### Fixed
+- **Mobile menu covered the whole screen** - the header was made sticky by
+  adding `position: sticky; top: 0` to a bare `nav {}` selector, which matched
+  every `<nav>` on the page. `.mobile-bottom-nav` is `position: fixed; bottom: 0`
+  and deliberately declares no `top`; resolving both edges stretches a fixed
+  element to the full viewport, so the bar grew to cover the page and its
+  `z-index: 999` put the five nav buttons over everything. #55 scoped the header
+  rules to `.top-nav`, but the fix never reached anyone - see the cache-buster
+  entry below. `.mobile-bottom-nav` now sets `top: auto` explicitly, so a
+  broader rule cannot stretch it again.
+- **Corrected assets never reached browsers** - `main.css` was busted with a
+  hand-maintained `?v=20260908v2`, and the scripts carried no stamp at all. The
+  service worker serves `/static/` cache-first and never revalidates, so an
+  asset stays pinned until its URL changes - and #55 shipped a stylesheet fix
+  without touching the string, leaving every browser and every installed PWA on
+  the broken copy indefinitely. `static_url()` now stamps `?v=<content hash>`,
+  so the URL moves whenever the bytes do and cannot be forgotten. The service
+  worker's cache names are bumped to v6 to evict what existing installs are
+  holding, its precache list no longer names assets that are only ever requested
+  stamped, and `base.html` hands it the current stamped URLs so offline caching
+  still works.
 - **Season rollover stalled on an upstream 403** - The NFL data feed started
   refusing the hardcoded `NFL-Pickem-App/1.0` User-Agent, so every sync failed
   and the automatic rollover could never create the new season; the app sat on

@@ -4449,9 +4449,14 @@ small {
 }
 
 /* Mobile Bottom Navigation */
+/* `top: auto` is load-bearing: the bar is only as tall as its contents because
+   it pins to the bottom alone. A stray `top: 0` from a broader rule (the header
+   bar's used to match every <nav>) stretches it to the full viewport, and its
+   z-index then puts five giant buttons over the whole screen. */
 .mobile-bottom-nav {
     display: none;
     position: fixed;
+    top: auto;
     bottom: 0;
     left: 0;
     right: 0;

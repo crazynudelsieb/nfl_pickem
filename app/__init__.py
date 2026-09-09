@@ -1,7 +1,8 @@
+import hashlib
 import os
 import secrets
 
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, current_app, jsonify, render_template, request, url_for
 from flask_caching import Cache
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
@@ -25,6 +26,45 @@ socketio = SocketIO()
 cache = Cache()
 migrate = Migrate()
 csrf = CSRFProtect()
+
+
+# Cache-busting stamps, keyed by filename -> (stat signature, content hash). The
+# hash is recomputed only when the file on disk changes, so this costs one stat
+# per reference in steady state.
+_asset_versions = {}
+
+
+def static_url(filename):
+    """``url_for('static', ...)`` plus a ``?v=`` stamp taken from the file itself.
+
+    The stamp has to change whenever the bytes change. A hand-maintained one
+    does not: #55 corrected the mobile nav stylesheet but left ``?v=`` alone, so
+    the URL stayed identical and every browser - and the service worker, which
+    serves ``/static/`` cache-first and never revalidates - kept handing out the
+    stylesheet with the bug in it.
+    """
+    url = url_for("static", filename=filename)
+    path = os.path.join(current_app.static_folder, filename)
+    try:
+        stat = os.stat(path)
+    except OSError:
+        # Missing or unreadable: fall back to the release version rather than
+        # dropping the stamp, which would pin the asset in caches forever.
+        return f"{url}?v={__version__}"
+
+    signature = (stat.st_mtime_ns, stat.st_size)
+    cached = _asset_versions.get(filename)
+    if cached is not None and cached[0] == signature:
+        return f"{url}?v={cached[1]}"
+
+    try:
+        with open(path, "rb") as handle:
+            digest = hashlib.sha256(handle.read()).hexdigest()[:12]
+    except OSError:
+        return f"{url}?v={__version__}"
+
+    _asset_versions[filename] = (signature, digest)
+    return f"{url}?v={digest}"
 
 
 def csp_nonce():
@@ -197,6 +237,10 @@ def create_app(config_name=None):
     @app.context_processor
     def inject_legal_globals():
         return legal_globals(app.config)
+
+    @app.context_processor
+    def inject_static_url():
+        return {"static_url": static_url}
 
     @app.context_processor
     def inject_csp_nonce():

@@ -1,14 +1,17 @@
 // NFL Pick'em Service Worker - Enhanced PWA version
-const CACHE_NAME = 'nfl-pickem-v5';
-const RUNTIME_CACHE = 'nfl-pickem-runtime-v5';
+// Bump both names on any release that changes a precached asset: `activate`
+// deletes every cache not named here, and that purge is the only thing that
+// frees an existing install from the cache-first copies below. v6 evicts the
+// stylesheet that stretched the mobile bottom nav over the whole viewport.
+const CACHE_NAME = 'nfl-pickem-v6';
+const RUNTIME_CACHE = 'nfl-pickem-runtime-v6';
 
-// Assets to cache on install
+// Assets to cache on install. The stylesheet and scripts are deliberately
+// absent: pages request them with a `?v=<content hash>` stamp, and `cacheFirst`
+// matches on the full URL, so an entry listed here bare could never be served.
+// base.html posts the stamped URLs back as CACHE_URLS once the worker is ready.
 const PRECACHE_URLS = [
   '/',
-  '/static/css/main.css',
-  '/static/js/main.js',
-  '/static/js/actions.js',
-  '/static/js/offline.js',
   '/static/images/nfl-logo.png',
   '/static/images/icon-192x192.png',
   '/static/images/icon-512x512.png',
