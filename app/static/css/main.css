@@ -1691,7 +1691,7 @@ select:focus {
 }
 
 /* Navigation */
-nav {
+.top-nav {
     background: var(--bg-secondary);
     border-bottom: 1px solid var(--border-color);
     padding: 0 20px;
@@ -4163,7 +4163,7 @@ small {
         margin-top: 0;
     }
     
-    nav {
+    .top-nav {
         padding: 0.5rem 0;
     }
 }
@@ -4176,7 +4176,7 @@ small {
         padding-bottom: env(safe-area-inset-bottom);
     }
     
-    nav {
+    .top-nav {
         padding-top: calc(1rem + env(safe-area-inset-top));
     }
 }
@@ -4629,7 +4629,7 @@ small {
     }
     
     /* Improve navigation bar on mobile */
-    nav {
+    .top-nav {
         padding: 0 15px;
     }
     

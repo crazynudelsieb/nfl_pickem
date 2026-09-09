@@ -54,7 +54,7 @@
     </a>
 
     <!-- Navigation -->
-    <nav>
+    <nav class="top-nav">
         {% if current_user.is_authenticated %}
             {% set user_groups = current_user.get_groups() %}
             {# Use the LATEST group (last in list) as default instead of first #}
