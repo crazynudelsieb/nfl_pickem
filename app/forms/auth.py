@@ -19,9 +19,39 @@ USERNAME_PATTERN = r"^[a-zA-Z0-9_.-]+$"
 DISPLAY_NAME_PATTERN = r"^[a-zA-Z0-9 _.-]*$"
 
 
+def _username_taken(value, exclude=None):
+    """True if some other account already holds this username, ignoring case."""
+    from app import db
+
+    folded = (value or "").strip().lower()
+    if not folded:
+        return False
+    query = User.query.filter(db.func.lower(User.username) == folded)
+    if exclude is not None:
+        query = query.filter(db.func.lower(User.username) != exclude.strip().lower())
+    return query.first() is not None
+
+
+def _email_taken(value, exclude=None):
+    """True if some other account already holds this email, ignoring case."""
+    from app import db
+
+    folded = (value or "").strip().lower()
+    if not folded:
+        return False
+    query = User.query.filter(db.func.lower(User.email) == folded)
+    if exclude is not None:
+        query = query.filter(db.func.lower(User.email) != exclude.strip().lower())
+    return query.first() is not None
+
+
 class LoginForm(FlaskForm):
+    # Named "username" because that is the column it usually matches, but the
+    # field takes an email address too - see User.find_by_login_identifier.
+    # The cap follows the email column (120), not the username column (80), or
+    # a long address would be rejected before it ever reached the lookup.
     username = StringField(
-        "Username", validators=[DataRequired(), Length(min=3, max=80)]
+        "Username or Email", validators=[DataRequired(), Length(min=3, max=120)]
     )
     password = PasswordField("Password", validators=[DataRequired()])
     remember_me = BooleanField("Remember Me")
@@ -74,15 +104,15 @@ class RegistrationForm(FlaskForm):
     submit = SubmitField("Register")
 
     def validate_username(self, username):
-        user = User.query.filter_by(username=username.data).first()
-        if user:
+        # Case-insensitive: sign-in folds case, so two names differing only in
+        # case would make the lookup ambiguous.
+        if _username_taken(username.data):
             raise ValidationError(
                 "Username already exists. Please choose a different username."
             )
 
     def validate_email(self, email):
-        user = User.query.filter_by(email=email.data).first()
-        if user:
+        if _email_taken(email.data):
             raise ValidationError(
                 "Email already registered. Please use a different email."
             )
@@ -124,20 +154,20 @@ class EditProfileForm(FlaskForm):
         self.original_email = original_email
 
     def validate_username(self, username):
-        if username.data != self.original_username:
-            user = User.query.filter_by(username=username.data).first()
-            if user:
-                raise ValidationError(
-                    "Username already taken. Please choose a different username."
-                )
+        if username.data != self.original_username and _username_taken(
+            username.data, exclude=self.original_username
+        ):
+            raise ValidationError(
+                "Username already taken. Please choose a different username."
+            )
 
     def validate_email(self, email):
-        if email.data != self.original_email:
-            user = User.query.filter_by(email=email.data).first()
-            if user:
-                raise ValidationError(
-                    "Email already registered. Please use a different email."
-                )
+        if email.data != self.original_email and _email_taken(
+            email.data, exclude=self.original_email
+        ):
+            raise ValidationError(
+                "Email already registered. Please use a different email."
+            )
 
 
 class ChangePasswordForm(FlaskForm):

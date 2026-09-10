@@ -72,6 +72,60 @@ All notable changes to this project will be documented in this file.
   covers the link row, the icon row and the copyright line.
 
 ### Fixed
+- **Username and email now normalise at the column, not at each call site** -
+  every consumer compared these two fields its own way, so each one was wrong
+  differently. `forgot_password` did an exact match and silently found nobody;
+  `Invite.create_invite` looked up the invitee unnormalised and failed to spot
+  an existing member; the `received_invites` relationship joins
+  `User.email == Invite.invitee_email` directly and simply never matched across
+  a case difference; and the invite-accept route had already been patched by
+  hand with a `.lower().strip()` on both sides, which fixed that one path and
+  none of the others. `User.email` and `Invite.invitee_email` are now folded to
+  lower case by a `@validates` hook, which covers every write path - forms,
+  invites, scripts, fixtures - rather than the two routes that happen to use
+  WTForms. `User.username` is trimmed but keeps its case: it is what the
+  leaderboard renders when `display_name` is empty, so folding it would have
+  turned "TheBerginator" into "theberginator" for real accounts.
+- **Case-insensitive uniqueness is enforced by the database** - checking it in
+  the form validators alone covered only the routes using those forms, missed
+  every other write path, and let two concurrent registrations race past it.
+  `Andi` and `andi` both existing would make sign-in ambiguous, so the schema
+  guard now builds functional unique indexes on `lower(username)` and
+  `lower(email)`, and folds any rows written before the rule shipped. The
+  guard logs and continues if an index cannot be built, so
+  `find_by_login_identifier()` keeps trying an exact username match first as a
+  tiebreak.
+- **Resetting the password could never unlock the account** - sign-in matched
+  only `users.username`, exactly, while recovery was keyed on `users.email`.
+  Nothing errored on either path, so a user who reset their password and then
+  typed their email address into the login form got "Invalid username or
+  password", reset again, and got it again. Postgres sharpened both halves:
+  `Andi` is not `andi`, so a stored name was unreachable from a phone keyboard's
+  capitalisation, and an address stored as typed at registration
+  (`Andreas.C@gmail.com`) never matched the same address in lower case - which
+  made `forgot_password` find no user, generate no token, send no mail, and
+  still answer "if an account with that email exists", leaving nothing to act
+  on. Sign-in now goes through `User.find_by_login_identifier()`, which accepts
+  the username *or* the email, trims whitespace and folds case, trying an exact
+  username match first so no account can be shadowed by one differing only in
+  case; `forgot_password` uses `User.find_by_email()` on the same terms. The
+  login field's length cap moved from 80 (the username column) to 120 (the
+  email column), which would otherwise have rejected a long address before the
+  lookup ever ran. Registration and profile edits now check uniqueness
+  case-insensitively so two such accounts cannot be created.
+- **Password reset never named the account it was resetting** - the mail said
+  only "Hi <display name>", so a user with more than one account could not tell
+  which one the link belonged to, and one who had forgotten their username
+  learned nothing that would get them past the login form. The reset mail now
+  lists the username and email, the reset page names the account above the
+  form, and the success message says which name to sign in as.
+- **Reset password re-validated CSRF by hand** - the view called
+  `validate_csrf()` itself on top of the app-wide `CSRFProtect`, which already
+  guards every POST via `WTF_CSRF_CHECK_DEFAULT`. The duplicate check ignored
+  `WTF_CSRF_ENABLED`, so it fired even where the app had switched CSRF off, and
+  turned a failure into a generic flash instead of the logged `CSRFError`
+  handler. Removed, with a test asserting the remaining protection rejects a
+  tokenless POST and leaves the reset token unspent.
 - **Mobile menu covered the whole screen** - the header was made sticky by
   adding `position: sticky; top: 0` to a bare `nav {}` selector, which matched
   every `<nav>` on the page. `.mobile-bottom-nav` is `position: fixed; bottom: 0`

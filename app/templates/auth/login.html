@@ -18,7 +18,7 @@
                 
                 <div class="form-group">
                     {{ form.username.label(class="form-label") }}
-                    {{ form.username(class="form-input", placeholder="Enter your username") }}
+                    {{ form.username(class="form-input", placeholder="Enter your username or email", autocapitalize="none", autocorrect="off", spellcheck="false", autocomplete="username") }}
                     {% if form.username.errors %}
                         {% for error in form.username.errors %}
                             <div class="form-error">{{ error }}</div>

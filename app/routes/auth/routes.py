@@ -3,8 +3,6 @@ from urllib.parse import urlparse
 
 from flask import flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required, login_user, logout_user
-from flask_wtf.csrf import validate_csrf
-from wtforms import ValidationError
 
 from app import db, limiter, login_manager
 from app.forms.auth import (
@@ -50,7 +48,7 @@ def login():
 
     form = LoginForm()
     if form.validate_on_submit():
-        user = User.query.filter_by(username=form.username.data).first()
+        user = User.find_by_login_identifier(form.username.data)
 
         if user and user.check_password(form.password.data):
             if not user.is_active:
@@ -81,7 +79,7 @@ def login():
             flash(f"Welcome back, {user.full_name}!", "success")
             return redirect(next_page)
 
-        flash("Invalid username or password.", "error")
+        flash("Invalid username, email, or password.", "error")
 
     return render_template("auth/login.html", form=form)
 
@@ -295,7 +293,7 @@ def forgot_password():
     if request.method == "POST":
         email = request.form.get("email")
         if email:
-            user = User.query.filter_by(email=email).first()
+            user = User.find_by_email(email)
             if user:
                 # Generate reset token
                 token = user.generate_reset_token()
@@ -337,27 +335,30 @@ def reset_password(token):
         return redirect(url_for("auth.forgot_password"))
 
     if request.method == "POST":
-        # Validate CSRF token
-        try:
-            validate_csrf(request.form.get('csrf_token'))
-        except ValidationError:
-            flash("Security validation failed. Please try again.", "error")
-            return render_template("auth/reset_password.html", token=token)
-
+        # No CSRF check here: CSRFProtect is registered app-wide with
+        # WTF_CSRF_CHECK_DEFAULT, so this POST is already rejected before the
+        # view runs, by the handler that logs the failure. Repeating the check
+        # by hand only bypassed the app's own CSRF switch.
         password = request.form.get("password")
         confirm_password = request.form.get("confirm_password")
 
         if not password or not confirm_password:
             flash("Please provide both password fields.", "error")
-            return render_template("auth/reset_password.html", token=token)
+            return render_template(
+                "auth/reset_password.html", token=token, username=user.username
+            )
 
         if password != confirm_password:
             flash("Passwords do not match.", "error")
-            return render_template("auth/reset_password.html", token=token)
+            return render_template(
+                "auth/reset_password.html", token=token, username=user.username
+            )
 
         if len(password) < 8:
             flash("Password must be at least 8 characters long.", "error")
-            return render_template("auth/reset_password.html", token=token)
+            return render_template(
+                "auth/reset_password.html", token=token, username=user.username
+            )
 
         # Update password and clear token
         user.set_password(password)
@@ -365,9 +366,12 @@ def reset_password(token):
         db.session.commit()
 
         flash(
-            "Your password has been reset successfully. Please log in with your new password.",
+            f"Password reset successfully. Sign in as '{user.username}' "
+            "with your new password.",
             "success",
         )
         return redirect(url_for("auth.login"))
 
-    return render_template("auth/reset_password.html", token=token)
+    return render_template(
+        "auth/reset_password.html", token=token, username=user.username
+    )

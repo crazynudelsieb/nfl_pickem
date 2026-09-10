@@ -3,6 +3,8 @@ import secrets
 import string
 from datetime import UTC, datetime, timedelta
 
+from sqlalchemy.orm import validates
+
 from app import db
 
 logger = logging.getLogger(__name__)
@@ -38,6 +40,16 @@ class Invite(db.Model):
 
     def __repr__(self):
         return f"<Invite {self.invitee_email} to group {self.group_id}>"
+
+    @validates("invitee_email")
+    def _normalise_invitee_email(self, _key, value):
+        """Match User.email, which is stored folded to lower case.
+
+        These two columns are compared directly - by `use_invite`, by the
+        `received_invites` relationship join, and by the accept route - so they
+        have to agree on normalisation or an invite silently belongs to nobody.
+        """
+        return value.strip().lower() if value else value
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -138,14 +150,14 @@ class Invite(db.Model):
             return None, "Group not found"
 
         # Check if invitee is already a member
-        invitee = User.query.filter_by(email=invitee_email).first()
+        invitee = User.find_by_email(invitee_email)
         if invitee and group.is_user_member(invitee.id):
             return None, "User is already a member"
 
         # Check if there's already an active invite for this email
         existing_invite = Invite.query.filter_by(
             group_id=group_id,
-            invitee_email=invitee_email,
+            invitee_email=(invitee_email or "").strip().lower(),
             is_active=True,
             is_used=False,
         ).first()

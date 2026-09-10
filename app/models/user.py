@@ -3,6 +3,7 @@ import secrets
 from datetime import UTC, datetime, timedelta
 
 from flask_login import UserMixin
+from sqlalchemy.orm import validates
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from app import db
@@ -74,6 +75,35 @@ class User(UserMixin, db.Model):
     def __repr__(self):
         return f"<User {self.username}>"
 
+    # Normalising here rather than in the forms puts it on every write path -
+    # registration, profile edits, invites, admin scripts, fixtures - instead
+    # of only the two routes that happen to go through WTForms.
+    @validates("email")
+    def _normalise_email(self, _key, value):
+        """Store addresses folded to lower case.
+
+        The local part is case-sensitive per RFC 5321, but no mail provider in
+        practice treats it that way, and storing it as typed meant
+        `Andreas.C@gmail.com` never matched the same address typed in lower
+        case. Every comparison site got that wrong independently - password
+        reset silently found no user, invite acceptance needed a hand-rolled
+        `.lower().strip()`, and the `Invite.invitee_email` relationship join
+        simply failed. One rule at the column fixes all of them.
+        """
+        return value.strip().lower() if value else value
+
+    @validates("username")
+    def _normalise_username(self, _key, value):
+        """Trim surrounding whitespace, but keep the case the user chose.
+
+        Case is preserved rather than folded because `username` is what the
+        leaderboard shows whenever `display_name` is empty - lower-casing would
+        turn "TheBerginator" into "theberginator" for everyone. Uniqueness and
+        sign-in are case-insensitive regardless; that is enforced by the
+        functional unique index on `lower(username)`, not by the stored value.
+        """
+        return value.strip() if value else value
+
     @staticmethod
     def generate_avatar_url(seed=None):
         """Generate a random avatar URL using DiceBear API"""
@@ -142,6 +172,51 @@ class User(UserMixin, db.Model):
     def check_password(self, password):
         """Check password against hash"""
         return check_password_hash(self.password_hash, password)
+
+    @staticmethod
+    def find_by_login_identifier(identifier):
+        """Find the account a sign-in identifier refers to.
+
+        Sign-in accepts the email address as well as the username. Recovery is
+        keyed on email and the reset mail never used to name the account, so a
+        user who remembered only their address had no way back in - resetting
+        the password as often as they liked never helped, because the login
+        form was still asking for something else.
+
+        Matching folds case and trims whitespace: phone keyboards capitalise
+        the first letter and autofill drags spaces along, which leaves a stored
+        name like "Andi" unreachable from "andi" on Postgres.
+        """
+        identifier = (identifier or "").strip()
+        if not identifier:
+            return None
+
+        # An exact username match wins outright, so no account can be shadowed
+        # by another whose name differs from it only in case.
+        user = User.query.filter(User.username == identifier).first()
+        if user:
+            return user
+
+        folded = identifier.lower()
+        return (
+            User.query.filter(db.func.lower(User.username) == folded).first()
+            or User.query.filter(db.func.lower(User.email) == folded).first()
+        )
+
+    @staticmethod
+    def find_by_email(email):
+        """Find an account by email address, ignoring case and whitespace.
+
+        Addresses are stored as typed at registration - "Andreas.C@gmail.com",
+        "d.k@Hotmail.com" - so an exact match silently misses anyone who later
+        types their own address in lower case. Password reset answers "if an
+        account exists" either way, which turns that miss into a dead end with
+        no error to act on.
+        """
+        email = (email or "").strip()
+        if not email:
+            return None
+        return User.query.filter(db.func.lower(User.email) == email.lower()).first()
 
     def generate_reset_token(self):
         """Generate a password reset token"""

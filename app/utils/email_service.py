@@ -122,15 +122,23 @@ class EmailService:
 
         subject = "Password Reset - NFL Pick'em"
 
+        # Name the account. Sign-in matches the username first, and a user who
+        # only remembers their email address cannot tell from the reset form
+        # alone which of several accounts they just reset.
         body_text = f"""
         Hi {user.full_name},
 
         You requested a password reset for your NFL Pick'em account.
 
+        Username: {user.username}
+        Email: {user.email}
+
         Click the link below to reset your password:
         {reset_url}
 
         This link will expire in 1 hour.
+
+        After resetting, sign in with the username or the email address above.
 
         If you didn't request this reset, please ignore this email.
 
@@ -145,11 +153,18 @@ class EmailService:
             <p>Hi {user.full_name},</p>
             <p>You requested a password reset for your NFL Pick'em account.</p>
 
+            <ul>
+                <li><strong>Username:</strong> {user.username}</li>
+                <li><strong>Email:</strong> {user.email}</li>
+            </ul>
+
             <p><a href="{reset_url}" style="background-color: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Reset Password</a></p>
 
             <p>Or copy and paste this link: <br><a href="{reset_url}">{reset_url}</a></p>
 
             <p><small>This link will expire in 1 hour.</small></p>
+
+            <p>After resetting, sign in with the username or the email address above.</p>
 
             <p>If you didn't request this reset, please ignore this email.</p>
 

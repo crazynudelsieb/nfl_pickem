@@ -43,6 +43,27 @@ UNIQUE_INDEXES = [
     ("teams", "unique_team_season_espn", ["season_id", "espn_id"]),
 ]
 
+# (table, column) whose stored values must be folded to lower case. The models
+# normalise on write, but rows written before that shipped are still mixed
+# case, and the expression unique indexes below cannot be trusted until they
+# are. Runs before EXPRESSION_UNIQUE_INDEXES for that reason.
+LOWERCASE_BACKFILL = [
+    ("users", "email"),
+    ("invites", "invitee_email"),
+]
+
+# (table, index, expression) for uniqueness that holds case-insensitively.
+#
+# Checking this in the WTForms validators only was not enough: it covered the
+# two routes that use those forms, missed every other write path, and two
+# concurrent registrations could still race past it. `Andi` and `andi` both
+# existing would make sign-in ambiguous, so the guarantee belongs in the
+# database. Postgres and SQLite (3.9+) both index expressions.
+EXPRESSION_UNIQUE_INDEXES = [
+    ("users", "uq_users_username_lower", "lower(username)"),
+    ("users", "uq_users_email_lower", "lower(email)"),
+]
+
 
 def _ensure_columns(existing_tables):
     """Add any registered columns that are missing from existing tables"""
@@ -113,6 +134,52 @@ def _ensure_unique_indexes(existing_tables):
             logger.error(f"Schema guard failed creating {table}.{index}: {e}")
 
 
+def _backfill_lowercase(existing_tables):
+    """Fold registered columns to lower case where a row still differs"""
+    for table, column in LOWERCASE_BACKFILL:
+        if table not in existing_tables:
+            continue
+
+        try:
+            result = db.session.execute(
+                db.text(
+                    f"UPDATE {table} SET {column} = lower({column}) "
+                    f"WHERE {column} IS NOT NULL AND {column} <> lower({column})"
+                )
+            )
+            db.session.commit()
+            if result.rowcount:
+                logger.info(
+                    f"Schema guard: lower-cased {result.rowcount} "
+                    f"{table}.{column} value(s)"
+                )
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Schema guard failed normalising {table}.{column}: {e}")
+
+
+def _ensure_expression_unique_indexes(existing_tables):
+    """Create registered expression unique indexes that a database is missing"""
+    for table, index, expression in EXPRESSION_UNIQUE_INDEXES:
+        if table not in existing_tables:
+            continue
+
+        try:
+            db.session.execute(
+                db.text(
+                    f"CREATE UNIQUE INDEX IF NOT EXISTS {index} "
+                    f"ON {table} ({expression})"
+                )
+            )
+            db.session.commit()
+        except Exception as e:
+            # Rows colliding case-insensitively would make this fail. The app
+            # still runs without the index - sign-in folds case either way -
+            # so log it and leave the collision for an operator to resolve.
+            db.session.rollback()
+            logger.error(f"Schema guard failed creating {table}.{index}: {e}")
+
+
 def ensure_schema():
     """Bring an existing database in line with the current models"""
     try:
@@ -123,4 +190,6 @@ def ensure_schema():
 
     _ensure_columns(existing_tables)
     _relax_unique_indexes(existing_tables)
+    _backfill_lowercase(existing_tables)
     _ensure_unique_indexes(existing_tables)
+    _ensure_expression_unique_indexes(existing_tables)
