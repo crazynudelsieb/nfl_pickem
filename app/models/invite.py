@@ -10,6 +10,11 @@ from app import db
 logger = logging.getLogger(__name__)
 
 
+def _fold(value):
+    """Normalise an address for comparison: trimmed, lower-cased, None-safe."""
+    return value.strip().lower() if value else ""
+
+
 class Invite(db.Model):
     __tablename__ = "invites"
 
@@ -115,10 +120,13 @@ class Invite(db.Model):
 
         from .user import User
 
-        # Check if email matches a user
+        # Check if email matches a user. Folded rather than compared raw: both
+        # columns normalise on write, so a bare `!=` is correct only for as
+        # long as that holds - and the unique index forbids two rows differing
+        # by case without forcing any single row to be stored lower-cased.
         if user_id:
             user = User.query.get(user_id)
-            if not user or user.email != self.invitee_email:
+            if not user or _fold(user.email) != _fold(self.invitee_email):
                 return False, "Email mismatch"
 
         # Add user to group
@@ -157,7 +165,7 @@ class Invite(db.Model):
         # Check if there's already an active invite for this email
         existing_invite = Invite.query.filter_by(
             group_id=group_id,
-            invitee_email=(invitee_email or "").strip().lower(),
+            invitee_email=_fold(invitee_email),
             is_active=True,
             is_used=False,
         ).first()

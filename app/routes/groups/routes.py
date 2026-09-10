@@ -370,10 +370,9 @@ def join_by_token(token):
         return redirect(url_for("auth.login", next=request.url))
 
     # Check if user's email matches the invite (case-insensitive)
-    user_email = current_user.email.lower().strip() if current_user.email else ""
-    invite_email = invite.invitee_email.lower().strip() if invite.invitee_email else ""
+    from app.models.invite import _fold
 
-    if user_email != invite_email:
+    if _fold(current_user.email) != _fold(invite.invitee_email):
         flash(
             f"This invitation was sent to {invite.invitee_email}, but you are logged in as {current_user.email}.",
             "error",
