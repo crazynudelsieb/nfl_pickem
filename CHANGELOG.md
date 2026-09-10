@@ -72,6 +72,11 @@ All notable changes to this project will be documented in this file.
   covers the link row, the icon row and the copyright line.
 
 ### Fixed
+- **Groupmates' picks show again before kickoff** - v1.3.0 accidentally started
+  hiding a groupmate's pick until its game kicked off, which emptied the pick
+  badges on the week view and the player-picks modal (groups page, dashboard)
+  until the games began. Both show every pick from the moment it is made again,
+  as they did before v1.3.0; picks made for another group stay out of view.
 - **Username and email now normalise at the column, not at each call site** -
   every consumer compared these two fields its own way, so each one was wrong
   differently. `forgot_password` did an exact match and silently found nobody;

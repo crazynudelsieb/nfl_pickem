@@ -143,9 +143,6 @@ def _calculate_team_availability(
 def _get_other_users_picks(group, games, exclude_user_id):
     """Get other group members' picks for comparison
 
-    Only picks for games that have already started are included, so nobody can
-    see (and counter-pick) a groupmate's choice before kickoff.
-
     Args:
         group: Group object
         games: List of Game objects
@@ -155,11 +152,6 @@ def _get_other_users_picks(group, games, exclude_user_id):
         dict: {user_id: {"user": User, "picks": {game_id: Pick}}}
     """
     if not games or not group:
-        return {}
-
-    # Picks are only revealed once the game has started
-    started_game_ids = [game.id for game in games if game.has_started()]
-    if not started_game_ids:
         return {}
 
     # Get group members excluding current user
@@ -172,8 +164,9 @@ def _get_other_users_picks(group, games, exclude_user_id):
     if not group_members:
         return {}
 
+    game_ids = [game.id for game in games]
     group_picks_query = db.session.query(Pick).filter(
-        Pick.game_id.in_(started_game_ids),
+        Pick.game_id.in_(game_ids),
         Pick.user_id.in_([user.id for user in group_members]),
         db.or_(
             Pick.group_id == group.id,  # Per-group picks
@@ -1501,11 +1494,6 @@ def api_player_picks(user_id):
         picks_query = picks_query.filter(Pick.group_id == group_id)
 
     picks = picks_query.order_by(Game.week.desc(), Game.game_time.desc()).all()
-
-    # Another user's pick is only revealed once its game has started
-    reveal_all = current_user.id == user_id or current_user.is_admin
-    if not reveal_all:
-        picks = [p for p in picks if p.game and p.game.has_started()]
 
     picks_data = []
     for pick in picks:
