@@ -1,5 +1,20 @@
 # Dependabot configuration for NFL Pick'em
-# https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
+# https://docs.github.com/en/code-security/dependabot/working-with-dependabot/dependabot-options-reference
+#
+# Cadence and automation, described together because the two halves depend on
+# each other:
+#
+#   * Everything is checked monthly, not weekly.
+#   * Minor and patch updates are collected into one grouped PR per ecosystem,
+#     named "<something>-minor-patch". dependabot-auto-merge.yml merges exactly
+#     those three branch names once CI is green, so the group names below are
+#     load-bearing: renaming one silently turns its auto-merge off.
+#   * Major updates always arrive as their own PR and are never auto-merged.
+#   * cooldown withholds a release for a week before it is even proposed, so
+#     anything auto-merged has had seven days for other people to hit its bugs
+#     or for a compromised release to be pulled. It does not apply to security
+#     updates: those still open a PR immediately, outside the monthly schedule,
+#     and are left for a human to look at.
 
 version: 2
 updates:
@@ -7,10 +22,13 @@ updates:
   - package-ecosystem: "pip"
     directory: "/"
     schedule:
-      interval: "weekly"
-      day: "monday"
+      interval: "monthly"
       time: "09:00"
       timezone: "Europe/Vienna"
+    cooldown:
+      default-days: 7
+      # Majors are reviewed by hand anyway; let them settle longer first.
+      semver-major-days: 14
     open-pull-requests-limit: 10
     assignees:
       - "crazynudelsieb"
@@ -21,7 +39,6 @@ updates:
     labels:
       - "dependencies"
       - "python"
-    # Group minor and patch updates together
     groups:
       python-minor-patch:
         patterns:
@@ -34,10 +51,12 @@ updates:
   - package-ecosystem: "docker"
     directory: "/"
     schedule:
-      interval: "weekly"
-      day: "tuesday"
+      interval: "monthly"
       time: "09:00"
       timezone: "Europe/Vienna"
+    cooldown:
+      # The docker ecosystem supports default-days only.
+      default-days: 7
     # Keep runtime on a stable Python minor branch; avoid automatic jumps.
     ignore:
       - dependency-name: "python"
@@ -53,15 +72,24 @@ updates:
     labels:
       - "dependencies"
       - "docker"
+    groups:
+      docker-minor-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
 
   # GitHub Actions dependencies
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      interval: "weekly"
-      day: "wednesday"
+      interval: "monthly"
       time: "09:00"
       timezone: "Europe/Vienna"
+    cooldown:
+      # The github-actions ecosystem supports default-days only.
+      default-days: 7
     open-pull-requests-limit: 5
     assignees:
       - "crazynudelsieb"
@@ -72,6 +100,10 @@ updates:
       - "dependencies"
       - "github-actions"
       - "ci"
-
-# Security updates are handled automatically regardless of schedule
-# Dependabot will create PRs immediately for security vulnerabilities
+    groups:
+      actions-minor-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"

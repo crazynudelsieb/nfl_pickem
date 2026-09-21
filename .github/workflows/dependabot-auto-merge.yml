@@ -1,0 +1,101 @@
+name: Dependabot auto-merge
+
+# Merges Dependabot's grouped minor/patch PRs, but only after CI has actually
+# passed on the exact commit being merged.
+#
+# Why this reacts to CI instead of using `gh pr merge --auto`: GitHub only lets
+# auto-merge be enabled on a PR that some branch protection is holding back.
+# main has no required status checks, and adding them would also block the
+# direct pushes this repo releases from, so nothing holds a Dependabot PR back
+# and --auto would merge it the instant it opened, before CI had run. CI's own
+# completion is the gate instead.
+#
+# This workflow never checks out the PR and never runs its code. It only calls
+# the API, so the write permissions below are never handed to a dependency.
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+# One merge at a time. Two group PRs landing together could otherwise conflict
+# with each other mid-merge rather than one rebasing onto the other.
+concurrency:
+  group: dependabot-auto-merge
+  cancel-in-progress: false
+
+jobs:
+  merge:
+    name: Merge grouped minor/patch update
+    runs-on: ubuntu-latest
+    if: >-
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.actor.login == 'dependabot[bot]'
+
+    steps:
+      - name: Merge the PR if it is a grouped minor/patch update
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          BRANCH: ${{ github.event.workflow_run.head_branch }}
+          TESTED_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+
+          # Only the three groups declared in .github/dependabot.yml, each of
+          # which is defined to contain nothing but minor and patch updates.
+          # Everything else - a major, a security update, a dependency that
+          # could not be grouped - falls through and waits for a human.
+          case "$BRANCH" in
+            dependabot/pip/python-minor-patch-*) ;;
+            dependabot/docker/docker-minor-patch-*) ;;
+            dependabot/github_actions/actions-minor-patch-*) ;;
+            *)
+              echo "$BRANCH is not an auto-merge group; leaving it open."
+              exit 0
+              ;;
+          esac
+
+          # The workflow_run payload says who triggered CI; this says who owns
+          # the PR. Only the second one decides whether we merge.
+          pr=$(gh pr list --head "$BRANCH" --state open \
+                 --json number,author,headRefOid,mergeable \
+                 --jq '[.[] | select(.author.login == "app/dependabot")]
+                       | .[0] // empty
+                       | "\(.number) \(.headRefOid) \(.mergeable)"')
+
+          if [ -z "$pr" ]; then
+            echo "No open Dependabot PR for $BRANCH."
+            exit 0
+          fi
+
+          # shellcheck disable=SC2086 # three known-safe fields, split on space
+          set -- $pr
+          number=$1
+          head=$2
+          mergeable=$3
+
+          # CI passed on TESTED_SHA. If the branch has moved on since, that new
+          # commit is untested, so stop rather than merge something unverified.
+          if [ "$head" != "$TESTED_SHA" ]; then
+            echo "PR #$number is at $head but CI passed on $TESTED_SHA; skipping."
+            exit 0
+          fi
+
+          # A conflict is not a failure worth a red workflow: Dependabot
+          # rebases its own PRs and CI will bring us back here.
+          if [ "$mergeable" = "CONFLICTING" ]; then
+            echo "PR #$number conflicts with main; waiting for Dependabot to rebase."
+            exit 0
+          fi
+
+          # --match-head-commit makes the merge fail rather than merge the
+          # wrong thing if the branch moves between the check above and here.
+          echo "Merging PR #$number ($BRANCH) at $TESTED_SHA."
+          gh pr merge "$number" --squash --delete-branch \
+            --match-head-commit "$TESTED_SHA"
