@@ -7,14 +7,14 @@ Flask-Caching==2.5.1
 Flask-Migrate==4.1.0
 WTForms==3.2.2
 Werkzeug==3.1.8
-psycopg[binary,pool]==3.3.5
+psycopg[binary,pool]==3.3.6
 python-socketio==5.17.0
 python-engineio==4.14.0
 # WebSocket transport for async_mode="threading" - no monkey patching required.
 simple-websocket==1.1.0
 requests==2.34.2
 python-dotenv==1.2.3
-pytz==2026.3.post1
+pytz==2026.4
 APScheduler==3.11.3
 email-validator==2.3.0
 gunicorn==26.2.0
