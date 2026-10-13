@@ -599,10 +599,20 @@ class DataSync:
             return False
 
     def _fetch_competition(self, game):
-        """Fetch the ESPN competition block for a game"""
+        """Fetch the ESPN competition block for a game
+
+        The summary endpoint nests it as header.competitions[0]. A missing
+        block raises instead of returning {}, which callers would silently
+        read as "not final, no scores".
+        """
         url = f"{self.api_base_url}/summary"
         response = self._make_api_request(url, params={"event": game.espn_id})
-        return response.json().get("header", {}).get("competition", {})
+        competitions = response.json().get("header", {}).get("competitions") or []
+        if not competitions:
+            raise ValueError(
+                f"ESPN summary for event {game.espn_id} has no competition block"
+            )
+        return competitions[0]
 
     @staticmethod
     def _parse_competition(competition):

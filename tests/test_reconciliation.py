@@ -15,7 +15,7 @@ from tests.conftest import _naive_utc
 
 
 def espn_competition(home_score, away_score, completed=True):
-    """Minimal shape of the ESPN /summary header.competition block."""
+    """Minimal shape of an ESPN /summary header.competitions[] entry."""
     return {
         "status": {"type": {"completed": completed}},
         "competitors": [
@@ -201,6 +201,40 @@ def test_update_game_score_final_without_scores_is_refused(
 
     assert sync._update_game_score(started_game) is False
     assert started_game.is_final is False
+
+
+class FakeResponse:
+    def __init__(self, payload):
+        self.payload = payload
+
+    def json(self):
+        return self.payload
+
+
+def test_fetch_competition_unwraps_summary_header(monkeypatch, sync, started_game):
+    """Every other test stubs _fetch_competition, which hid that it read a
+    nonexistent header.competition key and always returned {}."""
+    competition = espn_competition(home_score=24, away_score=16)
+    monkeypatch.setattr(
+        sync,
+        "_make_api_request",
+        lambda url, params=None: FakeResponse(
+            {"header": {"id": "401872980", "competitions": [competition]}}
+        ),
+    )
+
+    assert sync._fetch_competition(started_game) == competition
+
+
+def test_fetch_competition_without_block_raises(monkeypatch, sync, started_game):
+    monkeypatch.setattr(
+        sync,
+        "_make_api_request",
+        lambda url, params=None: FakeResponse({"header": {}}),
+    )
+
+    with pytest.raises(ValueError):
+        sync._fetch_competition(started_game)
 
 
 def test_parse_competition_reads_scores_and_status():
