@@ -997,7 +997,7 @@ def admin_picks_games(group_id, week):
         games_data.append(
             {
                 "id": game.id,
-                "text": f"{game.away_team.abbreviation} @ {game.home_team.abbreviation} - {game.game_time.strftime('%a %m/%d %I:%M %p')}",
+                "text": f"{game.away_team.abbreviation} @ {game.home_team.abbreviation} - {game.local_game_time.strftime('%a %m/%d %I:%M %p')}",
             }
         )
 

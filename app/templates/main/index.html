@@ -128,7 +128,7 @@
                             <span class="score">{{ game.away_score or 0 }} : {{ game.home_score or 0 }}</span>
                             <span class="status live">Live</span>
                             {% else %}
-                            <span class="time">{{ game.game_time.strftime('%a %I:%M %p') }}</span>
+                            <span class="time">{{ game.local_game_time.strftime('%a %I:%M %p') }}</span>
                             <span class="status upcoming">Upcoming</span>
                             {% endif %}
                         </div>

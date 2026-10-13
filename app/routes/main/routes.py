@@ -112,6 +112,15 @@ def _calculate_team_availability(
     available_teams = {}
     effective_group_id = user.get_group_id_for_filtering(group_id)
 
+    # The week's single pick locks at its own kickoff, which closes every other
+    # game too - _process_single_pick refuses the switch, so don't offer it.
+    locked_pick = None
+    if not is_admin:
+        locked_pick = next(
+            (pick for pick in user_picks.values() if pick.game.has_started()),
+            None,
+        )
+
     for game in games:
         existing_pick = user_picks.get(game.id)
         exclude_pick_id = existing_pick.id if existing_pick else None
@@ -122,6 +131,13 @@ def _calculate_team_availability(
                 available_teams[team.id] = {
                     "can_pick": False,
                     "reason": "Game has started",
+                }
+                continue
+
+            if locked_pick and locked_pick.game_id != game.id:
+                available_teams[team.id] = {
+                    "can_pick": False,
+                    "reason": "Your pick this week is locked",
                 }
                 continue
 
@@ -400,7 +416,7 @@ def _process_single_pick(
 
     # Allow admins to edit any game, otherwise check if pickable
     if not is_admin and not game.is_pickable():
-        return False, "Game no longer available for picks"
+        return False, "This game has already started - picks lock at kickoff."
 
     # Check if target user already has a pick for this game (and group if applicable)
     existing_pick_query = Pick.query.filter_by(user_id=target_user.id, game_id=game_id)
@@ -429,6 +445,22 @@ def _process_single_pick(
             Pick.group_id.is_(None)
         )
     existing_week_pick = existing_week_pick_query.first()
+
+    # One pick per week, and it locks at its own kickoff - so a pick on a game
+    # that has started cannot be traded for another game. Checked before the
+    # team rules: it is the reason the user needs to hear first.
+    if (
+        existing_week_pick
+        and not is_admin
+        and existing_week_pick.game.has_started()
+    ):
+        locked_game = existing_week_pick.game
+        return (
+            False,
+            f"Your week {game.week} pick ({locked_game.away_team.abbreviation} @ "
+            f"{locked_game.home_team.abbreviation}) is locked because that game "
+            f"has already started.",
+        )
 
     # Determine which pick to exclude from validation
     exclude_pick_id = None
@@ -463,11 +495,6 @@ def _process_single_pick(
     # picks). Admins may switch even after kickoff, but the old pick must
     # always be removed so nobody ends up with two picks in one week.
     if existing_week_pick:
-        if not is_admin and existing_week_pick.game.has_started():
-            return (
-                False,
-                f"Cannot switch pick: Your current pick ({existing_week_pick.game.away_team.abbreviation} vs {existing_week_pick.game.home_team.abbreviation}) has already started",
-            )
         logger.debug(
             f"Deleting old pick for game {existing_week_pick.game_id} to switch to game {game_id}"
         )
@@ -1503,7 +1530,7 @@ def api_player_picks(user_id):
                 "id": pick.id,
                 "week": game.week,
                 "game_time": (
-                    game.game_time.strftime("%m/%d %I:%M %p")
+                    game.local_game_time.strftime("%m/%d %I:%M %p")
                     if game.game_time
                     else "TBD"
                 ),

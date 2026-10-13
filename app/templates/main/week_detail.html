@@ -179,10 +179,10 @@
                             </div>
                             {% elif game.game_time %}
                             <div class="text-sm text-gray-600">
-                                {{ game.game_time.strftime('%I:%M %p') }}
+                                {{ game.local_game_time.strftime('%I:%M %p') }}
                             </div>
                             <div class="text-sm text-gray-600">
-                                {{ game.game_time.strftime('%m/%d/%Y') }}
+                                {{ game.local_game_time.strftime('%m/%d/%Y') }}
                             </div>
                             {% else %}
                             <div class="text-sm text-gray-600">

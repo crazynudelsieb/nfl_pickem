@@ -16,8 +16,11 @@ class Game(db.Model):
     home_team_id = db.Column(db.Integer, db.ForeignKey("teams.id"), nullable=False)
     away_team_id = db.Column(db.Integer, db.ForeignKey("teams.id"), nullable=False)
 
-    # Game timing
-    game_time = db.Column(db.DateTime, nullable=False)
+    # Game timing. An absolute instant: a naive column stored whatever wall
+    # clock the database session was in (Europe/Vienna in production) and the
+    # app read it back as UTC, so kickoff appeared two hours late and games
+    # stayed pickable after they had started. See schema_guard.TIMESTAMPTZ_COLUMNS.
+    game_time = db.Column(db.DateTime(timezone=True), nullable=False)
 
     # Scores
     home_score = db.Column(db.Integer)

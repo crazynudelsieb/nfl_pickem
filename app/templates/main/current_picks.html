@@ -187,8 +187,8 @@
                     <div class="pick-game-row-content">
                         <!-- Time Info -->
                         <div class="pick-game-time">
-                            <div class="pick-game-time-day">{{ game.game_time.strftime('%a %m/%d') }}</div>
-                            <div>{{ game.game_time.strftime('%I:%M %p') }}</div>
+                            <div class="pick-game-time-day">{{ game.local_game_time.strftime('%a %m/%d') }}</div>
+                            <div>{{ game.local_game_time.strftime('%I:%M %p') }}</div>
                         </div>
 
                         <!-- Teams Selection -->
@@ -733,6 +733,18 @@ document.addEventListener('DOMContentLoaded', function() {
 let saveInProgress = false;
 let pendingSave = null;
 
+// What to tell the user when the server answered but did not save the pick
+function pickRefusalReason(status, data) {
+    const reason = (data.errors && data.errors[0]) || data.error || data.message;
+    if (reason) {
+        return reason;
+    }
+    if (status === 429) {
+        return 'Too many requests. Please wait a moment and try again.';
+    }
+    return `The server could not save it (error ${status}). Please reload the page and try again.`;
+}
+
 // Auto-save pick function
 function savePick(gameId, teamId, csrfToken, selectedUserId, week) {
     console.log('Saving pick - GameID:', gameId, 'TeamID:', teamId);
@@ -792,26 +804,32 @@ function savePick(gameId, teamId, csrfToken, selectedUserId, week) {
     .then(response => {
         clearTimeout(timeoutId);
         console.log('Response status:', response.status);
-        if (!response.ok) {
-            throw new Error(`Network response was not ok: ${response.status}`);
-        }
-        return response.json();
+        // A refused pick answers 400 with the reason in the JSON body - read
+        // it before judging the status, or all the user ever sees is "400".
+        return response.json()
+            .catch(() => ({}))
+            .then(data => {
+                if (!response.ok || !data.success) {
+                    const error = new Error(pickRefusalReason(response.status, data));
+                    error.refused = true;
+                    throw error;
+                }
+                return data;
+            });
     })
     .then(data => {
         console.log('Save response:', data);
         // Success - update badge
-        if (data.success && statusBadge) {
+        if (statusBadge) {
             statusBadge.className = 'pick-status-badge picked';
             statusBadge.style.background = 'rgba(16, 185, 129, 0.2)';
             statusBadge.style.color = 'var(--accent-green)';
             statusBadge.textContent = '✓ Saved';
-            
+
             // After 1.5 seconds, rebuild all status badges to ensure consistency
             setTimeout(() => {
                 updatePickStatusBadges();
             }, 1500);
-        } else if (!data.success) {
-            throw new Error(data.message || data.error || 'Failed to save pick');
         }
         
         // Mark save complete and process queue
@@ -843,12 +861,22 @@ function savePick(gameId, teamId, csrfToken, selectedUserId, week) {
             statusBadge.textContent = '✗ Error';
             
             // Show error message
-            const errorMsg = error.name === 'AbortError' 
+            const errorMsg = error.name === 'AbortError'
                 ? 'Request timed out. Please check your connection and try again.'
-                : `Failed to save pick: ${error.message}`;
-            
+                : error.refused
+                    ? `Pick not saved: ${error.message}`
+                    : 'Pick not saved: could not reach the server. Please check your connection and try again.';
+
             alert(errorMsg);
-            
+
+            // The click already moved the selection to the refused team.
+            // Reload so the page shows the pick that is actually saved, along
+            // with any games that have locked since it was opened.
+            if (error.refused) {
+                window.location.reload();
+                return;
+            }
+
             // Revert after 3 seconds and rebuild all badges
             setTimeout(() => {
                 updatePickStatusBadges();

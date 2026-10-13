@@ -247,7 +247,7 @@ class EmailService:
 
         games_list = "\n".join(
             [
-                f"  • {game.away_team.name} @ {game.home_team.name} - {game.game_time.strftime('%a %m/%d %I:%M %p')}"
+                f"  • {game.away_team.name} @ {game.home_team.name} - {game.local_game_time.strftime('%a %m/%d %I:%M %p')}"
                 for game in week_games[:5]  # Show first 5 games
             ]
         )

@@ -108,7 +108,7 @@
                         <div class="badge badge-warning">Live</div>
                         {% else %}
                         <div class="game-time">
-                            {{ game.game_time.strftime('%a %m/%d %I:%M %p') }}
+                            {{ game.local_game_time.strftime('%a %m/%d %I:%M %p') }}
                         </div>
                         <div class="badge badge-gray">Upcoming</div>
                         {% endif %}

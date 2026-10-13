@@ -64,6 +64,19 @@ EXPRESSION_UNIQUE_INDEXES = [
     ("users", "uq_users_email_lower", "lower(email)"),
 ]
 
+# (table, column) that must be TIMESTAMP WITH TIME ZONE on PostgreSQL.
+#
+# The app writes UTC-aware datetimes. Into a naive column PostgreSQL converts
+# them to the session's TimeZone first, and production's database runs in
+# Europe/Vienna - so kickoff was stored as Vienna wall clock, read back as UTC,
+# and has_started() stayed False for the first two hours of every game. The
+# naive values are exactly that session wall clock, so converting them in the
+# same session's TimeZone recovers the true instants. SQLite has no zoned type
+# and stores what it is given, so it is skipped.
+TIMESTAMPTZ_COLUMNS = [
+    ("games", "game_time"),
+]
+
 
 def _ensure_columns(existing_tables):
     """Add any registered columns that are missing from existing tables"""
@@ -180,6 +193,41 @@ def _ensure_expression_unique_indexes(existing_tables):
             logger.error(f"Schema guard failed creating {table}.{index}: {e}")
 
 
+def _ensure_timestamptz(existing_tables):
+    """Convert registered naive timestamp columns to TIMESTAMP WITH TIME ZONE"""
+    if db.engine.dialect.name != "postgresql":
+        return
+
+    for table, column in TIMESTAMPTZ_COLUMNS:
+        if table not in existing_tables:
+            continue
+
+        try:
+            data_type = db.session.execute(
+                db.text(
+                    "SELECT data_type FROM information_schema.columns "
+                    "WHERE table_schema = current_schema() "
+                    "AND table_name = :table AND column_name = :column"
+                ),
+                {"table": table, "column": column},
+            ).scalar()
+            if data_type != "timestamp without time zone":
+                continue  # already zoned (or missing - create_all owns that)
+
+            db.session.execute(
+                db.text(
+                    f"ALTER TABLE {table} ALTER COLUMN {column} "
+                    f"TYPE TIMESTAMP WITH TIME ZONE "
+                    f"USING {column} AT TIME ZONE current_setting('TimeZone')"
+                )
+            )
+            db.session.commit()
+            logger.info(f"Schema guard: converted {table}.{column} to timestamptz")
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Schema guard failed converting {table}.{column}: {e}")
+
+
 def ensure_schema():
     """Bring an existing database in line with the current models"""
     try:
@@ -193,3 +241,4 @@ def ensure_schema():
     _backfill_lowercase(existing_tables)
     _ensure_unique_indexes(existing_tables)
     _ensure_expression_unique_indexes(existing_tables)
+    _ensure_timestamptz(existing_tables)
