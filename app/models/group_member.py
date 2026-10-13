@@ -15,8 +15,8 @@ class GroupMember(db.Model):
     is_admin = db.Column(db.Boolean, default=False)
 
     # Timestamps
-    joined_at = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
-    left_at = db.Column(db.DateTime)
+    joined_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(UTC))
+    left_at = db.Column(db.DateTime(timezone=True))
 
     # Constraints
     __table_args__ = (

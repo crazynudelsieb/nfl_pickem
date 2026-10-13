@@ -56,6 +56,19 @@ def convert_to_utc(dt):
     return dt.astimezone(UTC)
 
 
+def format_local_time(dt, format_str="%b %d, %Y %I:%M %p"):
+    """Format a stored instant in the application's timezone
+
+    Registered as the ``localtime`` template filter. Timestamps come back from
+    the database in whatever zone its session runs in, so formatting one
+    without converting it first shows that zone, not the app's.
+    """
+    if dt is None:
+        return ""
+
+    return convert_to_app_timezone(dt).strftime(format_str)
+
+
 def format_game_time(dt, format_str="%a %m/%d at %I:%M %p"):
     """Format a game time in the application's timezone"""
     if dt is None:

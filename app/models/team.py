@@ -35,9 +35,9 @@ class Team(db.Model):
     is_active = db.Column(db.Boolean, default=True)
 
     # Timestamps
-    created_at = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
+    created_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(UTC))
     updated_at = db.Column(
-        db.DateTime,
+        db.DateTime(timezone=True),
         default=lambda: datetime.now(UTC),
         onupdate=lambda: datetime.now(UTC),
     )

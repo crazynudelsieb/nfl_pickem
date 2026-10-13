@@ -32,7 +32,7 @@ class SeasonWinner(db.Model):
     accuracy = db.Column(db.Float, default=0.0)
 
     # Timestamps
-    created_at = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
+    created_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(UTC))
 
     # Relationships
     season = db.relationship("Season", backref="winners")

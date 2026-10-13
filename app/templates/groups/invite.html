@@ -165,11 +165,11 @@
                                     <div class="invite-meta">
                                         <span class="invite-date">
                                             <i class="fas fa-calendar"></i>
-                                            Sent {{ invite.created_at.strftime('%b %d, %Y') }}
+                                            Sent {{ invite.created_at|localtime('%b %d, %Y') }}
                                         </span>
                                         <span class="invite-expires">
                                             <i class="fas fa-clock"></i>
-                                            Expires {{ invite.expires_at.strftime('%b %d, %Y') }}
+                                            Expires {{ invite.expires_at|localtime('%b %d, %Y') }}
                                         </span>
                                     </div>
                                 </div>

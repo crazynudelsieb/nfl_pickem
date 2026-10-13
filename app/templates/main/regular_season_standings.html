@@ -117,7 +117,7 @@
         <div style="border-top: 1px solid var(--border-color); padding: 1.5rem; background: var(--card-bg); margin-top: 1rem;">
             <h4 style="margin: 0 0 0.5rem 0; font-size: 0.875rem; color: var(--text-primary); font-weight: 600;">📸 Snapshot Details</h4>
             <p style="margin: 0; font-size: 0.875rem; color: var(--text-secondary);">
-                <strong>Captured:</strong> {{ snapshots[0].snapshot_date.strftime('%B %d, %Y at %I:%M %p') if snapshots else 'N/A' }}<br>
+                <strong>Captured:</strong> {{ snapshots[0].snapshot_date|localtime('%B %d, %Y at %I:%M %p') if snapshots else 'N/A' }}<br>
                 <strong>Basis:</strong> Final standings after Week 18 completion<br>
                 <strong>Playoff Cutoff:</strong> Top 4 users advanced to playoff competition
             </p>

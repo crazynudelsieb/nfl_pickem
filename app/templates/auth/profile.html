@@ -286,7 +286,7 @@
                             Member Since
                         </label>
                         <span style="font-size: 1rem; color: var(--text-primary); font-weight: 500;">
-                            {{ user.created_at.strftime('%B %d, %Y') if user.created_at else 'Unknown' }}
+                            {{ user.created_at|localtime('%B %d, %Y') if user.created_at else 'Unknown' }}
                         </span>
                     </div>
                 </div>

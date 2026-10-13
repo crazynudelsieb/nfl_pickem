@@ -252,8 +252,8 @@
                     <tr>
                         <td>
                             <div style="font-size: 13px;">
-                                {{ action.created_at.strftime('%m/%d/%Y') }}<br>
-                                <span style="color: var(--text-secondary);">{{ action.created_at.strftime('%I:%M %p') }}</span>
+                                {{ action.created_at|localtime('%m/%d/%Y') }}<br>
+                                <span style="color: var(--text-secondary);">{{ action.created_at|localtime('%I:%M %p') }}</span>
                             </div>
                         </td>
                         <td>

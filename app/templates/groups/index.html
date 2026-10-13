@@ -115,8 +115,8 @@
                 </div>
                 <div style="text-align: center; padding: 0.875rem 0.5rem; background: var(--bg-tertiary); border-radius: 6px; border: 1px solid var(--border-color);">
                     <div style="font-size: 0.7rem; color: var(--text-secondary); text-transform: uppercase; font-weight: 600; letter-spacing: 0.03em; margin-bottom: 0.25rem;">Created</div>
-                    <div style="font-size: 1.5rem; font-weight: 700; color: var(--text-primary);">{{ current_group.created_at.strftime('%b') }}</div>
-                    <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.25rem;">{{ current_group.created_at.strftime('%Y') }}</div>
+                    <div style="font-size: 1.5rem; font-weight: 700; color: var(--text-primary);">{{ current_group.created_at|localtime('%b') }}</div>
+                    <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.25rem;">{{ current_group.created_at|localtime('%Y') }}</div>
                 </div>
             </div>
 
@@ -336,7 +336,7 @@
                             {% endif %}
                         </td>
                         <td>
-                            <span style="color: var(--text-secondary); font-size: 0.875rem;">{{ group.created_at.strftime('%b %Y') }}</span>
+                            <span style="color: var(--text-secondary); font-size: 0.875rem;">{{ group.created_at|localtime('%b %Y') }}</span>
                         </td>
                         <td style="text-align: right;">
                             <a href="{{ url_for('groups.join', code=group.invite_code) }}" style="padding: 0.25rem 0.75rem; background: rgba(16, 185, 129, 0.1); color: var(--accent-green); border-radius: 6px; font-size: 0.75rem; font-weight: 600; text-decoration: none; display: inline-flex; align-items: center; gap: 0.25rem;">

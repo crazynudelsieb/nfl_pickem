@@ -10,7 +10,7 @@ PostgreSQL and SQLite).
 
 import logging
 
-from sqlalchemy import inspect
+from sqlalchemy import DateTime, inspect
 
 from app import db
 
@@ -64,18 +64,25 @@ EXPRESSION_UNIQUE_INDEXES = [
     ("users", "uq_users_email_lower", "lower(email)"),
 ]
 
-# (table, column) that must be TIMESTAMP WITH TIME ZONE on PostgreSQL.
-#
-# The app writes UTC-aware datetimes. Into a naive column PostgreSQL converts
-# them to the session's TimeZone first, and production's database runs in
-# Europe/Vienna - so kickoff was stored as Vienna wall clock, read back as UTC,
-# and has_started() stayed False for the first two hours of every game. The
-# naive values are exactly that session wall clock, so converting them in the
-# same session's TimeZone recovers the true instants. SQLite has no zoned type
-# and stores what it is given, so it is skipped.
-TIMESTAMPTZ_COLUMNS = [
-    ("games", "game_time"),
-]
+
+def timestamptz_columns():
+    """(table, column) for every model column declared DateTime(timezone=True)
+
+    Each must be TIMESTAMP WITH TIME ZONE on PostgreSQL. The app writes
+    UTC-aware datetimes; into a naive column PostgreSQL converts them to the
+    session's TimeZone first, and production's database runs in Europe/Vienna -
+    so every timestamp was stored as Vienna wall clock and read back as UTC.
+    For kickoff that meant has_started() stayed False for the first two hours
+    of every game. Read from the models rather than listed by hand, because a
+    hand list is how users.reset_token_expiry came to be declared zoned in the
+    model and still be naive in the database.
+    """
+    return [
+        (table.name, column.name)
+        for table in db.metadata.sorted_tables
+        for column in table.columns
+        if isinstance(column.type, DateTime) and column.type.timezone
+    ]
 
 
 def _ensure_columns(existing_tables):
@@ -193,27 +200,37 @@ def _ensure_expression_unique_indexes(existing_tables):
             logger.error(f"Schema guard failed creating {table}.{index}: {e}")
 
 
-def _ensure_timestamptz(existing_tables):
-    """Convert registered naive timestamp columns to TIMESTAMP WITH TIME ZONE"""
+def _ensure_timestamptz():
+    """Convert zoned model columns that are still naive in the database
+
+    The naive values are exactly the session's wall clock, so reading them in
+    the same session's TimeZone recovers the true instants. SQLite has no zoned
+    type and stores what it is given, so it is skipped.
+    """
     if db.engine.dialect.name != "postgresql":
         return
 
-    for table, column in TIMESTAMPTZ_COLUMNS:
-        if table not in existing_tables:
-            continue
+    try:
+        naive = {
+            (row.table_name, row.column_name)
+            for row in db.session.execute(
+                db.text(
+                    "SELECT table_name, column_name FROM information_schema.columns "
+                    "WHERE table_schema = current_schema() "
+                    "AND data_type = 'timestamp without time zone'"
+                )
+            )
+        }
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Schema guard could not list timestamp columns: {e}")
+        return
+
+    for table, column in timestamptz_columns():
+        if (table, column) not in naive:
+            continue  # already zoned, or create_all has just built it zoned
 
         try:
-            data_type = db.session.execute(
-                db.text(
-                    "SELECT data_type FROM information_schema.columns "
-                    "WHERE table_schema = current_schema() "
-                    "AND table_name = :table AND column_name = :column"
-                ),
-                {"table": table, "column": column},
-            ).scalar()
-            if data_type != "timestamp without time zone":
-                continue  # already zoned (or missing - create_all owns that)
-
             db.session.execute(
                 db.text(
                     f"ALTER TABLE {table} ALTER COLUMN {column} "
@@ -241,4 +258,4 @@ def ensure_schema():
     _backfill_lowercase(existing_tables)
     _ensure_unique_indexes(existing_tables)
     _ensure_expression_unique_indexes(existing_tables)
-    _ensure_timestamptz(existing_tables)
+    _ensure_timestamptz()

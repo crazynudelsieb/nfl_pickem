@@ -38,13 +38,13 @@ class User(UserMixin, db.Model):
     reset_token_expiry = db.Column(db.DateTime(timezone=True), nullable=True)
 
     # Timestamps
-    created_at = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
+    created_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(UTC))
     updated_at = db.Column(
-        db.DateTime,
+        db.DateTime(timezone=True),
         default=lambda: datetime.now(UTC),
         onupdate=lambda: datetime.now(UTC),
     )
-    last_login = db.Column(db.DateTime)
+    last_login = db.Column(db.DateTime(timezone=True))
 
     # Relationships
     picks = db.relationship(

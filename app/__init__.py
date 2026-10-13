@@ -242,6 +242,10 @@ def create_app(config_name=None):
     def inject_static_url():
         return {"static_url": static_url}
 
+    from app.utils.timezone_utils import format_local_time
+
+    app.add_template_filter(format_local_time, "localtime")
+
     @app.context_processor
     def inject_csp_nonce():
         # Every inline <script> in the templates carries nonce="{{ csp_nonce() }}",

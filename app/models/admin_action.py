@@ -30,7 +30,7 @@ class AdminAction(db.Model):
     action_metadata = db.Column(db.JSON, nullable=True)
 
     # Timestamps
-    created_at = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
+    created_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(UTC))
 
     # Relationships
     admin_user = db.relationship(

@@ -80,11 +80,11 @@
                                 {% endif %}
                             </td>
                             <td>
-                                <span style="color: var(--text-secondary); font-size: 0.875rem;">{{ member.joined_at.strftime('%b %d, %Y') }}</span>
+                                <span style="color: var(--text-secondary); font-size: 0.875rem;">{{ member.joined_at|localtime('%b %d, %Y') }}</span>
                             </td>
                             <td>
                                 {% if member.last_active %}
-                                <span style="color: var(--text-secondary); font-size: 0.875rem;">{{ member.last_active.strftime('%b %d, %Y') }}</span>
+                                <span style="color: var(--text-secondary); font-size: 0.875rem;">{{ member.last_active|localtime('%b %d, %Y') }}</span>
                                 {% else %}
                                 <span style="color: var(--text-muted); font-size: 0.875rem;">-</span>
                                 {% endif %}
@@ -185,7 +185,7 @@
                             <i class="fas fa-calendar-plus"></i>
                         </div>
                         <div class="stat-info">
-                            <div class="stat-value">{{ group.created_at.strftime('%b %Y') }}</div>
+                            <div class="stat-value">{{ group.created_at|localtime('%b %Y') }}</div>
                             <div class="stat-label">Group Created</div>
                         </div>
                     </div>

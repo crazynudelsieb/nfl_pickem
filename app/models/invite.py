@@ -27,15 +27,15 @@ class Invite(db.Model):
 
     # Invite token and expiry
     token = db.Column(db.String(32), unique=True, nullable=False, index=True)
-    expires_at = db.Column(db.DateTime, nullable=False)
+    expires_at = db.Column(db.DateTime(timezone=True), nullable=False)
 
     # Status
     is_used = db.Column(db.Boolean, default=False)
     is_active = db.Column(db.Boolean, default=True)
 
     # Timestamps
-    created_at = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
-    used_at = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(UTC))
+    used_at = db.Column(db.DateTime(timezone=True))
 
     # Indexes
     __table_args__ = (

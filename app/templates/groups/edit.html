@@ -178,7 +178,7 @@
                     <div class="info-list">
                         <div class="info-item">
                             <label>Created:</label>
-                            <span>{{ group.created_at.strftime('%B %d, %Y') }}</span>
+                            <span>{{ group.created_at|localtime('%B %d, %Y') }}</span>
                         </div>
                         <div class="info-item">
                             <label>Members:</label>

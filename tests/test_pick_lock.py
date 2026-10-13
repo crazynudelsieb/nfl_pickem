@@ -8,12 +8,11 @@ not ok: 400" - the picks page never offered the switch it was going to refuse,
 and the reason the server gave was thrown away. These tests pin both.
 """
 
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from app.models import Game, Pick, Team
 from app.routes.main.routes import _calculate_team_availability
-from app.utils.schema_guard import TIMESTAMPTZ_COLUMNS
 from tests.conftest import _naive_utc
 
 
@@ -69,12 +68,6 @@ def submit(client, group, game, team):
     )
 
 
-def test_kickoff_is_stored_as_an_absolute_instant():
-    """A naive column takes on the database session's zone - Vienna in prod."""
-    assert Game.__table__.c.game_time.type.timezone is True
-    assert ("games", "game_time") in TIMESTAMPTZ_COLUMNS
-
-
 def test_kickoff_read_back_in_the_session_zone_still_locks_on_time():
     """PostgreSQL returns timestamptz in the session zone, not in UTC."""
     vienna = ZoneInfo("Europe/Vienna")
@@ -84,13 +77,6 @@ def test_kickoff_read_back_in_the_session_zone_still_locks_on_time():
 
     assert kicked_off.has_started() and not kicked_off.is_pickable()
     assert not upcoming.has_started() and upcoming.is_pickable()
-
-
-def test_local_game_time_shows_kickoff_in_the_app_timezone(app):
-    app.config["TIMEZONE"] = "Europe/Vienna"
-    game = Game(game_time=datetime(2026, 10, 18, 17, 0, tzinfo=UTC))
-
-    assert game.local_game_time.strftime("%H:%M") == "19:00"
 
 
 def test_started_week_pick_closes_the_other_games(

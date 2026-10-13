@@ -19,7 +19,7 @@ class Game(db.Model):
     # Game timing. An absolute instant: a naive column stored whatever wall
     # clock the database session was in (Europe/Vienna in production) and the
     # app read it back as UTC, so kickoff appeared two hours late and games
-    # stayed pickable after they had started. See schema_guard.TIMESTAMPTZ_COLUMNS.
+    # stayed pickable after they had started. See schema_guard.timestamptz_columns.
     game_time = db.Column(db.DateTime(timezone=True), nullable=False)
 
     # Scores
@@ -39,9 +39,9 @@ class Game(db.Model):
     over_under = db.Column(db.Float)  # Total points over/under
 
     # Timestamps
-    created_at = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
+    created_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(UTC))
     updated_at = db.Column(
-        db.DateTime,
+        db.DateTime(timezone=True),
         default=lambda: datetime.now(UTC),
         onupdate=lambda: datetime.now(UTC),
     )

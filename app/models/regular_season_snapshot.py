@@ -35,7 +35,7 @@ class RegularSeasonSnapshot(db.Model):
     is_superbowl_eligible = db.Column(db.Boolean, default=False)  # Top 2 from playoffs
 
     # Snapshot metadata
-    snapshot_date = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
+    snapshot_date = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(UTC))
 
     # Relationships
     season = db.relationship("Season", backref="regular_season_snapshots")
